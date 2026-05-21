@@ -42,7 +42,7 @@ kakapo = "kakapo.cli:main"
 
 [tool.setuptools]
 packages = ["kakapo"]
-package-dir = {"kakapo" = "src"}
+package-dir = {"" = "src"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

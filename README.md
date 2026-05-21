@@ -32,13 +32,14 @@ kakapo --help
 
 ```
 src/
-├── main.py          # Core workflow orchestration
-├── cli.py           # Command-line interface
-├── config.py        # Configuration and constants
-├── models.py        # Data structure definitions
-├── io/              # Input/Output parsers
-├── core/            # Core algorithmic modules
-└── utils/           # Utility helpers (logging, etc.)
+└── kakapo/          # Main package
+    ├── main.py      # Core workflow orchestration
+    ├── cli.py       # Command-line interface
+    ├── config.py    # Configuration and constants
+    ├── models.py    # Data structure definitions
+    ├── io/          # Input/Output parsers
+    ├── core/        # Core algorithmic modules
+    └── utils/       # Utility helpers (logging, etc.)
 
 tests/               # Unit tests
 ```
