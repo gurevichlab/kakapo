@@ -26,6 +26,7 @@ classifiers = [
 
 dependencies = [
     "PyYAML>=6.0",
+    "nerpa-ms @ file:///home/daria/Uni/Master/nerpa-ms",
     # TODO: Add additional dependencies as needed (e.g., numpy, pandas for spectrum processing)
 ]
 
