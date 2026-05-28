@@ -1,145 +1,120 @@
-"""YAML parser for rBAN (Retrosynthetic Complexity-Based Aromatic Nitro) structures.
+"""YAML parser for full Parsed_rBAN_Record structures.
 
-This module handles:
-- Loading rBAN topology details from YAML files
-- Converting nerpa-ms rBAN structures to kakapo's Molecule model
-- Validating structural data integrity
+This module loads atom-level rBAN records serialized by nerpa-ms and converts
+them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
 """
 
+import networkx as nx
 import yaml
-from monomer_names_helper import Chirality as NerpaChirality
-from rban_parsing.nrp_variant_types import NRP_Variant
-from rban_parsing.rban_monomer import rBAN_Monomer
+from rban_parsing.rban_parser import Parsed_rBAN_Record
 
-from kakapo.models import Chirality, Cycle, Molecule, Monomer
+from kakapo.models import Bond, Chirality, Cycle, Molecule, Monomer
 
 
-def _convert_chirality(nerpa_chirality: NerpaChirality) -> Chirality:
-    """Convert nerpa-ms Chirality enum to kakapo Chirality enum.
+def _extract_cycles_from_monomer_edges(
+    monomer_indices: list[int], edges: list[tuple[int, int]]
+) -> list[Cycle]:
+    """Infer cyclic motifs from an undirected monomer-level graph."""
+    if not monomer_indices:
+        return []
 
-    Args:
-        nerpa_chirality: Chirality from nerpa-ms (Chirality.L, .D, or .UNKNOWN).
+    graph = nx.Graph()
+    graph.add_nodes_from(monomer_indices)
+    graph.add_edges_from(edges)
 
-    Returns:
-        Equivalent Chirality in kakapo model.
-    """
-    if nerpa_chirality == NerpaChirality.L:
-        return Chirality.L
-    elif nerpa_chirality == NerpaChirality.D:
-        return Chirality.D
-    else:
-        return Chirality.UNKNOWN
-
-
-def _rban_monomer_to_kakapo(rban_mon: rBAN_Monomer) -> Monomer:
-    """Convert a nerpa-ms rBAN_Monomer to a kakapo Monomer.
-
-    This adapter function bridges the two data models, extracting the fields
-    kakapo cares about and discarding nerpa-ms-specific details.
-
-    Args:
-        rban_mon: An rBAN_Monomer instance from nerpa-ms.
-
-    Returns:
-        A kakapo Monomer instance.
-    """
-    return Monomer(
-        norine_name=str(rban_mon.rban_name),
-        residue=str(rban_mon.residue),
-        is_methylated=rban_mon.methylated,
-        chirality=_convert_chirality(rban_mon.chirality),
-    )
-
-
-def _extract_monomers_from_variant(variant: NRP_Variant) -> list[Monomer]:
-    """Extract all monomers from an NRP_Variant in sequence order.
-
-    For fragmented structures (e.g., linear peptides split by cycles),
-    this concatenates all fragments in order, preserving linear structure.
-
-    Args:
-        variant: An NRP_Variant from nerpa-ms.
-
-    Returns:
-        An ordered list of kakapo Monomers.
-    """
-    all_monomers = []
-
-    # Add monomers from all fragments in order
-    for fragment in variant.fragments:
-        for rban_mon in fragment.monomers:
-            all_monomers.append(_rban_monomer_to_kakapo(rban_mon))
-
-    # Add isolated monomers (e.g., unknowns not in main structure)
-    for rban_mon in variant.isolated_unknown_monomers:
-        all_monomers.append(_rban_monomer_to_kakapo(rban_mon))
-
-    return all_monomers
-
-
-def _extract_cycles_from_variant(variant: NRP_Variant, total_monomer_count: int) -> list[Cycle]:
-    """Extract cyclic motifs from an NRP_Variant.
-
-    Identifies fragments that represent cyclic structures and returns
-    them as Cycle objects referencing monomer indices in the full sequence.
-
-    Args:
-        variant: An NRP_Variant from nerpa-ms.
-        total_monomer_count: Total number of monomers in the variant
-            (from main fragments + isolated unknowns).
-
-    Returns:
-        A list of Cycle objects representing cyclic motifs.
-
-    Note:
-        This function attempts to detect cyclic fragments using common
-        nerpa-ms attributes (is_cyclic, cyclic, etc.). If the actual
-        nerpa-ms API differs, this logic may need adjustment.
-    """
     cycles = []
-    monomer_index = 0
-
-    # Process each fragment, tracking which monomers belong to cycles
-    for fragment in variant.fragments:
-        fragment_monomer_count = len(fragment.monomers)
-        fragment_indices = tuple(range(monomer_index, monomer_index + fragment_monomer_count))
-
-        # Check if fragment is cyclic (using nerpa-ms attributes)
-        is_cyclic = getattr(fragment, "is_cyclic", False)
-
-        if is_cyclic and fragment_monomer_count >= 2:
-            cycles.append(Cycle(monomer_indices=fragment_indices))
-
-        monomer_index += fragment_monomer_count
-
-    # Note: isolated_unknown_monomers are typically not cyclic,
-    # so we skip them when constructing cycles.
-
+    for cycle_nodes in nx.cycle_basis(graph):
+        if len(cycle_nodes) >= 2:
+            cycles.append(Cycle(monomer_indices=tuple(cycle_nodes)))
     return cycles
 
 
-def parse_rban_yaml(yaml_path: str) -> Molecule:
-    """Parse an rBAN YAML file and return a kakapo Molecule.
+def _extract_ring_edges_from_cycles(cycle_nodes: list[int]) -> set[tuple[int, int]]:
+    """Convert cycle node order to undirected canonical edge pairs."""
+    cycle_edges = set()
+    if len(cycle_nodes) < 2:
+        return cycle_edges
 
-    This function:
-    1. Loads YAML from the given file path
-    2. Parses it into nerpa-ms NRP_Variant structures
-    3. Extracts monomers and cyclic topology
-    4. Converts to kakapo's Molecule model
-    5. Validates the result
+    for i in range(len(cycle_nodes)):
+        u = cycle_nodes[i]
+        v = cycle_nodes[(i + 1) % len(cycle_nodes)]
+        cycle_edges.add((u, v) if u <= v else (v, u))
+    return cycle_edges
+
+
+def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
+    """Convert Parsed_rBAN_Record into a kakapo Molecule, retaining source record."""
+    ordered_monomer_indices = sorted(record.monomers.keys())
+    monomers = []
+    for mon_idx in ordered_monomer_indices:
+        mon_info = record.monomers[mon_idx]
+        residue = (
+            str(mon_info.nerpa_core) if mon_info.nerpa_core is not None else str(mon_info.name)
+        )
+        is_methylated = bool(mon_info.methylated) if mon_info.methylated is not None else False
+        monomers.append(
+            Monomer(
+                norine_name=str(mon_info.name),
+                residue=residue,
+                is_methylated=is_methylated,
+                chirality=Chirality[mon_info.chirality.name],
+            )
+        )
+
+    graph_index_of = {mon_idx: i for i, mon_idx in enumerate(ordered_monomer_indices)}
+    indexed_edges = []
+    for u, v in record.monomer_bonds.keys():
+        if u in graph_index_of and v in graph_index_of:
+            indexed_edges.append((graph_index_of[u], graph_index_of[v]))
+
+    cycles = _extract_cycles_from_monomer_edges(
+        list(range(len(ordered_monomer_indices))),
+        indexed_edges,
+    )
+    ring_edges = set()
+    for cycle in cycles:
+        ring_edges.update(_extract_ring_edges_from_cycles(list(cycle.monomer_indices)))
+
+    bonds = []
+    for u, v in indexed_edges:
+        canonical = (u, v) if u <= v else (v, u)
+
+        bond_info_list = record.monomer_bonds.get(canonical, [])
+        bond_type = bond_info_list[0].atomic_edge.bond_type if bond_info_list else "PEPTIDE"
+        bonds.append(
+            Bond(
+                source_idx=u,
+                target_idx=v,
+                bond_type=bond_type,
+                is_ring_bond=canonical in ring_edges,
+            )
+        )
+
+    return Molecule(
+        structure_id=record.compound_id,
+        monomers=tuple(monomers),
+        bonds=tuple(bonds),
+        cycles=tuple(cycles),
+        smiles=record.metadata.smiles,
+        source_parsed_record=record,
+    )
+
+
+def parse_rban_yaml(yaml_path: str) -> Molecule | dict[str, Molecule]:
+    """Parse a Parsed_rBAN_Record YAML file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
-        yaml_path: Path to the YAML file containing rBAN structure data.
+        yaml_path: Path to a YAML file containing one Parsed_rBAN_Record dict or a list of them.
 
     Returns:
         A kakapo Molecule instance representing the structure with
-        cyclic topology information preserved.
+        cyclic topology information preserved, or a dictionary mapping structure IDs to Molecule
+        instances if the file contains a list of records.
 
     Raises:
         FileNotFoundError: If the YAML file does not exist.
         yaml.YAMLError: If the file is not valid YAML.
-        ValueError: If the YAML does not contain valid rBAN structure data.
-        AssertionError: If the parsed structure has no monomers.
+        ValueError: If the YAML is not a valid Parsed_rBAN_Record payload.
     """
     # Load YAML file
     try:
@@ -153,32 +128,34 @@ def parse_rban_yaml(yaml_path: str) -> Molecule:
     if yaml_data is None:
         raise ValueError(f"YAML file {yaml_path} is empty")
 
-    # Parse into nerpa-ms NRP_Variant
+    if isinstance(yaml_data, list):
+        if not yaml_data:
+            raise ValueError(f"YAML file {yaml_path} contains an empty list")
+
+        molecules = {}
+        errors = []
+        for i, item in enumerate(yaml_data):
+            try:
+                parsed_record = Parsed_rBAN_Record.from_dict(item)
+                molecule = _build_molecule_from_parsed_record(parsed_record)
+                molecules[molecule.structure_id] = molecule
+            except (KeyError, ValueError, TypeError) as e:
+                errors.append(f"Index {i}: {e}")
+
+        if errors:
+            raise ValueError(
+                f"Failed to parse Parsed_rBAN_Record list from {yaml_path}. Errors:\n"
+                + "\n".join(errors)
+            )
+
+        return molecules
+
     try:
-        variant = NRP_Variant.from_yaml_dict(yaml_data)
+        parsed_record = Parsed_rBAN_Record.from_dict(yaml_data)
     except (KeyError, ValueError, TypeError) as e:
-        raise ValueError(
-            f"Failed to parse rBAN structure from {yaml_path}. "
-            f"Expected NRP_Variant format. Error: {e}"
-        ) from e
+        raise ValueError(f"Failed to parse Parsed_rBAN_Record from {yaml_path}. Error: {e}") from e
 
-    # Extract monomers and cyclic topology
-    monomers = _extract_monomers_from_variant(variant)
-
-    if not monomers:
-        raise ValueError(f"No monomers found in YAML file {yaml_path}")
-
-    cycles = _extract_cycles_from_variant(variant, len(monomers))
-
-    # Create molecule with structure ID, monomers, cycles, and optional SMILES
-    molecule = Molecule(
-        structure_id=variant.nrp_variant_id.nrp_id,
-        monomers=tuple(monomers),
-        cycles=tuple(cycles),
-        smiles=variant.metadata.smiles,
-    )
-
-    return molecule
+    return _build_molecule_from_parsed_record(parsed_record)
 
 
 def parse_rban_yaml_batch(yaml_paths: list[str]) -> dict[str, Molecule]:
@@ -198,8 +175,11 @@ def parse_rban_yaml_batch(yaml_paths: list[str]) -> dict[str, Molecule]:
 
     for yaml_path in yaml_paths:
         try:
-            molecule = parse_rban_yaml(yaml_path)
-            molecules[molecule.structure_id] = molecule
+            result = parse_rban_yaml(yaml_path)
+            if isinstance(result, dict):
+                molecules.update(result)
+            else:
+                molecules[result.structure_id] = result
         except Exception as e:
             errors.append(f"{yaml_path}: {e}")
 

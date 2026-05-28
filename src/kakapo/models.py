@@ -7,6 +7,9 @@ and explicit contracts between modules.
 from dataclasses import dataclass
 from enum import Enum, auto
 
+import networkx as nx
+from rban_parsing.rban_parser import Parsed_rBAN_Record
+
 
 class Chirality(Enum):
     """Amino acid chirality."""
@@ -86,6 +89,35 @@ class Monomer:
 
 
 @dataclass(frozen=True)
+class Bond:
+    """A chemical bond between two monomers in an rBAN structure.
+
+    Represents a linkage between adjacent monomers with explicit bond type
+    (amino, ester, thioether, glycosidic, etc.) and information about whether
+    it's part of a cyclic ring.
+
+    Attributes:
+        source_idx: Index of the source monomer in the parent Molecule's monomers tuple.
+        target_idx: Index of the target monomer in the parent Molecule's monomers tuple.
+        bond_type: String describing the bond type (e.g., 'AMINO', 'ESTER', 'THIOETHER').
+        is_ring_bond: Whether this bond is part of a cyclic ring.
+    """
+
+    source_idx: int
+    target_idx: int
+    bond_type: str
+    is_ring_bond: bool = False
+
+    def __post_init__(self):
+        if self.source_idx < 0 or self.target_idx < 0:
+            raise ValueError("Bond indices must be non-negative")
+        if self.source_idx == self.target_idx:
+            raise ValueError("Bond cannot connect a monomer to itself")
+        if not self.bond_type:
+            raise ValueError("Bond type cannot be empty")
+
+
+@dataclass(frozen=True)
 class Cycle:
     """A cyclic peptide motif within an rBAN structure.
 
@@ -113,18 +145,24 @@ class Molecule:
     Represents a complete natural product structure with monomers arranged
     in linear and/or cyclic topology. Cyclic regions are explicitly tracked
     to support fragmentation algorithms that split on bridges and 2-cuts.
+    Bonds encode the chemical linkages between monomers.
 
     Attributes:
         structure_id: Unique identifier for this molecule.
         monomers: Ordered sequence of monomers in the structure.
+        bonds: Chemical linkages between monomers (empty tuple for single monomers).
         cycles: Cyclic motifs within the structure (empty tuple for linear molecules).
         smiles: Optional SMILES string representation.
+        source_parsed_record: Optional original Parsed_rBAN_Record payload for
+            atom-level reconstruction (atoms, atomic bonds, monomer-to-atom mapping).
     """
 
     structure_id: str
     monomers: tuple[Monomer, ...]
+    bonds: tuple[Bond, ...] = ()
     cycles: tuple[Cycle, ...] = ()
     smiles: str | None = None
+    source_parsed_record: Parsed_rBAN_Record | None = None
 
     def __post_init__(self):
         if not self.structure_id:
@@ -132,8 +170,21 @@ class Molecule:
         if len(self.monomers) == 0:
             raise ValueError("Molecule must contain at least one monomer")
 
-        # Validate cycle indices
+        # Validate bond indices
         monomer_count = len(self.monomers)
+        for bond in self.bonds:
+            if bond.source_idx < 0 or bond.source_idx >= monomer_count:
+                raise ValueError(
+                    f"Bond source index {bond.source_idx} out of range "
+                    f"(molecule has {monomer_count} monomers)"
+                )
+            if bond.target_idx < 0 or bond.target_idx >= monomer_count:
+                raise ValueError(
+                    f"Bond target index {bond.target_idx} out of range "
+                    f"(molecule has {monomer_count} monomers)"
+                )
+
+        # Validate cycle indices
         for cycle in self.cycles:
             for idx in cycle.monomer_indices:
                 if idx < 0 or idx >= monomer_count:
@@ -167,8 +218,7 @@ class Molecule:
         if monomer_index < 0 or monomer_index >= len(self.monomers):
             raise IndexError(f"Monomer index {monomer_index} out of bounds")
 
-        return [cycle for cycle in self.cycles
-                if monomer_index in cycle.monomer_indices]
+        return [cycle for cycle in self.cycles if monomer_index in cycle.monomer_indices]
 
     def is_monomer_cyclic(self, monomer_index: int) -> bool:
         """Check if a monomer participates in any cycle.
@@ -212,6 +262,40 @@ class Molecule:
             segments.append((start, len(self.monomers) - 1))
 
         return segments
+
+    def build_networkx_graph(self) -> nx.DiGraph:
+        """Build a NetworkX directed graph representation of the molecular structure.
+
+        Nodes represent monomers (labeled by their index), and edges represent bonds.
+        Edge attributes include 'bond_type' and 'is_ring_bond'.
+
+        Returns:
+            A directed graph with monomer indices as nodes and bonds as edges.
+            Each edge (u, v) has attributes: bond_type (str) and is_ring_bond (bool).
+
+        Example:
+            >>> mol = Molecule(...)
+            >>> G = mol.build_networkx_graph()
+            >>> G.number_of_nodes()  # Number of monomers
+            >>> for u, v, data in G.edges(data=True):
+            ...     print(f"Bond {u}->{v}: {data['bond_type']}")
+        """
+        G = nx.DiGraph()
+
+        # Add nodes for each monomer
+        for i in range(len(self.monomers)):
+            G.add_node(i)
+
+        # Add edges for each bond
+        for bond in self.bonds:
+            G.add_edge(
+                bond.source_idx,
+                bond.target_idx,
+                bond_type=bond.bond_type,
+                is_ring_bond=bond.is_ring_bond,
+            )
+
+        return G
 
 
 @dataclass(frozen=True)

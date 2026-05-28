@@ -5,9 +5,6 @@ import tempfile
 
 import numpy as np
 import pytest
-from monomer_names_helper import Chirality as NerpaChirality
-from monomer_names_helper import NerpaResidue, NorineMonomerName
-from rban_parsing.rban_monomer import rBAN_Monomer
 
 from kakapo.io.mgf_parser import (
     _get_precursor_mass,
@@ -17,103 +14,61 @@ from kakapo.io.mgf_parser import (
     load_mgf_batch,
 )
 from kakapo.io.yaml_parser import (
-    _convert_chirality,
-    _rban_monomer_to_kakapo,
     parse_rban_yaml,
     parse_rban_yaml_batch,
 )
-from kakapo.models import Chirality, MatchResult, Molecule, Monomer, Peak, Spectrum
-
-
-class TestChiralityConversion:
-    """Test conversion from nerpa-ms to kakapo Chirality."""
-
-    def test_convert_l_chirality(self):
-        """L chirality should convert correctly."""
-        result = _convert_chirality(NerpaChirality.L)
-        assert result == Chirality.L
-
-    def test_convert_d_chirality(self):
-        """D chirality should convert correctly."""
-        result = _convert_chirality(NerpaChirality.D)
-        assert result == Chirality.D
-
-    def test_convert_unknown_chirality(self):
-        """Unknown chirality should convert correctly."""
-        result = _convert_chirality(NerpaChirality.UNKNOWN)
-        assert result == Chirality.UNKNOWN
-
-
-class TestRbanMonomerConversion:
-    """Test conversion from nerpa-ms rBAN_Monomer to kakapo Monomer."""
-
-    def test_convert_basic_monomer(self):
-        """Convert a basic rBAN_Monomer to kakapo Monomer."""
-        rban_mon = rBAN_Monomer(
-            residue=NerpaResidue("Ala"),
-            methylated=False,
-            chirality=NerpaChirality.L,
-            is_pks_hybrid=False,
-            rban_name=NorineMonomerName("Ala"),
-            rban_idx=0,
-        )
-
-        result = _rban_monomer_to_kakapo(rban_mon)
-
-        assert isinstance(result, Monomer)
-        assert result.norine_name == "Ala"
-        assert result.residue == "Ala"
-        assert result.is_methylated is False
-        assert result.chirality == Chirality.L
-
-    def test_convert_methylated_monomer(self):
-        """Convert a methylated monomer."""
-        rban_mon = rBAN_Monomer(
-            residue=NerpaResidue("Gly"),
-            methylated=True,
-            chirality=NerpaChirality.D,
-            is_pks_hybrid=False,
-            rban_name=NorineMonomerName("Gly"),
-            rban_idx=1,
-        )
-
-        result = _rban_monomer_to_kakapo(rban_mon)
-
-        assert result.is_methylated is True
-        assert result.chirality == Chirality.D
+from kakapo.models import MatchResult, Molecule, Peak, Spectrum
 
 
 class TestYamlParserBasic:
-    """Test YAML parser with simple valid structures."""
+    """Test YAML parser with full Parsed_rBAN_Record structures."""
 
-    def test_parse_simple_linear_structure(self):
-        """Parse a simple linear rBAN structure."""
+    def test_parse_parsed_rban_record_retains_atomic_payload(self):
+        """Parse a full Parsed_rBAN_Record YAML and retain source atom graph."""
         yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP001"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "Ala"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Ala"
-        rban_idx: 0
-      - residue: "Gly"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Gly"
-        rban_idx: 1
-isolated_monomers: []
+compound_id: "NRP_PARSED_1"
 metadata:
-  name: "TestPeptide"
-  smiles: "C(C(=O)O)N"
+  name: "ParsedRecord"
+  smiles: "NCC(=O)O"
   origin: null
   inchikey: null
   source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 2
+  1:
+    name: "C"
+    hydrogens: 1
+  2:
+    name: "C"
+    hydrogens: 0
+  3:
+    name: "O"
+    hydrogens: 0
+  4:
+    name: "O"
+    hydrogens: 1
+monomers:
+  0:
+    name: "Ala"
+    atoms: [0, 1, 2, 3, 4]
+    chirality: "L"
+    is_pks_hybrid: false
+monomer_bonds: []
+atomic_bonds:
+  - - [0, 1]
+    - arity: "1"
+      bond_type: "SINGLE"
+  - - [1, 2]
+    - arity: "1"
+      bond_type: "SINGLE"
+  - - [2, 3]
+    - arity: "2"
+      bond_type: "DOUBLE"
+  - - [2, 4]
+    - arity: "1"
+      bond_type: "SINGLE"
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_data)
@@ -123,121 +78,72 @@ metadata:
             molecule = parse_rban_yaml(yaml_path)
 
             assert isinstance(molecule, Molecule)
-            assert molecule.structure_id == "NRP001"
-            assert len(molecule.monomers) == 2
-            assert molecule.monomers[0].norine_name == "Ala"
-            assert molecule.monomers[1].norine_name == "Gly"
-            assert molecule.smiles == "C(C(=O)O)N"
-        finally:
-            os.unlink(yaml_path)
-
-    def test_parse_cyclic_structure(self):
-        """Parse a cyclic structure."""
-        yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP002"
-  variant_idx: 0
-fragments:
-  - is_cyclic: true
-    monomers:
-      - residue: "Pro"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Pro"
-        rban_idx: 0
-      - residue: "Leu"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Leu"
-        rban_idx: 1
-isolated_monomers: []
-metadata:
-  name: null
-  smiles: null
-  origin: null
-  inchikey: null
-  source: null
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_data)
-            yaml_path = f.name
-
-        try:
-            molecule = parse_rban_yaml(yaml_path)
-
-            assert molecule.structure_id == "NRP002"
-            assert len(molecule.monomers) == 2
-        finally:
-            os.unlink(yaml_path)
-
-    def test_parse_with_methylation(self):
-        """Parse structure with methylated monomers."""
-        yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP003"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "Asp"
-        methylated: true
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Asp-Me"
-        rban_idx: 0
-isolated_monomers: []
-metadata:
-  name: null
-  smiles: null
-  origin: null
-  inchikey: null
-  source: null
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_data)
-            yaml_path = f.name
-
-        try:
-            molecule = parse_rban_yaml(yaml_path)
-
-            assert molecule.monomers[0].is_methylated is True
-        finally:
-            os.unlink(yaml_path)
-
-    def test_parse_with_pks_hybrid(self):
-        """Parse structure with PKS hybrid monomers."""
-        yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP004"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "_PKS"
-        methylated: false
-        chirality: "UNKNOWN"
-        is_pks_hybrid: true
-        rban_name: "PKS-hybrid"
-        rban_idx: 0
-isolated_monomers: []
-metadata:
-  name: null
-  smiles: null
-  origin: null
-  inchikey: null
-  source: null
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_data)
-            yaml_path = f.name
-
-        try:
-            molecule = parse_rban_yaml(yaml_path)
-
-            # The molecule should still be created even with PKS hybrid
+            assert molecule.structure_id == "NRP_PARSED_1"
+            assert molecule.smiles == "NCC(=O)O"
             assert len(molecule.monomers) == 1
+            assert molecule.source_parsed_record is not None
+            assert len(molecule.source_parsed_record.atomic_bonds) == 4
+        finally:
+            os.unlink(yaml_path)
+
+    def test_parse_parsed_rban_record_list(self):
+        """Parse a YAML file containing a list of Parsed_rBAN_Record and return a dictionary of
+        Molecules."""
+        yaml_data = """
+- compound_id: "NRP_PARSED_LIST_1"
+  metadata:
+    name: "ParsedRecord1"
+    smiles: "NCC(=O)O"
+    origin: null
+    inchikey: null
+    source: null
+  atoms:
+    0:
+      name: "N"
+      hydrogens: 2
+  monomers:
+    0:
+      name: "Ala"
+      atoms: [0]
+      chirality: "L"
+      is_pks_hybrid: false
+  monomer_bonds: []
+  atomic_bonds: []
+- compound_id: "NRP_PARSED_LIST_2"
+  metadata:
+    name: "ParsedRecord2"
+    smiles: "NCC(=O)O"
+    origin: null
+    inchikey: null
+    source: null
+  atoms:
+    0:
+      name: "N"
+      hydrogens: 2
+  monomers:
+    0:
+      name: "Ala"
+      atoms: [0]
+      chirality: "L"
+      is_pks_hybrid: false
+  monomer_bonds: []
+  atomic_bonds: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_data)
+            yaml_path = f.name
+
+        try:
+            molecules = parse_rban_yaml(yaml_path)
+
+            assert isinstance(molecules, dict)
+            assert len(molecules) == 2
+            assert "NRP_PARSED_LIST_1" in molecules
+            assert "NRP_PARSED_LIST_2" in molecules
+            assert isinstance(molecules["NRP_PARSED_LIST_1"], Molecule)
+            assert isinstance(molecules["NRP_PARSED_LIST_2"], Molecule)
+            assert molecules["NRP_PARSED_LIST_1"].structure_id == "NRP_PARSED_LIST_1"
+            assert molecules["NRP_PARSED_LIST_2"].structure_id == "NRP_PARSED_LIST_2"
         finally:
             os.unlink(yaml_path)
 
@@ -279,13 +185,11 @@ this: is: invalid: yaml: syntax:
             os.unlink(yaml_path)
 
     def test_parse_missing_required_fields(self):
-        """Should raise ValueError when required fields are missing."""
+        """Should raise ValueError when Parsed_rBAN_Record fields are missing."""
         yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP005"
-  variant_idx: 0
-fragments: []
-isolated_monomers: []
+compound_id: "NRP005"
+metadata:
+  smiles: "NCC(=O)O"
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_data)
@@ -298,28 +202,29 @@ isolated_monomers: []
             os.unlink(yaml_path)
 
     def test_parse_missing_monomers(self):
-        """Should raise ValueError when no monomers are present."""
+        """Should raise ValueError when Parsed_rBAN_Record has no monomers."""
         yaml_data = """
-nrp_variant_id:
-  nrp_id: "NRP006"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers: []
-isolated_monomers: []
+compound_id: "NRP006"
 metadata:
-  name: null
-  smiles: null
+  name: "NoMonomers"
+  smiles: "NCC(=O)O"
   origin: null
   inchikey: null
   source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 2
+atomic_bonds: []
+monomer_bonds: []
+monomers: {}
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_data)
             yaml_path = f.name
 
         try:
-            with pytest.raises(ValueError, match="No monomers"):
+            with pytest.raises(ValueError, match="at least one monomer"):
                 parse_rban_yaml(yaml_path)
         finally:
             os.unlink(yaml_path)
@@ -331,46 +236,46 @@ class TestYamlParserBatch:
     def test_parse_batch_multiple_files(self):
         """Parse multiple YAML files at once."""
         yaml_data_1 = """
-nrp_variant_id:
-  nrp_id: "NRP_A"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "Ala"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Ala"
-        rban_idx: 0
-isolated_monomers: []
+compound_id: "NRP_A"
 metadata:
   name: null
-  smiles: null
+  smiles: "NCC(=O)O"
   origin: null
   inchikey: null
   source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 1
+monomers:
+  0:
+    name: "Ala"
+    atoms: [0]
+    chirality: "L"
+    is_pks_hybrid: false
+monomer_bonds: []
+atomic_bonds: []
 """
         yaml_data_2 = """
-nrp_variant_id:
-  nrp_id: "NRP_B"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "Gly"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Gly"
-        rban_idx: 0
-isolated_monomers: []
+compound_id: "NRP_B"
 metadata:
   name: null
-  smiles: null
+  smiles: "NCC(=O)O"
   origin: null
   inchikey: null
   source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 1
+monomers:
+  0:
+    name: "Gly"
+    atoms: [0]
+    chirality: "L"
+    is_pks_hybrid: false
+monomer_bonds: []
+atomic_bonds: []
 """
         with tempfile.TemporaryDirectory() as tmpdir:
             yaml_path_1 = os.path.join(tmpdir, "nrp_a.yaml")
@@ -392,25 +297,25 @@ metadata:
     def test_parse_batch_with_error(self):
         """Batch parsing should report all errors."""
         valid_yaml = """
-nrp_variant_id:
-  nrp_id: "NRP_Valid"
-  variant_idx: 0
-fragments:
-  - is_cyclic: false
-    monomers:
-      - residue: "Ala"
-        methylated: false
-        chirality: "L"
-        is_pks_hybrid: false
-        rban_name: "Ala"
-        rban_idx: 0
-isolated_monomers: []
+compound_id: "NRP_Valid"
 metadata:
   name: null
-  smiles: null
+  smiles: "NCC(=O)O"
   origin: null
   inchikey: null
   source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 1
+monomers:
+  0:
+    name: "Ala"
+    atoms: [0]
+    chirality: "L"
+    is_pks_hybrid: false
+monomer_bonds: []
+atomic_bonds: []
 """
         invalid_yaml = "this: is: not: valid:"
 
