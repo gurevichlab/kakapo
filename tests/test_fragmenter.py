@@ -16,8 +16,17 @@ from kakapo.core.fragmenter import (
     calculate_theoretical_masses,
     generate_all_theoretical_masses,
     generate_fragments,
+    generate_theoretical_spectrum,
 )
-from kakapo.models import Bond, Chirality, Cycle, Molecule, Monomer
+from kakapo.models import (
+    Bond,
+    Chirality,
+    Cycle,
+    Molecule,
+    Monomer,
+    TheoreticalIon,
+    TheoreticalSpectrum,
+)
 
 # ============================================================================
 # Fixtures: Reusable Test Data
@@ -566,7 +575,9 @@ class TestMassCalculation:
         """Single monomer mass should be its residue mass."""
         calc = MonomerMassCalculator([simple_monomer])
         frag = Fragment(monomer_indices=(0,), removed_bonds=())
-        masses = calculate_theoretical_masses(frag, calc)
+        masses = calculate_theoretical_masses(
+            frag, calc, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
 
         assert len(masses) == 3  # [M+H]+, [M-H]-, neutral
         ion_types = {ion_type for _, ion_type in masses}
@@ -577,7 +588,10 @@ class TestMassCalculation:
         calc = MonomerMassCalculator([simple_monomer])
         frag = Fragment(monomer_indices=(0,), removed_bonds=())
         masses_dict = {
-            ion_type: mass for mass, ion_type in calculate_theoretical_masses(frag, calc)
+            ion_type: mass
+            for mass, ion_type in calculate_theoretical_masses(
+                frag, calc, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+            )
         }
 
         assert masses_dict["[M+H]+"] > masses_dict["fragment"]
@@ -587,7 +601,10 @@ class TestMassCalculation:
         calc = MonomerMassCalculator([simple_monomer])
         frag = Fragment(monomer_indices=(0,), removed_bonds=())
         masses_dict = {
-            ion_type: mass for mass, ion_type in calculate_theoretical_masses(frag, calc)
+            ion_type: mass
+            for mass, ion_type in calculate_theoretical_masses(
+                frag, calc, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+            )
         }
 
         assert masses_dict["[M-H]-"] < masses_dict["fragment"]
@@ -603,28 +620,131 @@ class TestIntegration:
 
     def test_full_pipeline_linear_dimer(self, linear_dimer):
         """Generate fragments and masses for linear dimer."""
-        masses = generate_all_theoretical_masses(linear_dimer)
+        masses = generate_all_theoretical_masses(
+            linear_dimer, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
         assert len(masses) == 6  # 2 * 3
-        # Each mass entry is (fragment_id, mass, ion_type)
-        assert all(len(m) == 3 for m in masses)
+        # Each mass entry is a TheoreticalIon
+        assert all(isinstance(m, TheoreticalIon) for m in masses)
         # Verify masses are sorted
-        mass_values = [m[1] for m in masses]
+        mass_values = [m.mass for m in masses]
         assert mass_values == sorted(mass_values)
 
     def test_full_pipeline_cyclic_trimer(self, cyclic_trimer):
         """Generate fragments and masses for cyclic structure."""
-        masses = generate_all_theoretical_masses(cyclic_trimer)
+        masses = generate_all_theoretical_masses(
+            cyclic_trimer, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
         assert len(masses) == 18  # 6 * 3
 
     def test_all_masses_positive(self, linear_trimer):
         """All theoretical masses should be positive."""
-        masses = generate_all_theoretical_masses(linear_trimer)
-        mass_values = [m[1] for m in masses]
+        masses = generate_all_theoretical_masses(
+            linear_trimer, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
+        mass_values = [m.mass for m in masses]
         assert all(m > 0 for m in mass_values)
 
     def test_fragment_count_reasonable(self, linear_trimer):
         """Number of masses should be ≥ number of fragments * 3 (3 ion types)."""
         fragments = generate_fragments(linear_trimer)
-        masses = generate_all_theoretical_masses(linear_trimer)
+        masses = generate_all_theoretical_masses(
+            linear_trimer, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
         # At least 3 masses per fragment
         assert len(masses) >= 3 * len(fragments)
+
+    def test_rule_based_bond_filtering(self):
+        """Verify that FragmentationRule rules successfully filter allowed cleavages."""
+        from kakapo.constants import PROTON_MASS
+        from kakapo.core.fragmenter import FragmentationRule
+        from kakapo.models import Bond, Chirality, Molecule, Monomer
+
+        m1 = Monomer(norine_name="ALA", residue="ALA", is_methylated=False, chirality=Chirality.L)
+        m2 = Monomer(norine_name="GLY", residue="GLY", is_methylated=False, chirality=Chirality.L)
+        m3 = Monomer(norine_name="PRO", residue="PRO", is_methylated=False, chirality=Chirality.L)
+
+        # bond1 is PEPTIDE, bond2 is ESTER
+        bond1 = Bond(source_idx=0, target_idx=1, bond_type="PEPTIDE", is_ring_bond=False)
+        bond2 = Bond(source_idx=1, target_idx=2, bond_type="ESTER", is_ring_bond=False)
+
+        mol = Molecule(
+            structure_id="mixed_bonds",
+            monomers=(m1, m2, m3),
+            bonds=(bond1, bond2),
+            cycles=(),
+        )
+
+        # When rules is restricted to only PEPTIDE, bond2 cannot be cleaved.
+        # So we can only cut bond1. This generates two fragments: [0] (ALA) and [1, 2] (GLY-PRO).
+        rules = (FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),)
+        fragments = generate_fragments(mol, rules=rules)
+        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
+        assert frozenset({0}) in monomer_sets
+        assert frozenset({1, 2}) in monomer_sets
+        # Monomer 2 (PRO) should not be isolated because ESTER bond is not cleaved
+        assert frozenset({2}) not in monomer_sets
+
+    def test_rule_based_cleavage_shifts(self, linear_dimer):
+        """Verify that rule-based cleavage shifts are correctly applied to fragment masses."""
+        calc = MonomerMassCalculator(list(linear_dimer.monomers))
+        fragments = generate_fragments(linear_dimer)
+
+        # Find fragments corresponding to single monomer 0 (ALA) and monomer 1 (GLY)
+        frag_ala = next(f for f in fragments if f.monomer_indices == (0,))
+        frag_gly = next(f for f in fragments if f.monomer_indices == (1,))
+
+        # Standard proton mass
+        from kakapo.constants import PROTON_MASS
+
+        # ALA is the source monomer of the PEPTIDE bond (gets -H right shift)
+        # GLY is the target monomer of the PEPTIDE bond (gets +H left shift)
+        masses_ala = calculate_theoretical_masses(frag_ala, calc, ion_types={"fragment"})
+        masses_gly = calculate_theoretical_masses(frag_gly, calc, ion_types={"fragment"})
+
+        neutral_ala = next(m for m, t in masses_ala if t == "fragment")
+        neutral_gly = next(m for m, t in masses_gly if t == "fragment")
+
+        expected_ala = calc.get_mass(0) - PROTON_MASS
+        expected_gly = calc.get_mass(1) + PROTON_MASS
+
+        assert pytest.approx(neutral_ala) == expected_ala
+        assert pytest.approx(neutral_gly) == expected_gly
+
+    def test_generate_theoretical_spectrum(self, linear_dimer):
+        """Verify that theoretical spectrum generation works as expected."""
+        theo_spec = generate_theoretical_spectrum(
+            linear_dimer, ion_types={"[M+H]+", "[M-H]-", "fragment"}
+        )
+        assert isinstance(theo_spec, TheoreticalSpectrum)
+        assert theo_spec.structure_id == "linear_dimer"
+        assert len(theo_spec.ions) == 6
+
+        # Check sorted ions helper
+        sorted_ions = theo_spec.get_sorted_ions()
+        assert len(sorted_ions) == 6
+        assert sorted_ions == sorted(theo_spec.ions, key=lambda ion: ion.mass)
+
+    def test_theoretical_spectrum_validation(self):
+        """Test validation rules for TheoreticalSpectrum and TheoreticalIon."""
+        # Empty fragment ID validation
+        with pytest.raises(ValueError, match="Fragment ID cannot be empty"):
+            TheoreticalIon(fragment_id="", mass=100.0, ion_type="[M+H]+")
+
+        # Negative mass validation
+        with pytest.raises(ValueError, match="Theoretical ion mass must be non-negative"):
+            TheoreticalIon(fragment_id="frag_0", mass=-10.0, ion_type="[M+H]+")
+
+        # Empty ion type validation
+        with pytest.raises(ValueError, match="Ion type cannot be empty"):
+            TheoreticalIon(fragment_id="frag_0", mass=100.0, ion_type="")
+
+        # Empty structure ID for spectrum
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, ion_type="[M+H]+")
+        with pytest.raises(ValueError, match="Structure ID cannot be empty"):
+            TheoreticalSpectrum(structure_id="", ions=frozenset({ion}))
+
+        # Empty ions set for spectrum
+        msg = "Theoretical spectrum must contain at least one ion"
+        with pytest.raises(ValueError, match=msg):
+            TheoreticalSpectrum(structure_id="spec_1", ions=frozenset())

@@ -66,6 +66,52 @@ class Spectrum:
 
 
 @dataclass(frozen=True)
+class TheoreticalIon:
+    """A theoretical ion generated from a fragment.
+
+    Attributes:
+        fragment_id: Unique identifier for the source fragment (e.g., 'frag_0').
+        mass: Calculated exact mass of the ion in Daltons.
+        ion_type: The adduct or ion type (e.g., '[M+H]+').
+    """
+
+    fragment_id: str
+    mass: float
+    ion_type: str
+
+    def __post_init__(self):
+        if not self.fragment_id:
+            raise ValueError("Fragment ID cannot be empty")
+        if self.mass < 0:
+            raise ValueError("Theoretical ion mass must be non-negative")
+        if not self.ion_type:
+            raise ValueError("Ion type cannot be empty")
+
+
+@dataclass(frozen=True)
+class TheoreticalSpectrum:
+    """A generated theoretical mass spectrum for a molecule.
+
+    Attributes:
+        structure_id: Unique identifier for the parent Molecule.
+        ions: Frozenset of TheoreticalIon objects.
+    """
+
+    structure_id: str
+    ions: frozenset[TheoreticalIon]
+
+    def __post_init__(self):
+        if not self.structure_id:
+            raise ValueError("Structure ID cannot be empty")
+        if len(self.ions) == 0:
+            raise ValueError("Theoretical spectrum must contain at least one ion")
+
+    def get_sorted_ions(self) -> list[TheoreticalIon]:
+        """Return ions sorted by mass."""
+        return sorted(self.ions, key=lambda ion: ion.mass)
+
+
+@dataclass(frozen=True)
 class Monomer:
     """A single monomer (building block) in an rBAN structure.
 

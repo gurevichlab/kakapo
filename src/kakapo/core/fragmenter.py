@@ -17,7 +17,7 @@ import networkx as nx
 from rban_parsing.rban_parser import Parsed_rBAN_Record
 
 from kakapo.constants import AMINO_ACID_MASSES, ATOMIC_MASSES, PROTON_MASS
-from kakapo.models import Bond, Molecule, Monomer
+from kakapo.models import Bond, Molecule, Monomer, TheoreticalIon, TheoreticalSpectrum
 
 # Type aliases for clarity
 Edge = tuple[int, int]  # Undirected edge between two monomers (canonicalized)
@@ -53,6 +53,29 @@ class Fragment:
         return len(self.monomer_indices)
 
 
+@dataclass(frozen=True)
+class FragmentationRule:
+    """A chemical fragmentation rule for molecular graph cleavage.
+
+    Defines the eligible bond type and its corresponding left/right mass shifts.
+
+    Attributes:
+        bond_type: The string representing the eligible bond type (e.g. 'PEPTIDE').
+        left_shift: Mass shift applied to the target monomer of the cleaved bond (N-side).
+        right_shift: Mass shift applied to the source monomer of the cleaved bond (C-side).
+    """
+
+    bond_type: str
+    left_shift: float
+    right_shift: float
+
+
+DEFAULT_RULES = (
+    FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),
+    FragmentationRule("AMINO", PROTON_MASS, -PROTON_MASS),
+)
+
+
 class FragmentationGraph:
     """Helper class for graph-based molecular fragmentation.
 
@@ -64,17 +87,34 @@ class FragmentationGraph:
         graph: NetworkX DiGraph representation (nodes = monomer indices).
     """
 
-    def __init__(self, molecule: Molecule):
+    def __init__(self, molecule: Molecule, rules: tuple[FragmentationRule, ...] = DEFAULT_RULES):
         """Initialize fragmentation graph from a molecule.
 
         Args:
             molecule: A kakapo Molecule instance.
+            rules: Tuple of FragmentationRules allowed for cleavage.
+                Defaults to DEFAULT_RULES.
         """
         self.molecule = molecule
+        self.rules = rules
         # Keep the original directed graph for metadata compatibility, but use an
         # undirected view for connectivity-based fragmentation operations
         self.graph = molecule.build_networkx_graph()
         self.undirected_graph = self.graph.to_undirected()
+
+    def _is_bond_breakable(self, edge: Edge) -> bool:
+        """Check if an undirected edge corresponds to a breakable bond.
+
+        Args:
+            edge: The canonical Edge representing a bond.
+
+        Returns:
+            True if the bond has an active fragmentation rule, False otherwise.
+        """
+        for bond in self.molecule.bonds:
+            if _canonical_edge((bond.source_idx, bond.target_idx)) == _canonical_edge(edge):
+                return any(rule.bond_type == bond.bond_type for rule in self.rules)
+        return False
 
     def find_all_bridges(self) -> list[Edge]:
         """Find all bridges (cut edges) in the molecular graph.
@@ -87,7 +127,9 @@ class FragmentationGraph:
         """
         bridges = []
         for u, v in nx.bridges(self.undirected_graph):
-            bridges.append(_canonical_edge((u, v)))
+            edge = _canonical_edge((u, v))
+            if self._is_bond_breakable(edge):
+                bridges.append(edge)
         return bridges
 
     def find_all_cycles(self) -> list[list[int]]:
@@ -126,7 +168,8 @@ class FragmentationGraph:
                 edge2 = _canonical_edge((cycle_nodes[j], cycle_nodes[(j + 1) % n]))
                 # Avoid adding duplicate pairs (same edges in different order)
                 if edge1 != edge2:
-                    pairs.append((edge1, edge2))
+                    if self._is_bond_breakable(edge1) and self._is_bond_breakable(edge2):
+                        pairs.append((edge1, edge2))
 
         return pairs
 
@@ -154,7 +197,14 @@ class FragmentationGraph:
 
 
 def _canonical_edge(edge: Edge) -> Edge:
-    """Return orientation-independent edge representation."""
+    """Return orientation-independent edge representation.
+
+    Args:
+        edge: The input edge tuple.
+
+    Returns:
+        The edge tuple sorted by monomer index.
+    """
     u, v = edge
     return (u, v) if u <= v else (v, u)
 
@@ -319,62 +369,62 @@ class MonomerMassCalculator:
         return None
 
 
-def generate_fragments(molecule: Molecule) -> list[Fragment]:
-    """Generate all possible fragments from a molecule via bridge and 2-cut cleavage.
-
-    Algorithm:
-    1. Build a graph from the molecule's bonds
-    2. For each bridge: remove it to create linear fragments
-    3. For each cycle: enumerate all 2-cut combinations to create cyclic fragments
-    4. Return unique fragments
+def _process_bridge_cuts(
+    molecule: Molecule,
+    graph: FragmentationGraph,
+    seen_fragments: set[tuple[int, ...]],
+) -> list[Fragment]:
+    """Cleave bridges in the molecular graph to generate linear fragments.
 
     Args:
-        molecule: A kakapo Molecule instance.
+        molecule: The parent Molecule instance.
+        graph: The FragmentationGraph helper instance.
+        seen_fragments: Set of already processed fragment index tuples to avoid duplicates.
 
     Returns:
-        List of Fragment objects representing all distinct molecular fragments.
-
-    Example:
-        >>> mol = Molecule(structure_id="test", monomers=(m1, m2, m3), bonds=...)
-        >>> fragments = generate_fragments(mol)
-        >>> print(f"Generated {len(fragments)} fragments")
+        List of generated Fragment objects from bridge cuts.
     """
-    if len(molecule.monomers) == 1:
-        # Single monomer: no cleavage possible
-        return [Fragment(monomer_indices=(0,), removed_bonds=())]
-
-    graph = FragmentationGraph(molecule)
     fragments = []
-    seen_fragments = set()
-
-    # Phase 1: Bridge cuts (linear fragmentation)
     bridges = graph.find_all_bridges()
+    for bridge in bridges:
+        components = graph.get_connected_components_after_removal([bridge])
+        for comp in components:
+            comp_tuple = tuple(sorted(comp))
+            if comp_tuple not in seen_fragments:
+                # Find bonds that were removed to create this component
+                removed_bonds = _find_bonds_for_component(molecule, comp)
+                fragment = Fragment(
+                    monomer_indices=comp_tuple,
+                    removed_bonds=tuple(removed_bonds),
+                    is_from_cycle=False,
+                )
+                fragments.append(fragment)
+                seen_fragments.add(comp_tuple)
+    return fragments
 
-    if bridges:
-        for bridge in bridges:
-            components = graph.get_connected_components_after_removal([bridge])
-            for comp in components:
-                comp_tuple = tuple(sorted(comp))
-                if comp_tuple not in seen_fragments:
-                    # Find bonds that were removed to create this component
-                    removed_bonds = _find_bonds_for_component(molecule, comp)
-                    fragment = Fragment(
-                        monomer_indices=comp_tuple,
-                        removed_bonds=tuple(removed_bonds),
-                        is_from_cycle=False,
-                    )
-                    fragments.append(fragment)
-                    seen_fragments.add(comp_tuple)
 
-    # Phase 2: 2-cut enumeration (cyclic fragmentation)
+def _process_cycle_cuts(
+    molecule: Molecule,
+    graph: FragmentationGraph,
+    seen_fragments: set[tuple[int, ...]],
+) -> list[Fragment]:
+    """Enumerate 2-cuts in cycles to generate cyclic fragments.
+
+    Args:
+        molecule: The parent Molecule instance.
+        graph: The FragmentationGraph helper instance.
+        seen_fragments: Set of already processed fragment index tuples to avoid duplicates.
+
+    Returns:
+        List of generated Fragment objects from cycle 2-cuts.
+    """
+    fragments = []
     cycles = graph.find_all_cycles()
-
     for cycle in cycles:
         if len(cycle) < 3:
             continue  # Skip 2-node cycles (no valid 2-cut)
 
         pairs = graph.extract_2cut_pairs(cycle)
-
         for edge_pair in pairs:
             components = graph.get_connected_components_after_removal(list(edge_pair))
             for comp in components:
@@ -388,6 +438,46 @@ def generate_fragments(molecule: Molecule) -> list[Fragment]:
                     )
                     fragments.append(fragment)
                     seen_fragments.add(comp_tuple)
+    return fragments
+
+
+def generate_fragments(
+    molecule: Molecule,
+    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+) -> list[Fragment]:
+    """Generate all possible fragments from a molecule via bridge and 2-cut cleavage.
+
+    Algorithm:
+    1. Build a graph from the molecule's bonds
+    2. For each bridge: remove it to create linear fragments
+    3. For each cycle: enumerate all 2-cut combinations to create cyclic fragments
+    4. Return unique fragments
+
+    Args:
+        molecule: A kakapo Molecule instance.
+        rules: Tuple of FragmentationRules allowed for cleavage.
+            Defaults to DEFAULT_RULES.
+
+    Returns:
+        List of Fragment objects representing all distinct molecular fragments.
+
+    Example:
+        >>> mol = Molecule(structure_id="test", monomers=(m1, m2, m3), bonds=...)
+        >>> fragments = generate_fragments(mol)
+        >>> print(f"Generated {len(fragments)} fragments")
+    """
+    if len(molecule.monomers) == 1:
+        # Single monomer: no cleavage possible
+        return [Fragment(monomer_indices=(0,), removed_bonds=())]
+
+    graph = FragmentationGraph(molecule, rules=rules)
+    seen_fragments = set()
+
+    # Phase 1: Bridge cuts (linear fragmentation)
+    fragments = _process_bridge_cuts(molecule, graph, seen_fragments)
+
+    # Phase 2: 2-cut enumeration (cyclic fragmentation)
+    fragments.extend(_process_cycle_cuts(molecule, graph, seen_fragments))
 
     return fragments
 
@@ -433,41 +523,64 @@ def _find_bonds_for_component(
 def calculate_theoretical_masses(
     fragment: Fragment,
     calculator: MonomerMassCalculator,
+    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+    ion_types: set[str] | None = None,
 ) -> list[tuple[float, str]]:
-    """Calculate theoretical ion masses from a fragment.
+    """Calculate theoretical ion masses from a fragment, including bond cleavage shifts.
 
-    Generates masses for three ion types:
-    1. [M+H]+: protonated molecular ion
-    2. [M-H]-: deprotonated molecular ion
-    3. Neutral fragment (for MS/MS fragments)
-
-    Mass calculations:
-    - Sum monomer exact masses
-    - Add/subtract proton mass (1.007825 Da) for charged ions
+    Generates masses for requested ion types using a configurable mapping of
+    adduct shifts, supporting future extensions like custom salt adducts.
 
     Args:
         fragment: Fragment instance to calculate masses for.
         calculator: MonomerMassCalculator for monomer mass lookups.
+        rules: Tuple of FragmentationRules allowed for cleavage.
+            Defaults to DEFAULT_RULES.
+        ion_types: Optional set of ion/adduct types to generate.
+            If None, defaults to {"[M+H]+"}.
 
     Returns:
         List of (mass, ion_type) tuples. Masses are floats in Daltons.
-        Ion types are: '[M+H]+', '[M-H]-', 'fragment'.
 
     Raises:
-        ValueError: If mass cannot be calculated for any monomer.
+        ValueError: If mass cannot be calculated for any monomer or ion type is unsupported.
     """
-    # Sum monomer masses
+    if ion_types is None:
+        ion_types = {"[M+H]+"}
+
+    # Sum monomer exact masses
     monomer_mass_sum = sum(calculator.get_mass(idx) for idx in fragment.monomer_indices)
 
-    # Neutral fragment mass (Dereplicator-style: no per-cleavage water subtraction)
-    neutral_mass = monomer_mass_sum
+    # Apply bond-specific shifts from the removed boundary bonds
+    total_shift = 0.0
+    fragment_monomers = set(fragment.monomer_indices)
+    for bond in fragment.removed_bonds:
+        # Find matching rule
+        for rule in rules:
+            if rule.bond_type == bond.bond_type:
+                # If the target monomer is in the fragment, apply left shift (+H for PEPTIDE)
+                if bond.target_idx in fragment_monomers:
+                    total_shift += rule.left_shift
+                # If the source monomer is in the fragment, apply right shift (-H for PEPTIDE)
+                if bond.source_idx in fragment_monomers:
+                    total_shift += rule.right_shift
+                break
 
-    # Ion masses
-    masses = [
-        (neutral_mass + PROTON_MASS, "[M+H]+"),
-        (neutral_mass - PROTON_MASS, "[M-H]-"),
-        (neutral_mass, "fragment"),
-    ]
+    neutral_mass = monomer_mass_sum + total_shift
+
+    # Map adduct/ion types to their shifts
+    adduct_shifts = {
+        "[M+H]+": PROTON_MASS,
+        "[M-H]-": -PROTON_MASS,
+        "fragment": 0.0,
+    }
+
+    masses = []
+    for ion_type in ion_types:
+        if ion_type in adduct_shifts:
+            masses.append((neutral_mass + adduct_shifts[ion_type], ion_type))
+        else:
+            raise ValueError(f"Unsupported ion/adduct type: '{ion_type}'")
 
     return masses
 
@@ -475,28 +588,27 @@ def calculate_theoretical_masses(
 def generate_all_theoretical_masses(
     molecule: Molecule,
     calculator: MonomerMassCalculator | None = None,
-) -> list[tuple[str, float, str]]:
+    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+    ion_types: set[str] | None = None,
+) -> list[TheoreticalIon]:
     """Generate all theoretical masses from a molecule.
 
     Convenience function that:
     1. Generates all fragments from the molecule
     2. Calculates masses for each fragment using atomic composition when available
-    3. Returns flattened list of (fragment_id, mass, ion_type) tuples
+    3. Returns flattened list of TheoreticalIon objects
 
     Args:
         molecule: The Molecule to fragment and analyze.
         calculator: Optional MonomerMassCalculator. If None, creates one with
             atomic mass calculation enabled (if source_parsed_record available).
+        rules: Tuple of FragmentationRules allowed for cleavage.
+            Defaults to DEFAULT_RULES.
+        ion_types: Optional set of ion/adduct types to generate.
+            If None, defaults to {"[M+H]+"}.
 
     Returns:
-        List of (fragment_id, mass, ion_type) tuples sorted by mass.
-        Fragment IDs are like 'frag_0', 'frag_1', etc.
-
-    Example:
-        >>> mol = Molecule(...)
-        >>> masses = generate_all_theoretical_masses(mol)
-        >>> for frag_id, mass, ion_type in masses[:10]:
-        ...     print(f"{frag_id}: {mass:.4f} ({ion_type})")
+        List of TheoreticalIon objects sorted by mass.
     """
     if calculator is None:
         calculator = MonomerMassCalculator(
@@ -504,16 +616,56 @@ def generate_all_theoretical_masses(
             parsed_record=molecule.source_parsed_record,
         )
 
-    fragments = generate_fragments(molecule)
+    fragments = generate_fragments(molecule, rules=rules)
     all_masses = []
 
     for frag_idx, fragment in enumerate(fragments):
         frag_id = f"frag_{frag_idx}"
-        masses = calculate_theoretical_masses(fragment, calculator)
+        masses = calculate_theoretical_masses(
+            fragment, calculator, rules=rules, ion_types=ion_types
+        )
         for mass, ion_type in masses:
-            all_masses.append((frag_id, mass, ion_type))
+            all_masses.append(
+                TheoreticalIon(
+                    fragment_id=frag_id,
+                    mass=mass,
+                    ion_type=ion_type,
+                )
+            )
 
     # Sort by mass
-    all_masses.sort(key=lambda x: x[1])
+    all_masses.sort(key=lambda x: x.mass)
 
     return all_masses
+
+
+def generate_theoretical_spectrum(
+    molecule: Molecule,
+    calculator: MonomerMassCalculator | None = None,
+    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+    ion_types: set[str] | None = None,
+) -> TheoreticalSpectrum:
+    """Generate the theoretical spectrum for a molecule.
+
+    Args:
+        molecule: The Molecule to fragment and analyze.
+        calculator: Optional MonomerMassCalculator. If None, creates one with
+            atomic mass calculation enabled (if source_parsed_record available).
+        rules: Tuple of FragmentationRules allowed for cleavage.
+            Defaults to DEFAULT_RULES.
+        ion_types: Optional set of ion/adduct types to generate.
+            If None, defaults to {"[M+H]+"}.
+
+    Returns:
+        TheoreticalSpectrum object representing the predicted ions.
+    """
+    all_masses = generate_all_theoretical_masses(
+        molecule,
+        calculator=calculator,
+        rules=rules,
+        ion_types=ion_types,
+    )
+    return TheoreticalSpectrum(
+        structure_id=molecule.structure_id,
+        ions=frozenset(all_masses),
+    )
