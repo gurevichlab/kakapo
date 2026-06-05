@@ -20,6 +20,7 @@ from kakapo.core.fragmenter import (
 )
 from kakapo.models import (
     Bond,
+    BondSubtype,
     Chirality,
     Molecule,
     Monomer,
@@ -483,14 +484,11 @@ class TestMassCalculation:
         """Verify that rules_shifts tuple contains RuleShift instances mapped to their shifts."""
         fragments = generate_fragments(linear_dimer, rules=TEST_RULES)
         frag_ala = next(f for f in fragments if f.monomer_indices == (0,))
-        ion_ala = calculate_theoretical_ion(
-            frag_ala, linear_dimer.monomers, rules=TEST_RULES
-        )
+        ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
 
         assert len(ion_ala.rules_shifts) == 1
         assert ion_ala.rules_shifts[0].rule_name == "PEPTIDE"
         assert pytest.approx(ion_ala.rules_shifts[0].shift) == -PROTON_MASS
-
 
 
 # ============================================================================
@@ -504,7 +502,9 @@ class TestIntegration:
     def test_full_pipeline_linear_dimer(self, linear_dimer):
         """Generate fragments and masses for linear dimer."""
         masses = generate_all_theoretical_masses(linear_dimer, rules=TEST_RULES)
-        assert len(masses) == 2  # A dimer has 2 fragments: {0} and {1} (since we cut the single bridge)
+        assert (
+            len(masses) == 2
+        )  # A dimer has 2 fragments: {0} and {1} (since we cut the single bridge)
         assert all(isinstance(m, TheoreticalIon) for m in masses)
         mass_values = [m.mass for m in masses]
         assert mass_values == sorted(mass_values)
@@ -512,7 +512,9 @@ class TestIntegration:
     def test_full_pipeline_cyclic_trimer(self, cyclic_trimer):
         """Generate fragments and masses for cyclic structure."""
         masses = generate_all_theoretical_masses(cyclic_trimer, rules=TEST_RULES)
-        assert len(masses) == 6  # 3 fragments of size 1, 3 of size 2. Total 6 unique fragments from 2-cuts.
+        assert (
+            len(masses) == 6
+        )  # 3 fragments of size 1, 3 of size 2. Total 6 unique fragments from 2-cuts.
 
     def test_all_masses_positive(self, linear_trimer):
         """All theoretical masses should be positive."""
@@ -529,16 +531,25 @@ class TestIntegration:
     def test_rule_based_bond_filtering(self):
         """Verify that FragmentationRule rules successfully filter allowed cleavages."""
         m1 = Monomer(
-            norine_name="ALA", residue="ALA", is_methylated=False,
-            chirality=Chirality.L, mass=71.03718
+            norine_name="ALA",
+            residue="ALA",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=71.03718,
         )
         m2 = Monomer(
-            norine_name="GLY", residue="GLY", is_methylated=False,
-            chirality=Chirality.L, mass=57.02146
+            norine_name="GLY",
+            residue="GLY",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=57.02146,
         )
         m3 = Monomer(
-            norine_name="PRO", residue="PRO", is_methylated=False,
-            chirality=Chirality.L, mass=97.05276
+            norine_name="PRO",
+            residue="PRO",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=97.05276,
         )
 
         bond1 = Bond(source_idx=0, target_idx=1, bond_type="PEPTIDE")
@@ -564,12 +575,8 @@ class TestIntegration:
         frag_ala = next(f for f in fragments if f.monomer_indices == (0,))
         frag_gly = next(f for f in fragments if f.monomer_indices == (1,))
 
-        ion_ala = calculate_theoretical_ion(
-            frag_ala, linear_dimer.monomers, rules=TEST_RULES
-        )
-        ion_gly = calculate_theoretical_ion(
-            frag_gly, linear_dimer.monomers, rules=TEST_RULES
-        )
+        ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
+        ion_gly = calculate_theoretical_ion(frag_gly, linear_dimer.monomers, rules=TEST_RULES)
 
         expected_ala = linear_dimer.monomers[0].mass - PROTON_MASS
         expected_gly = linear_dimer.monomers[1].mass + PROTON_MASS
@@ -596,7 +603,9 @@ class TestIntegration:
         with pytest.raises(ValueError, match="Theoretical ion mass must be non-negative"):
             TheoreticalIon(fragment_id="frag_0", mass=-10.0)
 
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, rules_shifts=(RuleShift("PEPTIDE", 1.0),))
+        ion = TheoreticalIon(
+            fragment_id="frag_0", mass=100.0, rules_shifts=(RuleShift("PEPTIDE", 1.0),)
+        )
         # Test hashability and set operations
         ions_set = {ion}
         assert ion in ions_set
@@ -607,3 +616,167 @@ class TestIntegration:
         msg = "Theoretical spectrum must contain at least one ion"
         with pytest.raises(ValueError, match=msg):
             TheoreticalSpectrum(structure_id="spec_1", ions=frozenset())
+
+    def test_rule_based_bond_filtering_with_subtypes(self):
+        """Verify that FragmentationRule rules filter cleavages based on bond subtypes."""
+        m1 = Monomer(
+            norine_name="ALA",
+            residue="ALA",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=71.03718,
+        )
+        m2 = Monomer(
+            norine_name="GLY",
+            residue="GLY",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=57.02146,
+        )
+        m3 = Monomer(
+            norine_name="PRO",
+            residue="PRO",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=97.05276,
+        )
+
+        # bond1 has no matching bond_type, but has a matching subtype "amide_1"
+        subtype1 = BondSubtype(name="amide_1", reversed=False)
+        bond1 = Bond(source_idx=0, target_idx=1, bond_type="OTHER", subtypes=(subtype1,))
+        # bond2 has no matching bond_type or subtype
+        bond2 = Bond(source_idx=1, target_idx=2, bond_type="ESTER")
+
+        mol = Molecule(
+            structure_id="subtype_bonds",
+            monomers={0: m1, 1: m2, 2: m3},
+            bonds=(bond1, bond2),
+        )
+
+        rules = (FragmentationRule("amide_1", PROTON_MASS, -PROTON_MASS),)
+        fragments = generate_fragments(mol, rules=rules)
+        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
+        # bond1 should be cleaved since its subtype "amide_1" matches the rule.
+        # bond2 should NOT be cleaved.
+        assert frozenset({0}) in monomer_sets
+        assert frozenset({1, 2}) in monomer_sets
+        assert frozenset({2}) not in monomer_sets
+
+    def test_subtype_cleavage_shifts(self):
+        """Verify that rule-based shifts are correctly applied when matching via subtypes."""
+        m1 = Monomer(
+            norine_name="ALA",
+            residue="ALA",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=71.03718,
+        )
+        m2 = Monomer(
+            norine_name="GLY",
+            residue="GLY",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=57.02146,
+        )
+
+        subtype1 = BondSubtype(name="amide_1", reversed=False)
+        bond = Bond(source_idx=0, target_idx=1, bond_type="OTHER", subtypes=(subtype1,))
+
+        mol = Molecule(
+            structure_id="subtype_shifts",
+            monomers={0: m1, 1: m2},
+            bonds=(bond,),
+        )
+
+        rules = (FragmentationRule("amide_1", 1.0, -1.0),)
+        fragments = generate_fragments(mol, rules=rules)
+
+        frag_0 = next(f for f in fragments if f.monomer_indices == (0,))
+        frag_1 = next(f for f in fragments if f.monomer_indices == (1,))
+
+        ion_0 = calculate_theoretical_ion(frag_0, mol.monomers, rules=rules)
+        ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
+
+        # target of bond (index 1) is in frag_1 -> receives left_shift (+1.0)
+        # source of bond (index 0) is in frag_0 -> receives right_shift (-1.0)
+        assert pytest.approx(ion_0.mass) == 71.03718 - 1.0
+        assert pytest.approx(ion_1.mass) == 57.02146 + 1.0
+
+    def test_subtype_reversed_cleavage_shifts(self):
+        """Verify that mass shifts are inverted when the matching subtype is reversed."""
+        m1 = Monomer(
+            norine_name="ALA",
+            residue="ALA",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=71.03718,
+        )
+        m2 = Monomer(
+            norine_name="GLY",
+            residue="GLY",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=57.02146,
+        )
+
+        # reversed = True
+        subtype1 = BondSubtype(name="amide_1", reversed=True)
+        bond = Bond(source_idx=0, target_idx=1, bond_type="OTHER", subtypes=(subtype1,))
+
+        mol = Molecule(
+            structure_id="subtype_shifts_reversed",
+            monomers={0: m1, 1: m2},
+            bonds=(bond,),
+        )
+
+        rules = (FragmentationRule("amide_1", 1.0, -1.0),)
+        fragments = generate_fragments(mol, rules=rules)
+
+        frag_0 = next(f for f in fragments if f.monomer_indices == (0,))
+        frag_1 = next(f for f in fragments if f.monomer_indices == (1,))
+
+        ion_0 = calculate_theoretical_ion(frag_0, mol.monomers, rules=rules)
+        ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
+
+        # Since reversed is True:
+        # left_shift (+1.0) is applied to source (index 0) -> frag_0
+        # right_shift (-1.0) is applied to target (index 1) -> frag_1
+        assert pytest.approx(ion_0.mass) == 71.03718 + 1.0
+        assert pytest.approx(ion_1.mass) == 57.02146 - 1.0
+
+    def test_branched_structure_fragmentation(self):
+        """Verify that a branched tree-like structure generates expected single-cut fragments."""
+        monomers = {
+            i: Monomer(
+                norine_name="ALA",
+                residue="ALA",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=71.03718,
+            )
+            for i in range(4)
+        }
+        bonds = (
+            Bond(source_idx=0, target_idx=1, bond_type="PEPTIDE"),
+            Bond(source_idx=0, target_idx=2, bond_type="PEPTIDE"),
+            Bond(source_idx=0, target_idx=3, bond_type="PEPTIDE"),
+        )
+        mol = Molecule(
+            structure_id="branched",
+            monomers=monomers,
+            bonds=bonds,
+        )
+        fragments = generate_fragments(mol, rules=TEST_RULES)
+        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
+
+        # Single cuts of each of the 3 bridges:
+        # Cut (0, 1) -> {1}, {0, 2, 3}
+        # Cut (0, 2) -> {2}, {0, 1, 3}
+        # Cut (0, 3) -> {3}, {0, 1, 2}
+        assert frozenset({1}) in monomer_sets
+        assert frozenset({0, 2, 3}) in monomer_sets
+        assert frozenset({2}) in monomer_sets
+        assert frozenset({0, 1, 3}) in monomer_sets
+        assert frozenset({3}) in monomer_sets
+        assert frozenset({0, 1, 2}) in monomer_sets
+        assert len(monomer_sets) == 6

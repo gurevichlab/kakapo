@@ -90,7 +90,7 @@ def load_rules(rule_dir_path: str) -> list[BondRule]:
                 breakable_bond.GetBeginAtomIdx(),
                 breakable_bond.GetEndAtomIdx(),
             )
-        except IndexError:
+        except (IndexError, RuntimeError):
             logger.warning(f"Bond index {bond_idx} out of range in MOL {mol_path.name}")
             continue
 
