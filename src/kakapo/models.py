@@ -4,11 +4,11 @@ Defines immutable data structures used throughout the application for type safet
 and explicit contracts between modules.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 
 import networkx as nx
-from rban_parsing.rban_parser import Parsed_rBAN_Record
+from rban_parsing.rban_parser import NRP_metadata, Parsed_rBAN_Record
 
 
 class Chirality(Enum):
@@ -66,26 +66,37 @@ class Spectrum:
 
 
 @dataclass(frozen=True)
+class RuleShift:
+    """A mass shift applied by a specific fragmentation rule.
+
+    Attributes:
+        rule_name: The name of the fragmentation rule (bond type).
+        shift: The mass shift value in Daltons.
+    """
+
+    rule_name: str
+    shift: float
+
+
+@dataclass(frozen=True)
 class TheoreticalIon:
     """A theoretical ion generated from a fragment.
 
     Attributes:
         fragment_id: Unique identifier for the source fragment (e.g., 'frag_0').
         mass: Calculated exact mass of the ion in Daltons.
-        ion_type: The adduct or ion type (e.g., '[M+H]+').
+        rules_shifts: Tuple of RuleShift instances applied to generate this ion.
     """
 
     fragment_id: str
     mass: float
-    ion_type: str
+    rules_shifts: tuple[RuleShift, ...] = ()
 
     def __post_init__(self):
         if not self.fragment_id:
             raise ValueError("Fragment ID cannot be empty")
         if self.mass < 0:
             raise ValueError("Theoretical ion mass must be non-negative")
-        if not self.ion_type:
-            raise ValueError("Ion type cannot be empty")
 
 
 @dataclass(frozen=True)
@@ -112,6 +123,75 @@ class TheoreticalSpectrum:
 
 
 @dataclass(frozen=True)
+class Atom:
+    """A chemical atom represented at the atomic detail level.
+
+    Attributes:
+        name: The chemical element symbol (e.g., 'C', 'N', 'O').
+        hydrogens: The number of implicit hydrogen atoms attached to this atom.
+    """
+
+    name: str
+    hydrogens: int
+
+
+@dataclass(frozen=True)
+class AtomicEdge:
+    """An undirected bond edge between two atoms.
+
+    Automatically canonicalizes indices upon instantiation such that atom1 <= atom2.
+    This enables direction-agnostic comparison and hashing, allowing it to be used
+    as a key in dictionaries or sets representing atomic bond networks.
+
+    Attributes:
+        atom1: The smaller atom ID in the bond.
+        atom2: The larger atom ID in the bond.
+    """
+
+    atom1: int
+    atom2: int
+
+    def __post_init__(self):
+        """Canonicalize the atom IDs to ensure atom1 <= atom2."""
+        if self.atom1 > self.atom2:
+            a1 = self.atom2
+            a2 = self.atom1
+            object.__setattr__(self, "atom1", a1)
+            object.__setattr__(self, "atom2", a2)
+
+
+@dataclass(frozen=True)
+class AtomicBond:
+    """An atomic bond containing chemical details of a connection.
+
+    Attributes:
+        arity: The bond order or arity (e.g., '1' for single, '2' for double, 'ar' for aromatic).
+        bond_type: The qualitative chemical bond type or classification.
+    """
+    arity: str
+    bond_type: str
+
+
+@dataclass(frozen=True)
+class BondSubtype:
+    """A classified chemical subtype assigned to an inter-monomer bond.
+
+    This encodes specific chemical connectivity patterns (e.g., 'amide_1' through 'amide_9',
+    'NC', 'OC') matching NPDtools fragmentation rules. It includes orientation details
+    relative to the configuration's reference subgraph.
+
+    Attributes:
+        name: The name of the matched fragmentation subtype (e.g., 'amide_1').
+        reversed: True if the bond's source-to-target direction in the molecule
+            (monomer1 -> monomer2) is opposite to the matched rule's directed breakable bond.
+            False otherwise.
+    """
+
+    name: str
+    reversed: bool
+
+
+@dataclass(frozen=True)
 class Monomer:
     """A single monomer (building block) in an rBAN structure.
 
@@ -120,12 +200,16 @@ class Monomer:
         residue: The standard amino acid or core residue.
         is_methylated: Whether this monomer is methylated.
         chirality: L, D, or unknown stereochemistry.
+        atoms: Tuple of atom IDs belonging to this monomer.
+        mass: Precalculated monoisotopic mass of the monomer.
     """
 
     norine_name: str
     residue: str
     is_methylated: bool
     chirality: Chirality
+    atoms: tuple[int, ...] = ()
+    mass: float | None = None
 
     def __post_init__(self):
         if not self.norine_name:
@@ -139,20 +223,19 @@ class Bond:
     """A chemical bond between two monomers in an rBAN structure.
 
     Represents a linkage between adjacent monomers with explicit bond type
-    (amino, ester, thioether, glycosidic, etc.) and information about whether
-    it's part of a cyclic ring.
+    (amino, ester, thioether, glycosidic, etc.).
 
     Attributes:
-        source_idx: Index of the source monomer in the parent Molecule's monomers tuple.
-        target_idx: Index of the target monomer in the parent Molecule's monomers tuple.
+        source_idx: Index of the source monomer in the parent Molecule's monomers dict.
+        target_idx: Index of the target monomer in the parent Molecule's monomers dict.
         bond_type: String describing the bond type (e.g., 'AMINO', 'ESTER', 'THIOETHER').
-        is_ring_bond: Whether this bond is part of a cyclic ring.
+        subtypes: Tuple of classified bond subtypes (e.g., 'amide_1').
     """
 
     source_idx: int
     target_idx: int
     bond_type: str
-    is_ring_bond: bool = False
+    subtypes: tuple[BondSubtype, ...] = ()
 
     def __post_init__(self):
         if self.source_idx < 0 or self.target_idx < 0:
@@ -164,50 +247,30 @@ class Bond:
 
 
 @dataclass(frozen=True)
-class Cycle:
-    """A cyclic peptide motif within an rBAN structure.
-
-    Represents a ring of monomers connected in cyclic topology. Indices
-    reference positions in the parent Molecule's monomers tuple, ordered
-    as they appear in the cycle.
-
-    Attributes:
-        monomer_indices: Tuple of monomer indices forming this cycle.
-    """
-
-    monomer_indices: tuple[int, ...]
-
-    def __post_init__(self):
-        if len(self.monomer_indices) < 2:
-            raise ValueError("A cycle must contain at least 2 monomers")
-        if len(set(self.monomer_indices)) != len(self.monomer_indices):
-            raise ValueError("Cycle monomer indices must be unique")
-
-
-@dataclass(frozen=True)
 class Molecule:
     """An rBAN molecular structure.
 
     Represents a complete natural product structure with monomers arranged
-    in linear and/or cyclic topology. Cyclic regions are explicitly tracked
-    to support fragmentation algorithms that split on bridges and 2-cuts.
-    Bonds encode the chemical linkages between monomers.
+    in linear and/or cyclic topology. Bonds encode the chemical linkages between monomers.
 
     Attributes:
         structure_id: Unique identifier for this molecule.
-        monomers: Ordered sequence of monomers in the structure.
+        monomers: Mapping of monomer IDs to Monomer instances.
         bonds: Chemical linkages between monomers (empty tuple for single monomers).
-        cycles: Cyclic motifs within the structure (empty tuple for linear molecules).
         smiles: Optional SMILES string representation.
-        source_parsed_record: Optional original Parsed_rBAN_Record payload for
-            atom-level reconstruction (atoms, atomic bonds, monomer-to-atom mapping).
+        atoms: Mapping of atom IDs to Atom instances.
+        atomic_bonds: Mapping of atomic edges to AtomicBond instances.
+        metadata: Optional metadata.
+        source_parsed_record: Optional original Parsed_rBAN_Record payload.
     """
 
     structure_id: str
-    monomers: tuple[Monomer, ...]
+    monomers: dict[int, Monomer]
     bonds: tuple[Bond, ...] = ()
-    cycles: tuple[Cycle, ...] = ()
     smiles: str | None = None
+    atoms: dict[int, Atom] = field(default_factory=dict)
+    atomic_bonds: dict[AtomicEdge, AtomicBond] = field(default_factory=dict)
+    metadata: NRP_metadata | None = None
     source_parsed_record: Parsed_rBAN_Record | None = None
 
     def __post_init__(self):
@@ -217,120 +280,30 @@ class Molecule:
             raise ValueError("Molecule must contain at least one monomer")
 
         # Validate bond indices
-        monomer_count = len(self.monomers)
         for bond in self.bonds:
-            if bond.source_idx < 0 or bond.source_idx >= monomer_count:
-                raise ValueError(
-                    f"Bond source index {bond.source_idx} out of range "
-                    f"(molecule has {monomer_count} monomers)"
-                )
-            if bond.target_idx < 0 or bond.target_idx >= monomer_count:
-                raise ValueError(
-                    f"Bond target index {bond.target_idx} out of range "
-                    f"(molecule has {monomer_count} monomers)"
-                )
-
-        # Validate cycle indices
-        for cycle in self.cycles:
-            for idx in cycle.monomer_indices:
-                if idx < 0 or idx >= monomer_count:
-                    raise ValueError(
-                        f"Cycle contains invalid monomer index {idx} "
-                        f"(molecule has {monomer_count} monomers)"
-                    )
+            if bond.source_idx not in self.monomers:
+                raise ValueError(f"Bond source index {bond.source_idx} not in monomers")
+            if bond.target_idx not in self.monomers:
+                raise ValueError(f"Bond target index {bond.target_idx} not in monomers")
 
     @property
     def monomer_count(self) -> int:
         """Return the number of monomers."""
         return len(self.monomers)
 
-    @property
-    def is_cyclic(self) -> bool:
-        """Return True if the molecule contains any cyclic regions."""
-        return len(self.cycles) > 0
-
-    def get_monomer_cycles(self, monomer_index: int) -> list[Cycle]:
-        """Get all cycles containing a specific monomer.
-
-        Args:
-            monomer_index: Index of the monomer in the monomers tuple.
-
-        Returns:
-            List of Cycle objects containing this monomer (typically 0 or 1).
-
-        Raises:
-            IndexError: If monomer_index is out of bounds.
-        """
-        if monomer_index < 0 or monomer_index >= len(self.monomers):
-            raise IndexError(f"Monomer index {monomer_index} out of bounds")
-
-        return [cycle for cycle in self.cycles if monomer_index in cycle.monomer_indices]
-
-    def is_monomer_cyclic(self, monomer_index: int) -> bool:
-        """Check if a monomer participates in any cycle.
-
-        Args:
-            monomer_index: Index of the monomer in the monomers tuple.
-
-        Returns:
-            True if the monomer is in a cycle, False otherwise.
-
-        Raises:
-            IndexError: If monomer_index is out of bounds.
-        """
-        return bool(self.get_monomer_cycles(monomer_index))
-
-    def get_linear_segments(self) -> list[tuple[int, int]]:
-        """Get ranges of consecutive linear (non-cyclic) monomers.
-
-        Returns:
-            List of (start_idx, end_idx) tuples for linear regions (inclusive).
-            Useful for the fragmenter to identify segments that can be
-            cleanly fragmented by bridge cuts.
-        """
-        cyclic_indices = set()
-        for cycle in self.cycles:
-            cyclic_indices.update(cycle.monomer_indices)
-
-        segments = []
-        start = None
-
-        for i in range(len(self.monomers)):
-            if i not in cyclic_indices:
-                if start is None:
-                    start = i
-            else:
-                if start is not None:
-                    segments.append((start, i - 1))
-                    start = None
-
-        if start is not None:
-            segments.append((start, len(self.monomers) - 1))
-
-        return segments
-
     def build_networkx_graph(self) -> nx.DiGraph:
         """Build a NetworkX directed graph representation of the molecular structure.
 
-        Nodes represent monomers (labeled by their index), and edges represent bonds.
-        Edge attributes include 'bond_type' and 'is_ring_bond'.
+        Nodes represent monomers, and edges represent bonds.
 
         Returns:
-            A directed graph with monomer indices as nodes and bonds as edges.
-            Each edge (u, v) has attributes: bond_type (str) and is_ring_bond (bool).
-
-        Example:
-            >>> mol = Molecule(...)
-            >>> G = mol.build_networkx_graph()
-            >>> G.number_of_nodes()  # Number of monomers
-            >>> for u, v, data in G.edges(data=True):
-            ...     print(f"Bond {u}->{v}: {data['bond_type']}")
+            A directed graph.
         """
         G = nx.DiGraph()
 
         # Add nodes for each monomer
-        for i in range(len(self.monomers)):
-            G.add_node(i)
+        for key in self.monomers.keys():
+            G.add_node(key)
 
         # Add edges for each bond
         for bond in self.bonds:
@@ -338,7 +311,6 @@ class Molecule:
                 bond.source_idx,
                 bond.target_idx,
                 bond_type=bond.bond_type,
-                is_ring_bond=bond.is_ring_bond,
             )
 
         return G

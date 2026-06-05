@@ -11,13 +11,15 @@ Key algorithm: Graph-theoretic approach using bridge detection (for linear parts
 and 2-cut enumeration (for cyclic parts).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import networkx as nx
-from rban_parsing.rban_parser import Parsed_rBAN_Record
 
-from kakapo.constants import AMINO_ACID_MASSES, ATOMIC_MASSES, PROTON_MASS
-from kakapo.models import Bond, Molecule, Monomer, TheoreticalIon, TheoreticalSpectrum
+from kakapo.constants import (
+    DEFAULT_RULES,
+    FragmentationRule,
+)
+from kakapo.models import Bond, Molecule, Monomer, RuleShift, TheoreticalIon, TheoreticalSpectrum
 
 # Type aliases for clarity
 Edge = tuple[int, int]  # Undirected edge between two monomers (canonicalized)
@@ -32,11 +34,13 @@ class Fragment:
     by removing specific bonds (e.g., bridges or 2-cut edges).
 
     Attributes:
+        fragment_id: Unique identifier for the generated fragment.
         monomer_indices: Ordered tuple of monomer indices in this fragment.
         removed_bonds: Bonds that were cleaved to generate this fragment.
         is_from_cycle: Whether this fragment originated from a cyclic region.
     """
 
+    fragment_id: str
     monomer_indices: tuple[int, ...]
     removed_bonds: tuple[Bond, ...]
     is_from_cycle: bool = False
@@ -51,29 +55,6 @@ class Fragment:
     def monomer_count(self) -> int:
         """Return the number of monomers in this fragment."""
         return len(self.monomer_indices)
-
-
-@dataclass(frozen=True)
-class FragmentationRule:
-    """A chemical fragmentation rule for molecular graph cleavage.
-
-    Defines the eligible bond type and its corresponding left/right mass shifts.
-
-    Attributes:
-        bond_type: The string representing the eligible bond type (e.g. 'PEPTIDE').
-        left_shift: Mass shift applied to the target monomer of the cleaved bond (N-side).
-        right_shift: Mass shift applied to the source monomer of the cleaved bond (C-side).
-    """
-
-    bond_type: str
-    left_shift: float
-    right_shift: float
-
-
-DEFAULT_RULES = (
-    FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),
-    FragmentationRule("AMINO", PROTON_MASS, -PROTON_MASS),
-)
 
 
 class FragmentationGraph:
@@ -97,8 +78,6 @@ class FragmentationGraph:
         """
         self.molecule = molecule
         self.rules = rules
-        # Keep the original directed graph for metadata compatibility, but use an
-        # undirected view for connectivity-based fragmentation operations
         self.graph = molecule.build_networkx_graph()
         self.undirected_graph = self.graph.to_undirected()
 
@@ -113,7 +92,12 @@ class FragmentationGraph:
         """
         for bond in self.molecule.bonds:
             if _canonical_edge((bond.source_idx, bond.target_idx)) == _canonical_edge(edge):
-                return any(rule.bond_type == bond.bond_type for rule in self.rules)
+                # A bond is breakable if its bond_type matches a rule
+                # OR if one of its subtypes matches a rule!
+                if any(rule.bond_type == bond.bond_type for rule in self.rules):
+                    return True
+                if any(any(rule.bond_type == s.name for s in bond.subtypes) for rule in self.rules):
+                    return True
         return False
 
     def find_all_bridges(self) -> list[Edge]:
@@ -162,11 +146,8 @@ class FragmentationGraph:
         # Generate all pairs of edge indices (i, j) where i < j
         for i in range(n):
             for j in range(i + 1, n):
-                # Edge from node i to next node in cycle
                 edge1 = _canonical_edge((cycle_nodes[i], cycle_nodes[(i + 1) % n]))
-                # Edge from node j to next node in cycle
                 edge2 = _canonical_edge((cycle_nodes[j], cycle_nodes[(j + 1) % n]))
-                # Avoid adding duplicate pairs (same edges in different order)
                 if edge1 != edge2:
                     if self._is_bond_breakable(edge1) and self._is_bond_breakable(edge2):
                         pairs.append((edge1, edge2))
@@ -209,166 +190,6 @@ def _canonical_edge(edge: Edge) -> Edge:
     return (u, v) if u <= v else (v, u)
 
 
-class MonomerMassCalculator:
-    """Lazy-loading calculator for monomer exact masses.
-
-    Uses atomic composition from Parsed_rBAN_Record when available for exact
-    mass calculation. Falls back to RDKit SMILES or amino acid lookup table.
-    Results are cached to avoid repeated calculations.
-
-    Attributes:
-        monomers: List of Monomer instances indexed by their position.
-        parsed_record: Optional Parsed_rBAN_Record for atomic-level mass calculation.
-        _mass_cache: Internal cache mapping monomer index -> mass (Daltons).
-    """
-
-    def __init__(
-        self,
-        monomers: list[Monomer],
-        parsed_record: Parsed_rBAN_Record | None = None,
-    ):
-        """Initialize mass calculator for a set of monomers.
-
-        Args:
-            monomers: List of Monomer instances from a Molecule.
-            parsed_record: Optional Parsed_rBAN_Record for atomic composition access.
-        """
-        self.monomers = monomers
-        self.parsed_record = parsed_record
-        self._mass_cache: dict[int, float] = {}
-
-    def get_mass(self, monomer_idx: int) -> float:
-        """Get exact molecular mass of a monomer.
-
-        Tries mass calculation in order:
-        1. Atomic composition from Parsed_rBAN_Record (if available)
-        2. RDKit calculation from SMILES (if available)
-        3. Amino acid residue lookup table (fallback)
-
-        Args:
-            monomer_idx: Index of the monomer in the monomers list.
-
-        Returns:
-            Exact mass in Daltons.
-
-        Raises:
-            IndexError: If monomer_idx is out of bounds.
-            ValueError: If mass cannot be determined.
-        """
-        if monomer_idx < 0 or monomer_idx >= len(self.monomers):
-            raise IndexError(f"Monomer index {monomer_idx} out of bounds")
-
-        if monomer_idx in self._mass_cache:
-            return self._mass_cache[monomer_idx]
-
-        # Try atomic composition calculation (most accurate)
-        mass = self._calculate_mass_from_atoms(monomer_idx)
-
-        # Try RDKit calculation from SMILES (if available in future)
-        if mass is None:
-            mass = self._calculate_mass_rdk(monomer_idx)
-
-        # Fallback: use amino acid lookup table
-        if mass is None:
-            mass = self._estimate_mass_from_residue(self.monomers[monomer_idx].residue)
-
-        if mass is None:
-            raise ValueError(
-                f"Cannot determine mass for monomer {self.monomers[monomer_idx].norine_name}"
-            )
-
-        self._mass_cache[monomer_idx] = mass
-        return mass
-
-    def _calculate_mass_from_atoms(self, monomer_idx: int) -> float | None:
-        """Calculate exact mass from atomic composition.
-
-        Uses the atomic graph stored in Parsed_rBAN_Record to compute the sum
-        of atomic masses for all atoms belonging to this monomer, including
-        implicit hydrogens.
-
-        Args:
-            monomer_idx: Index of the monomer in the monomers list.
-
-        Returns:
-            Exact mass in Daltons, or None if source record unavailable.
-
-        Raises:
-            ValueError: If atom type not found in ATOMIC_MASSES.
-        """
-        if self.parsed_record is None:
-            return None
-
-        # Get monomer info from parsed record (mapping 0-indexed position to sorted original keys)
-        ordered_keys = sorted(self.parsed_record.monomers.keys())
-        if 0 <= monomer_idx < len(ordered_keys):
-            parsed_key = ordered_keys[monomer_idx]
-            monomer_info = self.parsed_record.monomers.get(parsed_key)
-        else:
-            monomer_info = None
-
-        if monomer_info is None:
-            return None
-
-        total_mass = 0.0
-
-        # Sum masses of all atoms in this monomer
-        for atom_id in monomer_info.atoms:
-            atom_info = self.parsed_record.atoms.get(atom_id)
-            if atom_info is None:
-                return None
-
-            # Get atomic mass by element symbol
-            element_symbol = atom_info.name  # e.g., "C", "N", "O", "S"
-            if element_symbol not in ATOMIC_MASSES:
-                raise ValueError(
-                    f"Unknown element '{element_symbol}' for atom {atom_id} "
-                    f"in monomer {monomer_idx}"
-                )
-
-            # Add mass of the atom
-            total_mass += ATOMIC_MASSES[element_symbol]
-
-            # Add mass of implicit hydrogens
-            if atom_info.hydrogens > 0:
-                total_mass += atom_info.hydrogens * ATOMIC_MASSES["H"]
-
-        return total_mass if total_mass > 0 else None
-
-    def _calculate_mass_rdk(self, monomer_idx: int) -> float | None:
-        """Calculate mass using RDKit (placeholder for future enhancement).
-
-        Args:
-            monomer_idx: Index of the monomer.
-
-        Returns:
-            Exact mass in Daltons, or None if SMILES unavailable.
-        """
-        # TODO: Extract SMILES from monomer/variant metadata and use RDKit
-        # For now, return None to trigger fallback
-        return None
-
-    def _estimate_mass_from_residue(self, residue: str) -> float | None:
-        """Look up approximate mass from standard residue name.
-
-        Args:
-            residue: Standard residue name (e.g., 'ALA', 'GLY').
-
-        Returns:
-            Approximate mass in Daltons, or None if not found.
-        """
-        # Try uppercase
-        if residue.upper() in AMINO_ACID_MASSES:
-            return AMINO_ACID_MASSES[residue.upper()]
-
-        # Try first 3 chars (common abbreviation)
-        abbrev = residue[:3].upper()
-        if abbrev in AMINO_ACID_MASSES:
-            return AMINO_ACID_MASSES[abbrev]
-
-        return None
-
-
 def _process_bridge_cuts(
     molecule: Molecule,
     graph: FragmentationGraph,
@@ -391,9 +212,9 @@ def _process_bridge_cuts(
         for comp in components:
             comp_tuple = tuple(sorted(comp))
             if comp_tuple not in seen_fragments:
-                # Find bonds that were removed to create this component
                 removed_bonds = _find_bonds_for_component(molecule, comp)
                 fragment = Fragment(
+                    fragment_id="",
                     monomer_indices=comp_tuple,
                     removed_bonds=tuple(removed_bonds),
                     is_from_cycle=False,
@@ -432,6 +253,7 @@ def _process_cycle_cuts(
                 if comp_tuple not in seen_fragments:
                     removed_bonds = _find_bonds_for_component(molecule, comp, list(edge_pair))
                     fragment = Fragment(
+                        fragment_id="",
                         monomer_indices=comp_tuple,
                         removed_bonds=tuple(removed_bonds),
                         is_from_cycle=True,
@@ -468,18 +290,24 @@ def generate_fragments(
     """
     if len(molecule.monomers) == 1:
         # Single monomer: no cleavage possible
-        return [Fragment(monomer_indices=(0,), removed_bonds=())]
+        single_idx = next(iter(molecule.monomers.keys()))
+        return [Fragment(fragment_id="frag_0", monomer_indices=(single_idx,), removed_bonds=())]
 
     graph = FragmentationGraph(molecule, rules=rules)
     seen_fragments = set()
 
-    # Phase 1: Bridge cuts (linear fragmentation)
+    # Phase 1: Bridge cuts
     fragments = _process_bridge_cuts(molecule, graph, seen_fragments)
 
-    # Phase 2: 2-cut enumeration (cyclic fragmentation)
+    # Phase 2: 2-cut enumeration
     fragments.extend(_process_cycle_cuts(molecule, graph, seen_fragments))
 
-    return fragments
+    # Reconstruct fragments to assign unique IDs in order
+    final_fragments = []
+    for idx, fragment in enumerate(fragments):
+        final_fragments.append(replace(fragment, fragment_id=f"frag_{idx}"))
+
+    return final_fragments
 
 
 def _find_bonds_for_component(
@@ -512,7 +340,7 @@ def _find_bonds_for_component(
         src_in = bond.source_idx in component_set
         tgt_in = bond.target_idx in component_set
 
-        if src_in != tgt_in:  # Bond crosses the boundary
+        if src_in != tgt_in:
             removed_bonds.append(bond)
         elif _canonical_edge((bond.source_idx, bond.target_idx)) in removed_edge_set:
             removed_bonds.append(bond)
@@ -520,76 +348,101 @@ def _find_bonds_for_component(
     return removed_bonds
 
 
-def calculate_theoretical_masses(
-    fragment: Fragment,
-    calculator: MonomerMassCalculator,
-    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
-    ion_types: set[str] | None = None,
-) -> list[tuple[float, str]]:
-    """Calculate theoretical ion masses from a fragment, including bond cleavage shifts.
-
-    Generates masses for requested ion types using a configurable mapping of
-    adduct shifts, supporting future extensions like custom salt adducts.
+def _calculate_bond_cleavage_shift(
+    bond: Bond,
+    rules: tuple[FragmentationRule, ...],
+    fragment_monomers: set[int],
+) -> RuleShift | None:
+    """Calculate the rule name and mass shift for a single cleaved bond relative to a fragment.
 
     Args:
-        fragment: Fragment instance to calculate masses for.
-        calculator: MonomerMassCalculator for monomer mass lookups.
-        rules: Tuple of FragmentationRules allowed for cleavage.
-            Defaults to DEFAULT_RULES.
-        ion_types: Optional set of ion/adduct types to generate.
-            If None, defaults to {"[M+H]+"}.
+        bond: The cleaved Bond.
+        rules: Tuple of FragmentationRules.
+        fragment_monomers: Set of monomer indices in the fragment.
 
     Returns:
-        List of (mass, ion_type) tuples. Masses are floats in Daltons.
+        A RuleShift object in Daltons, or None if no rule matches.
+    """
+    for rule in rules:
+        matching_subtype = next((s for s in bond.subtypes if s.name == rule.bond_type), None)
+        if matching_subtype is not None or bond.bond_type == rule.bond_type:
+            is_reversed = matching_subtype.reversed if matching_subtype is not None else False
+            left_shift = rule.left_shift
+            right_shift = rule.right_shift
+
+            shift = 0.0
+            target_in = bond.target_idx in fragment_monomers
+            source_in = bond.source_idx in fragment_monomers
+
+            if not is_reversed:
+                if target_in:
+                    shift += left_shift
+                if source_in:
+                    shift += right_shift
+            else:
+                if target_in:
+                    shift += right_shift
+                if source_in:
+                    shift += left_shift
+            return RuleShift(rule_name=rule.bond_type, shift=shift)
+    return None
+
+
+def calculate_theoretical_ion(
+    fragment: Fragment,
+    monomers: dict[int, Monomer],
+    rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+    fragment_id: str | None = None,
+) -> TheoreticalIon:
+    """Calculate the theoretical ion for a fragment, including bond cleavage shifts.
+
+    Args:
+        fragment: Fragment instance to calculate the ion for.
+        monomers: dict[int, Monomer] for monomer mass lookups.
+        rules: Tuple of FragmentationRules allowed for cleavage.
+            Defaults to DEFAULT_RULES.
+        fragment_id: Unique identifier for the generated ion. If None, uses fragment.fragment_id.
+
+    Returns:
+        A TheoreticalIon object.
 
     Raises:
-        ValueError: If mass cannot be calculated for any monomer or ion type is unsupported.
+        IndexError: If monomer index in the fragment is out of bounds.
+        ValueError: If mass cannot be calculated for any monomer.
     """
-    if ion_types is None:
-        ion_types = {"[M+H]+"}
-
+    if fragment_id is None:
+        fragment_id = fragment.fragment_id
     # Sum monomer exact masses
-    monomer_mass_sum = sum(calculator.get_mass(idx) for idx in fragment.monomer_indices)
+    monomer_mass_sum = 0.0
+    for idx in fragment.monomer_indices:
+        if idx not in monomers:
+            raise IndexError(f"Monomer index {idx} out of bounds")
+        monomer = monomers[idx]
+        if monomer.mass is None:
+            raise ValueError(f"Cannot determine mass for monomer {monomer.norine_name}")
+        monomer_mass_sum += monomer.mass
 
     # Apply bond-specific shifts from the removed boundary bonds
-    total_shift = 0.0
     fragment_monomers = set(fragment.monomer_indices)
+    rules_shifts = []
     for bond in fragment.removed_bonds:
-        # Find matching rule
-        for rule in rules:
-            if rule.bond_type == bond.bond_type:
-                # If the target monomer is in the fragment, apply left shift (+H for PEPTIDE)
-                if bond.target_idx in fragment_monomers:
-                    total_shift += rule.left_shift
-                # If the source monomer is in the fragment, apply right shift (-H for PEPTIDE)
-                if bond.source_idx in fragment_monomers:
-                    total_shift += rule.right_shift
-                break
+        rule_shift = _calculate_bond_cleavage_shift(bond, rules, fragment_monomers)
+        if rule_shift is not None:
+            rules_shifts.append(rule_shift)
 
+    total_shift = sum(item.shift for item in rules_shifts)
     neutral_mass = monomer_mass_sum + total_shift
 
-    # Map adduct/ion types to their shifts
-    adduct_shifts = {
-        "[M+H]+": PROTON_MASS,
-        "[M-H]-": -PROTON_MASS,
-        "fragment": 0.0,
-    }
-
-    masses = []
-    for ion_type in ion_types:
-        if ion_type in adduct_shifts:
-            masses.append((neutral_mass + adduct_shifts[ion_type], ion_type))
-        else:
-            raise ValueError(f"Unsupported ion/adduct type: '{ion_type}'")
-
-    return masses
+    return TheoreticalIon(
+        fragment_id=fragment_id,
+        mass=neutral_mass,
+        rules_shifts=tuple(rules_shifts),
+    )
 
 
 def generate_all_theoretical_masses(
     molecule: Molecule,
-    calculator: MonomerMassCalculator | None = None,
     rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
-    ion_types: set[str] | None = None,
 ) -> list[TheoreticalIon]:
     """Generate all theoretical masses from a molecule.
 
@@ -600,38 +453,20 @@ def generate_all_theoretical_masses(
 
     Args:
         molecule: The Molecule to fragment and analyze.
-        calculator: Optional MonomerMassCalculator. If None, creates one with
-            atomic mass calculation enabled (if source_parsed_record available).
         rules: Tuple of FragmentationRules allowed for cleavage.
             Defaults to DEFAULT_RULES.
-        ion_types: Optional set of ion/adduct types to generate.
-            If None, defaults to {"[M+H]+"}.
 
     Returns:
         List of TheoreticalIon objects sorted by mass.
     """
-    if calculator is None:
-        calculator = MonomerMassCalculator(
-            list(molecule.monomers),
-            parsed_record=molecule.source_parsed_record,
-        )
-
     fragments = generate_fragments(molecule, rules=rules)
     all_masses = []
 
-    for frag_idx, fragment in enumerate(fragments):
-        frag_id = f"frag_{frag_idx}"
-        masses = calculate_theoretical_masses(
-            fragment, calculator, rules=rules, ion_types=ion_types
+    for fragment in fragments:
+        ion = calculate_theoretical_ion(
+            fragment, molecule.monomers, rules=rules, fragment_id=fragment.fragment_id
         )
-        for mass, ion_type in masses:
-            all_masses.append(
-                TheoreticalIon(
-                    fragment_id=frag_id,
-                    mass=mass,
-                    ion_type=ion_type,
-                )
-            )
+        all_masses.append(ion)
 
     # Sort by mass
     all_masses.sort(key=lambda x: x.mass)
@@ -641,29 +476,21 @@ def generate_all_theoretical_masses(
 
 def generate_theoretical_spectrum(
     molecule: Molecule,
-    calculator: MonomerMassCalculator | None = None,
     rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
-    ion_types: set[str] | None = None,
 ) -> TheoreticalSpectrum:
     """Generate the theoretical spectrum for a molecule.
 
     Args:
         molecule: The Molecule to fragment and analyze.
-        calculator: Optional MonomerMassCalculator. If None, creates one with
-            atomic mass calculation enabled (if source_parsed_record available).
         rules: Tuple of FragmentationRules allowed for cleavage.
             Defaults to DEFAULT_RULES.
-        ion_types: Optional set of ion/adduct types to generate.
-            If None, defaults to {"[M+H]+"}.
 
     Returns:
         TheoreticalSpectrum object representing the predicted ions.
     """
     all_masses = generate_all_theoretical_masses(
         molecule,
-        calculator=calculator,
         rules=rules,
-        ion_types=ion_types,
     )
     return TheoreticalSpectrum(
         structure_id=molecule.structure_id,

@@ -4,98 +4,160 @@ This module loads atom-level rBAN records serialized by nerpa-ms and converts
 them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
 """
 
-import networkx as nx
 import yaml
 from rban_parsing.rban_parser import Parsed_rBAN_Record
 
-from kakapo.models import Bond, Chirality, Cycle, Molecule, Monomer
+from kakapo.constants import ATOMIC_MASSES
+from kakapo.io.bond_classifier import classify_single_bond
+from kakapo.models import (
+    Atom,
+    AtomicBond,
+    AtomicEdge,
+    Bond,
+    Chirality,
+    Molecule,
+    Monomer,
+)
 
 
-def _extract_cycles_from_monomer_edges(
-    monomer_indices: list[int], edges: list[tuple[int, int]]
-) -> list[Cycle]:
-    """Infer cyclic motifs from an undirected monomer-level graph."""
-    if not monomer_indices:
-        return []
+def _calculate_monomer_exact_mass(monomer_info, atoms_dict) -> float | None:
+    """Calculate the exact monoisotopic mass of a monomer from its atomic formula.
 
-    graph = nx.Graph()
-    graph.add_nodes_from(monomer_indices)
-    graph.add_edges_from(edges)
+    Sums the exact isotopic masses of all non-hydrogen and hydrogen atoms belonging to the monomer.
 
-    cycles = []
-    for cycle_nodes in nx.cycle_basis(graph):
-        if len(cycle_nodes) >= 2:
-            cycles.append(Cycle(monomer_indices=tuple(cycle_nodes)))
-    return cycles
+    Args:
+        monomer_info: The MonomerRecord parsing structure from the rBAN parser.
+        atoms_dict: A dictionary mapping atom IDs to AtomRecord instances.
+
+    Returns:
+        The precalculated exact monoisotopic mass of the monomer, or None if the mass is zero.
+
+    Raises:
+        ValueError: If an unknown chemical element is encountered.
+    """
+    total_mass = 0.0
+    for atom_id in monomer_info.atoms:
+        atom_info = atoms_dict.get(atom_id)
+        if atom_info is not None:
+            symbol = atom_info.name
+            if symbol in ATOMIC_MASSES:
+                total_mass += ATOMIC_MASSES[symbol]
+            else:
+                raise ValueError(f"Unknown element '{symbol}' for atom {atom_id}")
+            if atom_info.hydrogens > 0:
+                total_mass += atom_info.hydrogens * ATOMIC_MASSES.get("H", 1.007825)
+    return total_mass if total_mass > 0 else None
 
 
-def _extract_ring_edges_from_cycles(cycle_nodes: list[int]) -> set[tuple[int, int]]:
-    """Convert cycle node order to undirected canonical edge pairs."""
-    cycle_edges = set()
-    if len(cycle_nodes) < 2:
-        return cycle_edges
+def _map_and_classify_bonds(
+    record: Parsed_rBAN_Record,
+    monomers: dict[int, Monomer],
+    atoms: dict[int, Atom],
+    atomic_bonds: dict[AtomicEdge, AtomicBond],
+) -> list[Bond]:
+    """Map monomer bonds and dynamically classify their subtypes directly using loaded rules.
 
-    for i in range(len(cycle_nodes)):
-        u = cycle_nodes[i]
-        v = cycle_nodes[(i + 1) % len(cycle_nodes)]
-        cycle_edges.add((u, v) if u <= v else (v, u))
-    return cycle_edges
+    Args:
+        record: The source Parsed_rBAN_Record.
+        monomers: Dictionary mapping monomer IDs to Monomer instances.
+        atoms: Dictionary mapping atom IDs to Atom instances.
+        atomic_bonds: Dictionary mapping AtomicEdge instances to AtomicBond instances.
+
+    Returns:
+        List of Bond instances with classified subtypes.
+    """
+    bonds = []
+    for (u, v), bond_info_list in record.monomer_bonds.items():
+        for bond_info in bond_info_list:
+            bond_type = bond_info.atomic_edge.bond_type
+
+            # Get the connecting atoms mapped to their monomer IDs
+            mon_to_atom = bond_info.monomer_to_atom
+
+            # Call the classifier method directly
+            subtypes = classify_single_bond(
+                source_monomer_idx=u,
+                target_monomer_idx=v,
+                monomer_a=monomers[u],
+                monomer_b=monomers[v],
+                mon_to_atom=mon_to_atom,
+                atom_info_dict=atoms,
+                atomic_edges=atomic_bonds,
+            )
+
+            bonds.append(
+                Bond(
+                    source_idx=u,
+                    target_idx=v,
+                    bond_type=bond_type,
+                    subtypes=tuple(subtypes),
+                )
+            )
+    return bonds
 
 
 def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
-    """Convert Parsed_rBAN_Record into a kakapo Molecule, retaining source record."""
-    ordered_monomer_indices = sorted(record.monomers.keys())
-    monomers = []
-    for mon_idx in ordered_monomer_indices:
-        mon_info = record.monomers[mon_idx]
+    """Convert a Parsed_rBAN_Record into a kakapo Molecule instance.
+
+    Maps the parsed record's atoms, monomers, and atomic bonds to Molecule components,
+    precalculates the exact monoisotopic mass of each monomer using the atomic composition, and
+    dynamically classifies inter-monomer bond subtypes using subgraph isomorphism.
+
+    Args:
+        record: The source Parsed_rBAN_Record parsed from YAML.
+
+    Returns:
+        A fully constructed Molecule instance with enriched properties and classified bonds.
+    """
+    # 1. Map atoms to Atom
+    atoms = {
+        atom_id: Atom(name=atom_info.name, hydrogens=atom_info.hydrogens)
+        for atom_id, atom_info in record.atoms.items()
+    }
+
+    # 2. Map monomers to Monomer using original keys
+    monomers = {}
+    for mon_idx, mon_info in record.monomers.items():
         residue = (
             str(mon_info.nerpa_core) if mon_info.nerpa_core is not None else str(mon_info.name)
         )
         is_methylated = bool(mon_info.methylated) if mon_info.methylated is not None else False
-        monomers.append(
-            Monomer(
-                norine_name=str(mon_info.name),
-                residue=residue,
-                is_methylated=is_methylated,
-                chirality=Chirality[mon_info.chirality.name],
-            )
+
+        # Calculate exact mass from atomic composition
+        try:
+            mass = _calculate_monomer_exact_mass(mon_info, record.atoms)
+        except ValueError:
+            mass = None
+
+        monomers[mon_idx] = Monomer(
+            norine_name=str(mon_info.name),
+            residue=residue,
+            is_methylated=is_methylated,
+            chirality=Chirality[mon_info.chirality.name],
+            atoms=tuple(mon_info.atoms),
+            mass=mass,
         )
 
-    graph_index_of = {mon_idx: i for i, mon_idx in enumerate(ordered_monomer_indices)}
-    indexed_edges = []
-    for u, v in record.monomer_bonds.keys():
-        if u in graph_index_of and v in graph_index_of:
-            indexed_edges.append((graph_index_of[u], graph_index_of[v]))
-
-    cycles = _extract_cycles_from_monomer_edges(
-        list(range(len(ordered_monomer_indices))),
-        indexed_edges,
-    )
-    ring_edges = set()
-    for cycle in cycles:
-        ring_edges.update(_extract_ring_edges_from_cycles(list(cycle.monomer_indices)))
-
-    bonds = []
-    for u, v in indexed_edges:
-        canonical = (u, v) if u <= v else (v, u)
-
-        bond_info_list = record.monomer_bonds.get(canonical, [])
-        bond_type = bond_info_list[0].atomic_edge.bond_type if bond_info_list else "PEPTIDE"
-        bonds.append(
-            Bond(
-                source_idx=u,
-                target_idx=v,
-                bond_type=bond_type,
-                is_ring_bond=canonical in ring_edges,
-            )
+    # 3. Map atomic bonds
+    atomic_bonds = {}
+    for (u, v), edge_info in record.atomic_bonds.items():
+        atomic_bonds[AtomicEdge(u, v)] = AtomicBond(
+            arity=edge_info.arity,
+            bond_type=edge_info.bond_type,
         )
 
+    # 4. Map monomer bonds and dynamically classify subtypes directly
+    bonds = _map_and_classify_bonds(record, monomers, atoms, atomic_bonds)
+
+    # 5. Return the final Molecule
     return Molecule(
         structure_id=record.compound_id,
-        monomers=tuple(monomers),
+        monomers=monomers,
         bonds=tuple(bonds),
-        cycles=tuple(cycles),
-        smiles=record.metadata.smiles,
+        smiles=record.metadata.smiles if record.metadata else None,
+        atoms=atoms,
+        atomic_bonds=atomic_bonds,
+        metadata=record.metadata,
         source_parsed_record=record,
     )
 

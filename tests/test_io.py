@@ -358,7 +358,7 @@ class TestModelsValidation:
         with pytest.raises(ValueError, match="at least one monomer"):
             Molecule(
                 structure_id="mol_1",
-                monomers=(),
+                monomers={},
             )
 
     def test_match_result_requires_positive_counts(self):

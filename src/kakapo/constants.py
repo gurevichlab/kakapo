@@ -5,6 +5,7 @@ and parsed on import from external configuration files.
 """
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from rdkit import Chem
@@ -132,3 +133,38 @@ try:
 except Exception as e:
     print(f"Error loading amino acid residue masses: {e}", file=sys.stderr)
     AMINO_ACID_MASSES = {}
+
+
+@dataclass(frozen=True)
+class FragmentationRule:
+    """A chemical fragmentation rule for molecular graph cleavage.
+
+    Defines the eligible bond type and its corresponding left/right mass shifts.
+
+    Attributes:
+        bond_type: The string representing the eligible bond type (e.g. 'PEPTIDE').
+        left_shift: Mass shift applied to the target monomer of the cleaved bond (N-side).
+        right_shift: Mass shift applied to the source monomer of the cleaved bond (C-side).
+    """
+
+    bond_type: str
+    left_shift: float
+    right_shift: float
+
+
+# All predefined rules from npdtools config files
+DEFAULT_RULES = (
+    FragmentationRule("amide_1", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_2", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_3", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_4", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_5", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_6", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_7", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_8", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("amide_9", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("NC", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("OC", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),
+    # FragmentationRule("AMINO", PROTON_MASS, -PROTON_MASS),
+)
