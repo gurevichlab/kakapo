@@ -26,6 +26,24 @@ class TestModelsValidation:
                 precursor_mass=-1.0,
             )
 
+    def test_spectrum_with_charge(self):
+        """Spectrum stores and validates charge."""
+        spec = Spectrum(
+            spectrum_id="spec_1",
+            peaks=frozenset([Peak(100.0, 1.0)]),
+            precursor_mass=500.0,
+            charge=2,
+        )
+        assert spec.charge == 2
+
+        with pytest.raises(TypeError, match="Charge must be an integer or None"):
+            Spectrum(
+                spectrum_id="spec_1",
+                peaks=frozenset([Peak(100.0, 1.0)]),
+                precursor_mass=500.0,
+                charge="2",  # type: ignore
+            )
+
     def test_molecule_requires_monomers(self):
         """Molecule cannot be created without monomers."""
         with pytest.raises(ValueError, match="at least one monomer"):

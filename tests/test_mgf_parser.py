@@ -126,6 +126,43 @@ class TestMgfParserConversion:
         assert kakapo_spec.spectrum_id == "spec_001"
         assert kakapo_spec.precursor_mass == 400.0
         assert len(kakapo_spec.peaks) == 3
+        assert kakapo_spec.charge is None
+
+    def test_matchms_to_kakapo_with_positive_charge(self):
+        """Convert matchms spectrum with positive charge value."""
+        from matchms import Spectrum as MatchmsSpectrum
+
+        peaks = np.array([[100.0, 10.0]])
+        matchms_spec = MatchmsSpectrum(
+            mz=peaks[:, 0],
+            intensities=peaks[:, 1],
+            metadata={"spectrum_id": "spec_1", "precursor_mz": 400.0, "charge": "2+"},
+        )
+        assert _matchms_to_kakapo(matchms_spec).charge == 2
+
+    def test_matchms_to_kakapo_with_negative_charge(self):
+        """Convert matchms spectrum with negative charge value."""
+        from matchms import Spectrum as MatchmsSpectrum
+
+        peaks = np.array([[100.0, 10.0]])
+        matchms_spec = MatchmsSpectrum(
+            mz=peaks[:, 0],
+            intensities=peaks[:, 1],
+            metadata={"spectrum_id": "spec_2", "precursor_mz": 400.0, "charge": "1-"},
+        )
+        assert _matchms_to_kakapo(matchms_spec).charge == -1
+
+    def test_matchms_to_kakapo_with_invalid_charge(self):
+        """Convert matchms spectrum with invalid charge, falling back to None."""
+        from matchms import Spectrum as MatchmsSpectrum
+
+        peaks = np.array([[100.0, 10.0]])
+        matchms_spec = MatchmsSpectrum(
+            mz=peaks[:, 0],
+            intensities=peaks[:, 1],
+            metadata={"spectrum_id": "spec_3", "precursor_mz": 400.0, "charge": "invalid"},
+        )
+        assert _matchms_to_kakapo(matchms_spec).charge is None
 
     def test_matchms_to_kakapo_with_pepmass(self):
         """Convert spectrum using pepmass field."""
@@ -196,6 +233,28 @@ END IONS
             assert spectra[0].spectrum_id == "spectrum_1"
             assert spectra[0].precursor_mass == 500.0
             assert len(spectra[0].peaks) == 3
+            assert spectra[0].charge is None
+        finally:
+            os.unlink(mgf_path)
+
+    def test_load_mgf_with_charge(self):
+        """Load MGF file containing charge field."""
+        mgf_content = """BEGIN IONS
+TITLE=spec_charge
+PEPMASS=500.0
+CHARGE=3+
+100 10
+200 20
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+
+        try:
+            spectra = load_mgf(mgf_path, apply_filters=False)
+            assert len(spectra) == 1
+            assert spectra[0].spectrum_id == "spec_charge"
+            assert spectra[0].precursor_mass == 500.0
+            assert spectra[0].charge == 3
         finally:
             os.unlink(mgf_path)
 

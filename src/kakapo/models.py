@@ -46,11 +46,13 @@ class Spectrum:
         spectrum_id: Unique identifier for this spectrum.
         peaks: List of detected peaks.
         precursor_mass: The m/z of the precursor ion (parent mass).
+        charge: The charge of the precursor ion.
     """
 
     spectrum_id: str
     peaks: frozenset[Peak]
     precursor_mass: float
+    charge: int | None = None
 
     def __post_init__(self):
         if self.precursor_mass < 0:
@@ -59,6 +61,8 @@ class Spectrum:
             raise ValueError("Spectrum ID cannot be empty")
         if len(self.peaks) == 0:
             raise ValueError("Spectrum must contain at least one peak")
+        if self.charge is not None and not isinstance(self.charge, int):
+            raise TypeError("Charge must be an integer or None")
 
     def get_sorted_peaks(self) -> list[Peak]:
         """Return peaks sorted by mass."""
@@ -168,6 +172,7 @@ class AtomicBond:
         arity: The bond order or arity (e.g., '1' for single, '2' for double, 'ar' for aromatic).
         bond_type: The qualitative chemical bond type or classification.
     """
+
     arity: str
     bond_type: str
 

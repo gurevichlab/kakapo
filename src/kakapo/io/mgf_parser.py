@@ -207,7 +207,7 @@ def _get_spectrum_id(metadata: dict) -> str:
     return "unknown"
 
 
-def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:
+def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:  # noqa: C901
     """Convert a matchms Spectrum to a kakapo Spectrum.
 
     Extracts peak data and metadata from matchms format and constructs
@@ -260,8 +260,17 @@ def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:
     except (TypeError, IndexError, ValueError) as e:
         raise ValueError(f"Failed to parse peaks in spectrum {spectrum_id}: {e}") from e
 
+    # Extract charge
+    charge = matchms_spec.get("charge")
+    if charge is not None:
+        try:
+            charge = int(charge)
+        except (ValueError, TypeError):
+            charge = None
+
     return Spectrum(
         spectrum_id=spectrum_id,
         peaks=frozenset(peak_objects),
         precursor_mass=precursor_mass,
+        charge=charge,
     )
