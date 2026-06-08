@@ -492,7 +492,18 @@ def generate_theoretical_spectrum(
         molecule,
         rules=rules,
     )
+
+    structure_mass = 0.0
+    for monomer in molecule.monomers.values():
+        if monomer.mass is None:
+            raise ValueError(
+                f"Cannot calculate structure mass: monomer '{monomer.norine_name}' has no mass"
+            )
+        structure_mass += monomer.mass
+
     return TheoreticalSpectrum(
         structure_id=molecule.structure_id,
         ions=frozenset(all_masses),
+        structure_mass=structure_mass,
+        monomer_count=molecule.monomer_count,
     )

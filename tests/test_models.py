@@ -56,10 +56,54 @@ class TestModelsValidation:
         """MatchResult requires positive peak counts."""
         with pytest.raises(ValueError, match="positive"):
             MatchResult(
-                molecule_id="mol_1",
+                structure_id="mol_1",
                 spectrum_id="spec_1",
-                score=0.8,
+                structure_mass=100.0,
+                spectrum_mass=100.5,
+                mass_tolerance=0.01,
                 matched_peaks_count=5,
                 theoretical_peaks_count=0,  # Invalid: must be > 0
+                monomer_count=3,
+            )
+
+    def test_match_result_negative_structure_mass(self):
+        """MatchResult validates that structure mass is non-negative."""
+        with pytest.raises(ValueError, match="Structure mass must be non-negative"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                structure_mass=-1.0,
+                spectrum_mass=100.5,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
+                monomer_count=3,
+            )
+
+    def test_match_result_negative_spectrum_mass(self):
+        """MatchResult validates that spectrum mass is non-negative."""
+        with pytest.raises(ValueError, match="Spectrum mass must be non-negative"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                structure_mass=100.0,
+                spectrum_mass=-100.5,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
+                monomer_count=3,
+            )
+
+    def test_match_result_negative_mass_tolerance(self):
+        """MatchResult validates that mass tolerance is non-negative."""
+        with pytest.raises(ValueError, match="Mass tolerance must be non-negative"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                structure_mass=100.0,
+                spectrum_mass=100.5,
+                mass_tolerance=-0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
                 monomer_count=3,
             )

@@ -9,7 +9,7 @@ Comprehensive test coverage for:
 
 import pytest
 
-from kakapo.constants import PROTON_MASS, FragmentationRule
+from kakapo.constants import H_MASS, FragmentationRule
 from kakapo.core.fragmenter import (
     Fragment,
     FragmentationGraph,
@@ -31,8 +31,8 @@ from kakapo.models import (
 
 # Explicit rules to use in tests to avoid relying on default rules
 TEST_RULES = (
-    FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),
-    FragmentationRule("ESTER", PROTON_MASS, -PROTON_MASS),
+    FragmentationRule("PEPTIDE", H_MASS, -H_MASS),
+    FragmentationRule("ESTER", H_MASS, -H_MASS),
 )
 
 # ============================================================================
@@ -488,7 +488,7 @@ class TestMassCalculation:
 
         assert len(ion_ala.rules_shifts) == 1
         assert ion_ala.rules_shifts[0].rule_name == "PEPTIDE"
-        assert pytest.approx(ion_ala.rules_shifts[0].shift) == -PROTON_MASS
+        assert pytest.approx(ion_ala.rules_shifts[0].shift) == -H_MASS
 
 
 # ============================================================================
@@ -561,7 +561,7 @@ class TestIntegration:
             bonds=(bond1, bond2),
         )
 
-        rules = (FragmentationRule("PEPTIDE", PROTON_MASS, -PROTON_MASS),)
+        rules = (FragmentationRule("PEPTIDE", H_MASS, -H_MASS),)
         fragments = generate_fragments(mol, rules=rules)
         monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
         assert frozenset({0}) in monomer_sets
@@ -578,8 +578,8 @@ class TestIntegration:
         ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
         ion_gly = calculate_theoretical_ion(frag_gly, linear_dimer.monomers, rules=TEST_RULES)
 
-        expected_ala = linear_dimer.monomers[0].mass - PROTON_MASS
-        expected_gly = linear_dimer.monomers[1].mass + PROTON_MASS
+        expected_ala = linear_dimer.monomers[0].mass - H_MASS
+        expected_gly = linear_dimer.monomers[1].mass + H_MASS
 
         assert pytest.approx(ion_ala.mass) == expected_ala
         assert pytest.approx(ion_gly.mass) == expected_gly
@@ -590,6 +590,8 @@ class TestIntegration:
         assert isinstance(theo_spec, TheoreticalSpectrum)
         assert theo_spec.structure_id == "linear_dimer"
         assert len(theo_spec.ions) == 2
+        assert pytest.approx(theo_spec.structure_mass) == 128.05864
+        assert theo_spec.monomer_count == 2
 
         sorted_ions = theo_spec.get_sorted_ions()
         assert len(sorted_ions) == 2
@@ -611,11 +613,37 @@ class TestIntegration:
         assert ion in ions_set
 
         with pytest.raises(ValueError, match="Structure ID cannot be empty"):
-            TheoreticalSpectrum(structure_id="", ions=frozenset({ion}))
+            TheoreticalSpectrum(
+                structure_id="",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=1,
+            )
 
         msg = "Theoretical spectrum must contain at least one ion"
         with pytest.raises(ValueError, match=msg):
-            TheoreticalSpectrum(structure_id="spec_1", ions=frozenset())
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset(),
+                structure_mass=100.0,
+                monomer_count=1,
+            )
+
+        with pytest.raises(ValueError, match="Structure mass must be non-negative"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=-1.0,
+                monomer_count=1,
+            )
+
+        with pytest.raises(ValueError, match="Monomer count must be positive"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=0,
+            )
 
     def test_rule_based_bond_filtering_with_subtypes(self):
         """Verify that FragmentationRule rules filter cleavages based on bond subtypes."""
@@ -653,7 +681,7 @@ class TestIntegration:
             bonds=(bond1, bond2),
         )
 
-        rules = (FragmentationRule("amide_1", PROTON_MASS, -PROTON_MASS),)
+        rules = (FragmentationRule("amide_1", H_MASS, -H_MASS),)
         fragments = generate_fragments(mol, rules=rules)
         monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
         # bond1 should be cleaved since its subtype "amide_1" matches the rule.

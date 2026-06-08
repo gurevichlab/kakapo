@@ -110,16 +110,24 @@ class TheoreticalSpectrum:
     Attributes:
         structure_id: Unique identifier for the parent Molecule.
         ions: Frozenset of TheoreticalIon objects.
+        structure_mass: Exact mass of the matched molecule.
+        monomer_count: Number of monomers in the parent Molecule.
     """
 
     structure_id: str
     ions: frozenset[TheoreticalIon]
+    structure_mass: float
+    monomer_count: int
 
     def __post_init__(self):
         if not self.structure_id:
             raise ValueError("Structure ID cannot be empty")
         if len(self.ions) == 0:
             raise ValueError("Theoretical spectrum must contain at least one ion")
+        if self.structure_mass < 0:
+            raise ValueError("Structure mass must be non-negative")
+        if self.monomer_count <= 0:
+            raise ValueError("Monomer count must be positive")
 
     def get_sorted_ions(self) -> list[TheoreticalIon]:
         """Return ions sorted by mass."""
@@ -326,24 +334,32 @@ class MatchResult:
     """Result of matching a spectrum to a molecule.
 
     Attributes:
-        molecule_id: ID of the matched molecule.
+        structure_id: ID of the matched molecule.
         spectrum_id: ID of the matched spectrum.
-        score: Numeric score (typically 0-1 or higher).
+        structure_mass: Exact mass of the matched molecule.
+        spectrum_mass: Precursor mass of the matched spectrum.
+        mass_tolerance: Mass tolerance used for matching.
         matched_peaks_count: Number of experimental peaks matching theory.
         theoretical_peaks_count: Number of theoretical peaks generated.
         monomer_count: Number of monomers in the matched molecule.
     """
 
-    molecule_id: str
+    structure_id: str
     spectrum_id: str
-    score: float
+    structure_mass: float
+    spectrum_mass: float
+    mass_tolerance: float
     matched_peaks_count: int
     theoretical_peaks_count: int
     monomer_count: int
 
     def __post_init__(self):
-        if self.score < 0:
-            raise ValueError("Score must be non-negative")
+        if self.structure_mass < 0:
+            raise ValueError("Structure mass must be non-negative")
+        if self.spectrum_mass < 0:
+            raise ValueError("Spectrum mass must be non-negative")
+        if self.mass_tolerance < 0:
+            raise ValueError("Mass tolerance must be non-negative")
         if self.matched_peaks_count < 0:
             raise ValueError("Matched peaks count must be non-negative")
         if self.theoretical_peaks_count <= 0:

@@ -121,7 +121,8 @@ except Exception as e:
     ATOMIC_MASSES = {}
 
 # Use parsed exact hydrogen and oxygen masses to calculate water mass and proton mass
-PROTON_MASS = ATOMIC_MASSES.get("H", 1.007825)
+H_MASS = ATOMIC_MASSES.get("H", 1.007825)
+PROTON_MASS = 1.007276
 WATER_EXACT_MASS = 2 * ATOMIC_MASSES.get("H", 1.007825) + ATOMIC_MASSES.get("O", 15.994915)
 
 try:
@@ -154,7 +155,7 @@ class FragmentationRule:
 
 # All predefined rules from npdtools config files
 DEFAULT_RULES = (
-    FragmentationRule("amide_1", PROTON_MASS, -PROTON_MASS),
+    FragmentationRule("amide_1", H_MASS, -H_MASS),
     # FragmentationRule("amide_2", PROTON_MASS, -PROTON_MASS),
     # FragmentationRule("amide_3", PROTON_MASS, -PROTON_MASS),
     # FragmentationRule("amide_4", PROTON_MASS, -PROTON_MASS),
