@@ -46,6 +46,12 @@ kakapo = "kakapo.cli:main"
 packages = ["kakapo"]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+kakapo = [
+    "constants/**/*.mol",
+    "constants/**/*.txt",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=src --cov-report=term-missing"

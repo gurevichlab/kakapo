@@ -54,7 +54,7 @@ class BondRule:
     mol_breakable_edge: tuple[int, int]
 
 
-def load_rules(rule_dir_path: str) -> list[BondRule]:
+def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
     """Parse all rules directly from the specified directory.
 
     Reads each V3000 `.mol` file from the directory, filters out hydrogen atoms (which are
@@ -121,15 +121,29 @@ def load_rules(rule_dir_path: str) -> list[BondRule]:
     return rules
 
 
-AMIDE_RULES_DIR = (
-    "/home/daria/Uni/Master/NPDtools-2.5.0-Linux/share/npdtools/Fragmentation_rule/Amide_rule"
-)
-GENERAL_RULES_DIR = (
-    "/home/daria/Uni/Master/NPDtools-2.5.0-Linux/share/npdtools/Fragmentation_rule/General_rule"
-)
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+AMIDE_RULES_DIR = PACKAGE_ROOT.joinpath("constants", "Fragmentation_rule", "Amide_rule")
+GENERAL_RULES_DIR = PACKAGE_ROOT.joinpath("constants", "Fragmentation_rule", "General_rule")
 
-# Load rules once at module import time
-ALL_RULES = load_rules(AMIDE_RULES_DIR) + load_rules(GENERAL_RULES_DIR)
+# Dynamic rule loading with caching to prevent import-time I/O
+ALL_RULES: list[BondRule] = []
+_RULES_LOADED = False
+
+
+def get_default_rules() -> list[BondRule]:
+    """Retrieve the default list of fragmentation rules, loading them if not already cached.
+
+    Returns:
+        A list of BondRule objects representing the default templates.
+    """
+    global ALL_RULES, _RULES_LOADED
+    # Respect any external mocking/patching of ALL_RULES in tests
+    if not _RULES_LOADED and not ALL_RULES:
+        default_rules = load_rules(AMIDE_RULES_DIR) + load_rules(GENERAL_RULES_DIR)
+        ALL_RULES.clear()
+        ALL_RULES.extend(default_rules)
+        _RULES_LOADED = True
+    return ALL_RULES
 
 
 def _build_local_graph(
@@ -241,7 +255,7 @@ def classify_single_bond(
         A list of BondSubtypes matched by the fragmentation rules.
     """
     if rules is None:
-        rules = ALL_RULES
+        rules = get_default_rules()
 
     local_graph = _build_local_graph(monomer_a, monomer_b, atom_info_dict, atomic_edges)
 
