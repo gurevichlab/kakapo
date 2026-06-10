@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import networkx as nx
 import pytest
+from rban_parsing.rban_parser import AtomId, AtomInfo, Chirality, MonomerInfo, NorineMonomerName
 
 from kakapo.io.bond_classifier import BondRule
 from kakapo.io.yaml_parser import (
@@ -335,30 +336,19 @@ atomic_bonds: []
             assert "invalid.yaml" in str(excinfo.value)
 
 
-class MockMonomerInfo:
-    """Mock for monomer info object used in tests."""
-
-    def __init__(self, atoms):
-        self.atoms = atoms
-
-
-class MockAtomInfo:
-    """Mock for atom info object used in tests."""
-
-    def __init__(self, name, hydrogens):
-        self.name = name
-        self.hydrogens = hydrogens
-
-
 class TestYamlParserMonomerMassCalculations:
     """Unit tests for _calculate_monomer_exact_mass helper."""
 
     def test_calculate_mass_valid(self):
         """Should correctly sum atomic masses with implicit hydrogens."""
-        monomer = MockMonomerInfo(atoms=[0, 1])
+        monomer = MonomerInfo(
+            name=NorineMonomerName("mock"),
+            atoms=[AtomId(0), AtomId(1)],
+            chirality=Chirality.L,
+        )
         atoms = {
-            0: MockAtomInfo(name="C", hydrogens=3),
-            1: MockAtomInfo(name="O", hydrogens=1),
+            0: AtomInfo(name="C", hydrogens=3),
+            1: AtomInfo(name="O", hydrogens=1),
         }
         # C (12.0) + O (15.994915) + 4 * H (1.007825) = 32.026215
         expected_mass = 12.0 + 15.994915 + 4 * 1.007825
@@ -367,18 +357,26 @@ class TestYamlParserMonomerMassCalculations:
 
     def test_calculate_mass_unknown_element(self):
         """Should raise ValueError for unknown elements."""
-        monomer = MockMonomerInfo(atoms=[0])
+        monomer = MonomerInfo(
+            name=NorineMonomerName("mock"),
+            atoms=[AtomId(0)],
+            chirality=Chirality.L,
+        )
         atoms = {
-            0: MockAtomInfo(name="Xx", hydrogens=0),
+            0: AtomInfo(name="Xx", hydrogens=0),
         }
         with pytest.raises(ValueError, match="Unknown element 'Xx'"):
             _calculate_monomer_exact_mass(monomer, atoms)
 
     def test_calculate_mass_missing_atom_id(self):
         """Should ignore missing atom IDs in the dictionary."""
-        monomer = MockMonomerInfo(atoms=[0, 999])
+        monomer = MonomerInfo(
+            name=NorineMonomerName("mock"),
+            atoms=[AtomId(0), AtomId(999)],
+            chirality=Chirality.L,
+        )
         atoms = {
-            0: MockAtomInfo(name="C", hydrogens=0),
+            0: AtomInfo(name="C", hydrogens=0),
         }
         # 999 is missing, should only calculate for atom 0
         mass = _calculate_monomer_exact_mass(monomer, atoms)
@@ -386,7 +384,11 @@ class TestYamlParserMonomerMassCalculations:
 
     def test_calculate_mass_empty_atoms(self):
         """Should return None if total mass is zero or no atoms are present."""
-        monomer = MockMonomerInfo(atoms=[])
+        monomer = MonomerInfo(
+            name=NorineMonomerName("mock"),
+            atoms=[],
+            chirality=Chirality.L,
+        )
         assert _calculate_monomer_exact_mass(monomer, {}) is None
 
 
