@@ -1,7 +1,7 @@
 """Spectrum scoring engine for matching experimental against theoretical data."""
 
-from kakapo.constants import PROTON_MASS
-from kakapo.models import MatchResult, Spectrum, TheoreticalSpectrum
+from kakapo.constants import MAX_CHARGE, PROTON_MASS
+from kakapo.models import MatchedPeak, MatchResult, Spectrum, TheoreticalSpectrum
 
 
 def match_spectrum(
@@ -11,10 +11,12 @@ def match_spectrum(
 ) -> MatchResult:
     """Match an experimental spectrum to a theoretical spectrum.
 
-    Performs a greedy peak matching algorithm where each experimental peak can
-    match at most one theoretical ion, and vice versa. It counts the number of
-    theoretical ions that have a matching experimental peak within the specified
-    mass tolerance.
+    Performs a greedy peak matching algorithm where each experimental peak can match at most one
+    theoretical ion for one charge value, and vice versa. It counts the number of theoretical ions
+    that have a matching experimental peak within the specified mass tolerance.
+
+    Note: one experimental peak can match two theoretical ions with different charge values and
+    vice versa.
 
     Args:
         spectrum: The experimental Spectrum instance.
@@ -29,21 +31,31 @@ def match_spectrum(
     theory_ions = sorted(theoretical_spectrum.ions, key=lambda ion: ion.mass)
 
     matched_peaks_count = 0
-    last_idx = 0
+    matched_peaks: list[MatchedPeak] = []
+    max_charge = spectrum.charge if spectrum.charge else MAX_CHARGE
 
-    for ion in theory_ions:
-        mz = ion.mass + PROTON_MASS
-        for idx in range(last_idx, len(exp_peaks)):
-            peak = exp_peaks[idx]
-            if abs(peak.mass - mz) <= mass_tolerance:
-                matched_peaks_count += 1
-                last_idx = idx + 1
-                break  # no diff minimization, just take the first one
-            if peak.mass > ion.mass + mass_tolerance:
-                last_idx = idx
-                break
-        else:
-            last_idx += 1
+    for charge in range(1, max_charge + 1):
+        last_idx = 0
+        for ion in theory_ions:
+            mz = (ion.mass + PROTON_MASS * charge) / charge
+            for idx in range(last_idx, len(exp_peaks)):
+                peak = exp_peaks[idx]
+                if abs(peak.mass - mz) <= mass_tolerance:
+                    matched_peaks_count += 1
+                    last_idx = idx + 1
+                    matched_peaks.append(
+                        MatchedPeak(
+                            theoretical_mz=mz,
+                            experimental_mz=peak.mass,
+                            charge=charge,
+                        )
+                    )
+                    break  # no diff minimization, just take the first one
+                if peak.mass > mz + mass_tolerance:
+                    last_idx = idx
+                    break
+            else:
+                last_idx += 1
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
@@ -54,4 +66,5 @@ def match_spectrum(
         matched_peaks_count=matched_peaks_count,
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         monomer_count=theoretical_spectrum.monomer_count,
+        matched_peaks=matched_peaks,
     )

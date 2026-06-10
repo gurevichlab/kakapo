@@ -330,6 +330,29 @@ class Molecule:
 
 
 @dataclass(frozen=True)
+class MatchedPeak:
+    """A theoretical peak matched to an experimental peak.
+
+    Attributes:
+        theoretical_mz: The m/z value of the theoretical peak.
+        experimental_mz: The m/z value of the experimental peak.
+        charge: The charge of the matched peak.
+    """
+
+    theoretical_mz: float
+    experimental_mz: float
+    charge: int
+
+    def __post_init__(self):
+        if self.theoretical_mz < 0:
+            raise ValueError("Theoretical m/z must be non-negative")
+        if self.experimental_mz < 0:
+            raise ValueError("Experimental m/z must be non-negative")
+        if self.charge <= 0:
+            raise ValueError("Charge must be positive")
+
+
+@dataclass(frozen=True)
 class MatchResult:
     """Result of matching a spectrum to a molecule.
 
@@ -342,6 +365,7 @@ class MatchResult:
         matched_peaks_count: Number of experimental peaks matching theory.
         theoretical_peaks_count: Number of theoretical peaks generated.
         monomer_count: Number of monomers in the matched molecule.
+        matched_peaks: List of matched peaks.
     """
 
     structure_id: str
@@ -352,6 +376,8 @@ class MatchResult:
     matched_peaks_count: int
     theoretical_peaks_count: int
     monomer_count: int
+    matched_peaks: list[MatchedPeak] = field(default_factory=list)
+
 
     def __post_init__(self):
         if self.structure_mass < 0:
@@ -366,3 +392,4 @@ class MatchResult:
             raise ValueError("Theoretical peaks count must be positive")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
+

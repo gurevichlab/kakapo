@@ -2,7 +2,7 @@
 
 import pytest
 
-from kakapo.models import MatchResult, Molecule, Peak, Spectrum
+from kakapo.models import MatchedPeak, MatchResult, Molecule, Peak, Spectrum
 
 
 class TestModelsValidation:
@@ -107,3 +107,44 @@ class TestModelsValidation:
                 theoretical_peaks_count=10,
                 monomer_count=3,
             )
+
+    def test_matched_peak_negative_theoretical_mz(self):
+        """MatchedPeak validates that theoretical_mz is non-negative."""
+        with pytest.raises(ValueError, match="Theoretical m/z must be non-negative"):
+            MatchedPeak(theoretical_mz=-1.0, experimental_mz=100.0, charge=1)
+
+    def test_matched_peak_negative_experimental_mz(self):
+        """MatchedPeak validates that experimental_mz is non-negative."""
+        with pytest.raises(ValueError, match="Experimental m/z must be non-negative"):
+            MatchedPeak(theoretical_mz=100.0, experimental_mz=-1.0, charge=1)
+
+    def test_matched_peak_zero_charge(self):
+        """MatchedPeak validates that charge is positive (fails for zero)."""
+        with pytest.raises(ValueError, match="Charge must be positive"):
+            MatchedPeak(theoretical_mz=100.0, experimental_mz=100.0, charge=0)
+
+    def test_matched_peak_negative_charge(self):
+        """MatchedPeak validates that charge is positive (fails for negative)."""
+        with pytest.raises(ValueError, match="Charge must be positive"):
+            MatchedPeak(theoretical_mz=100.0, experimental_mz=100.0, charge=-1)
+
+    def test_matched_peak_valid_initialization(self):
+        """MatchedPeak initializes successfully with valid inputs."""
+        ep = MatchedPeak(theoretical_mz=100.0, experimental_mz=100.1, charge=2)
+        assert ep.theoretical_mz == 100.0
+        assert ep.experimental_mz == 100.1
+        assert ep.charge == 2
+
+    def test_match_result_default_matched_peaks(self):
+        """MatchResult has an empty list of matched peaks by default."""
+        mr = MatchResult(
+            structure_id="mol_1",
+            spectrum_id="spec_1",
+            structure_mass=100.0,
+            spectrum_mass=100.5,
+            mass_tolerance=0.01,
+            matched_peaks_count=5,
+            theoretical_peaks_count=10,
+            monomer_count=3,
+        )
+        assert mr.matched_peaks == []

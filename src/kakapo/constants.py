@@ -124,6 +124,7 @@ except Exception as e:
 H_MASS = ATOMIC_MASSES.get("H", 1.007825)
 PROTON_MASS = 1.007276
 WATER_EXACT_MASS = 2 * ATOMIC_MASSES.get("H", 1.007825) + ATOMIC_MASSES.get("O", 15.994915)
+MAX_CHARGE = 2
 
 try:
     AMINO_ACID_MASSES = load_amino_acid_masses(
