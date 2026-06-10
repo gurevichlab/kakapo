@@ -20,6 +20,9 @@ from kakapo.constants import (
     FragmentationRule,
 )
 from kakapo.models import Bond, Molecule, Monomer, RuleShift, TheoreticalIon, TheoreticalSpectrum
+from kakapo.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Type aliases for clarity
 Edge = tuple[int, int]  # Undirected edge between two monomers (canonicalized)
@@ -114,6 +117,7 @@ class FragmentationGraph:
             edge = _canonical_edge((u, v))
             if self._is_bond_breakable(edge):
                 bridges.append(edge)
+        logger.debug("Found %d breakable bridge(s) in molecular graph", len(bridges))
         return bridges
 
     def find_all_cycles(self) -> list[list[int]]:
@@ -122,7 +126,9 @@ class FragmentationGraph:
         Returns:
             List of node sequences representing distinct cycles.
         """
-        return list(nx.cycle_basis(self.undirected_graph))
+        cycles = list(nx.cycle_basis(self.undirected_graph))
+        logger.debug("Found %d cycle(s) in molecular graph", len(cycles))
+        return cycles
 
     def extract_2cut_pairs(self, cycle_nodes: list[int]) -> list[EdgePair]:
         """Extract all 2-cut edge pairs from a cycle.
@@ -138,6 +144,10 @@ class FragmentationGraph:
             List of ((src1, tgt1), (src2, tgt2)) edge pair tuples.
         """
         if len(cycle_nodes) < 3:
+            logger.debug(
+                "Skipping 2-cut extraction for cycle with < 3 nodes: %s",
+                cycle_nodes,
+            )
             return []  # Need at least 3 nodes to have distinct 2-cuts
 
         pairs = []
@@ -152,6 +162,11 @@ class FragmentationGraph:
                     if self._is_bond_breakable(edge1) and self._is_bond_breakable(edge2):
                         pairs.append((edge1, edge2))
 
+        logger.debug(
+            "Extracted %d breakable 2-cut edge pair(s) from cycle %s",
+            len(pairs),
+            cycle_nodes,
+        )
         return pairs
 
     def get_connected_components_after_removal(
@@ -288,9 +303,13 @@ def generate_fragments(
         >>> fragments = generate_fragments(mol)
         >>> print(f"Generated {len(fragments)} fragments")
     """
+    logger.info("Generating fragments for molecule '%s'", molecule.structure_id)
     if len(molecule.monomers) == 1:
         # Single monomer: no cleavage possible
         single_idx = next(iter(molecule.monomers.keys()))
+        logger.debug(
+            "Molecule '%s' has 1 monomer. No cuts possible.", molecule.structure_id
+        )
         return [Fragment(fragment_id="frag_0", monomer_indices=(single_idx,), removed_bonds=())]
 
     graph = FragmentationGraph(molecule, rules=rules)
@@ -298,15 +317,31 @@ def generate_fragments(
 
     # Phase 1: Bridge cuts
     fragments = _process_bridge_cuts(molecule, graph, seen_fragments)
+    logger.debug(
+        "Molecule '%s': generated %d fragments from bridge cuts",
+        molecule.structure_id,
+        len(fragments),
+    )
 
     # Phase 2: 2-cut enumeration
-    fragments.extend(_process_cycle_cuts(molecule, graph, seen_fragments))
+    cycle_fragments = _process_cycle_cuts(molecule, graph, seen_fragments)
+    logger.debug(
+        "Molecule '%s': generated %d fragments from cycle cuts",
+        molecule.structure_id,
+        len(cycle_fragments),
+    )
+    fragments.extend(cycle_fragments)
 
     # Reconstruct fragments to assign unique IDs in order
     final_fragments = []
     for idx, fragment in enumerate(fragments):
         final_fragments.append(replace(fragment, fragment_id=f"frag_{idx}"))
 
+    logger.info(
+        "Generated %d theoretical fragments for molecule '%s'",
+        len(final_fragments),
+        molecule.structure_id,
+    )
     return final_fragments
 
 
@@ -412,13 +447,16 @@ def calculate_theoretical_ion(
     """
     if fragment_id is None:
         fragment_id = fragment.fragment_id
+    logger.debug("Calculating theoretical mass for fragment '%s'", fragment_id)
     # Sum monomer exact masses
     monomer_mass_sum = 0.0
     for idx in fragment.monomer_indices:
         if idx not in monomers:
+            logger.error("Monomer index %d out of bounds for fragment %s", idx, fragment_id)
             raise IndexError(f"Monomer index {idx} out of bounds")
         monomer = monomers[idx]
         if monomer.mass is None:
+            logger.error("Cannot determine mass for monomer %s", monomer.norine_name)
             raise ValueError(f"Cannot determine mass for monomer {monomer.norine_name}")
         monomer_mass_sum += monomer.mass
 
@@ -432,6 +470,14 @@ def calculate_theoretical_ion(
 
     total_shift = sum(item.shift for item in rules_shifts)
     neutral_mass = monomer_mass_sum + total_shift
+
+    logger.debug(
+        "Fragment '%s': monomer mass sum = %f, cleavage shifts = %f, neutral mass = %f",
+        fragment_id,
+        monomer_mass_sum,
+        total_shift,
+        neutral_mass,
+    )
 
     return TheoreticalIon(
         fragment_id=fragment_id,

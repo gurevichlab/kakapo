@@ -2,6 +2,9 @@
 
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
 from kakapo.models import MatchedPeak, MatchResult, Spectrum, TheoreticalSpectrum
+from kakapo.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def match_spectrum(
@@ -26,6 +29,13 @@ def match_spectrum(
     Returns:
         A MatchResult instance containing matching metrics.
     """
+    logger.info(
+        "Matching experimental spectrum '%s' against structure '%s' (tolerance: %f Da)",
+        spectrum.spectrum_id,
+        theoretical_spectrum.structure_id,
+        mass_tolerance,
+    )
+
     # Sort to ensure reproducible greedy matching
     exp_peaks = sorted(spectrum.peaks, key=lambda p: p.mass)
     theory_ions = sorted(theoretical_spectrum.ions, key=lambda ion: ion.mass)
@@ -33,6 +43,15 @@ def match_spectrum(
     matched_peaks_count = 0
     matched_peaks: list[MatchedPeak] = []
     max_charge = spectrum.charge if spectrum.charge else MAX_CHARGE
+
+    logger.debug(
+        "Spectrum '%s' peaks count: %d. Theoretical spectrum '%s' ions count: %d. Max charge: %d",
+        spectrum.spectrum_id,
+        len(exp_peaks),
+        theoretical_spectrum.structure_id,
+        len(theory_ions),
+        max_charge,
+    )
 
     for charge in range(1, max_charge + 1):
         last_idx = 0
@@ -50,12 +69,26 @@ def match_spectrum(
                             charge=charge,
                         )
                     )
+                    logger.debug(
+                        "Matched ion '%s' (m/z: %f, charge: %d) to peak (m/z: %f)",
+                        ion.fragment_id,
+                        mz,
+                        charge,
+                        peak.mass,
+                    )
                     break  # no diff minimization, just take the first one
                 if peak.mass > mz + mass_tolerance:
                     last_idx = idx
                     break
             else:
                 last_idx += 1
+
+    logger.info(
+        "Matching complete for '%s' vs '%s': matched %d peaks.",
+        spectrum.spectrum_id,
+        theoretical_spectrum.structure_id,
+        matched_peaks_count,
+    )
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,

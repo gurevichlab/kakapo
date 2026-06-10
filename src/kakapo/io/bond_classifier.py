@@ -4,7 +4,6 @@ Matches inter-monomer bonds against NPDtools fragmentation rule MOL files
 to identify bond subtypes (e.g. amide_1) and their direction (reversed).
 """
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,8 +12,9 @@ from networkx.algorithms import isomorphism
 from rdkit import Chem
 
 from kakapo.models import Atom, AtomicBond, AtomicEdge, BondSubtype, Monomer
+from kakapo.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Static mapping of rule names to their breakable bond indices
 BREAKABLE_BOND_INDICES = {
@@ -68,9 +68,10 @@ def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
         A list of BondRule objects representing the parsed and constructed rule templates.
     """
     rule_dir = Path(rule_dir_path)
+    logger.info("Loading fragmentation rules from %s", rule_dir)
     rules = []
     if not rule_dir.exists():
-        logger.warning(f"Rules directory {rule_dir} does not exist.")
+        logger.warning("Rules directory %s does not exist.", rule_dir)
         return rules
 
     for mol_path in rule_dir.glob("*.mol"):
@@ -80,7 +81,7 @@ def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
 
         mol = Chem.MolFromMolFile(str(mol_path), removeHs=False)
         if not mol:
-            logger.debug(f"Failed to parse MOL file {mol_path}")
+            logger.warning("Failed to parse MOL file %s", mol_path)
             continue
 
         # Get breakable edge connecting atom_u and atom_v
@@ -91,7 +92,7 @@ def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
                 breakable_bond.GetEndAtomIdx(),
             )
         except (IndexError, RuntimeError):
-            logger.warning(f"Bond index {bond_idx} out of range in MOL {mol_path.name}")
+            logger.warning("Bond index %d out of range in MOL %s", bond_idx, mol_path.name)
             continue
 
         # Build NetworkX representation of rule MOL (without H atoms)
@@ -118,6 +119,7 @@ def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
                 mol_breakable_edge=mol_breakable_edge,
             )
         )
+    logger.info("Loaded %d rule(s) from %s", len(rules), rule_dir)
     return rules
 
 
@@ -261,6 +263,13 @@ def classify_single_bond(
 
     edge = AtomicEdge(mon_to_atom[source_monomer_idx], mon_to_atom[target_monomer_idx])
 
+    logger.debug(
+        "Classifying single bond between monomers %d and %d using %d rules",
+        source_monomer_idx,
+        target_monomer_idx,
+        len(rules),
+    )
+
     subtypes = []
     for rule in rules:
         matched, is_reversed = _match_rule(local_graph, rule, edge)
@@ -268,6 +277,13 @@ def classify_single_bond(
             mon_to_atom[source_monomer_idx] > mon_to_atom[target_monomer_idx]
         )
         if matched:
+            logger.debug(
+                "Matched subtype '%s' (reversed=%s) for monomer bond %d-%d",
+                rule.name,
+                is_reversed,
+                source_monomer_idx,
+                target_monomer_idx,
+            )
             subtypes.append(BondSubtype(name=rule.name, reversed=is_reversed))
 
     return subtypes

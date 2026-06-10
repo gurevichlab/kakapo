@@ -15,6 +15,9 @@ from matchms.filtering.default_pipelines import CLEAN_PEAKS, DEFAULT_FILTERS
 from matchms.importing import load_from_mgf
 
 from kakapo.models import Peak, Spectrum
+from kakapo.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_mgf(  # noqa: C901
@@ -49,23 +52,29 @@ def load_mgf(  # noqa: C901
         >>> spectra = load_mgf("data/spectra.mgf", apply_filters=False)
     """
     file_path = Path(file_path)
+    logger.info("Loading MGF file from %s", file_path)
 
     if not file_path.exists():
+        logger.error("MGF file not found: %s", file_path)
         raise FileNotFoundError(f"MGF file not found: {file_path}")
 
     if not file_path.suffix.lower() == ".mgf":
+        logger.error("Expected .mgf file, got: %s", file_path.suffix)
         raise ValueError(f"Expected .mgf file, got: {file_path.suffix}")
 
     try:
         matchms_spectra = list(load_from_mgf(str(file_path)))
     except Exception as e:
+        logger.error("Failed to parse MGF file %s: %s", file_path, e)
         raise ValueError(f"Failed to parse MGF file {file_path}: {e}") from e
 
     if not matchms_spectra:
+        logger.warning("No spectra found in %s", file_path)
         raise ValueError(f"No spectra found in {file_path}")
 
     # Apply filters if requested
     if apply_filters:
+        logger.debug("Applying matchms CLEAN_PEAKS and DEFAULT_FILTERS to %s", file_path)
         from matchms import SpectrumProcessor
 
         processor = SpectrumProcessor(CLEAN_PEAKS + DEFAULT_FILTERS)
@@ -80,25 +89,44 @@ def load_mgf(  # noqa: C901
     # Convert matchms spectra to kakapo models
     kakapo_spectra = []
     for matchms_spec in matchms_spectra:
+        spec_id = _get_spectrum_id(matchms_spec.metadata)
         try:
             if len(matchms_spec.peaks) < min_peaks:
+                logger.debug(
+                    "Skipping spectrum %s (peaks: %d < min_peaks: %d)",
+                    spec_id,
+                    len(matchms_spec.peaks),
+                    min_peaks,
+                )
                 continue
 
             spectrum = _matchms_to_kakapo(matchms_spec)
             kakapo_spectra.append(spectrum)
         except (ValueError, KeyError, RuntimeError) as e:
+            logger.error("Failed to convert spectrum %s: %s", spec_id, e)
             raise RuntimeError(
-                f"Failed to convert spectrum {matchms_spec.metadata.get('spectrum_id', 'unknown')}:"
+                f"Failed to convert spectrum {spec_id}:"
                 f" {e}"
             ) from e
 
     if not kakapo_spectra:
+        logger.warning(
+            "No valid spectra after filtering in %s (min_peaks threshold: %d)",
+            file_path,
+            min_peaks,
+        )
         raise ValueError(
             f"No valid spectra after filtering in {file_path}. "
             f"(Loaded {len(matchms_spectra)} total, "
             f"min_peaks threshold: {min_peaks})"
         )
 
+    logger.info(
+        "Loaded %d spectra from %s. Found %d valid spectra after filtering.",
+        len(matchms_spectra),
+        file_path,
+        len(kakapo_spectra),
+    )
     return kakapo_spectra
 
 
@@ -129,11 +157,13 @@ def load_mgf_batch(
         >>> print(f"Loaded {len(all_spectra)} total spectra")
     """
     all_spectra = []
+    logger.info("Loading batch of %d MGF file(s)...", len(file_paths))
 
     for file_path in file_paths:
         spectra = load_mgf(file_path, apply_filters, min_peaks)
         all_spectra.extend(spectra)
 
+    logger.info("Completed batch load. Loaded %d total spectra.", len(all_spectra))
     return all_spectra
 
 
@@ -236,6 +266,13 @@ def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:  # noqa: C901
     peaks_array = matchms_spec.peaks
     if peaks_array is None or len(peaks_array) == 0:
         raise ValueError(f"Spectrum {spectrum_id} has no peaks")
+
+    logger.debug(
+        "Converting matchms spectrum %s (%d raw peaks, precursor: %f)",
+        spectrum_id,
+        len(peaks_array),
+        precursor_mass,
+    )
 
     # Convert peaks to kakapo Peak objects
     # peaks_array is expected to be a 2D array [m/z, intensity]
