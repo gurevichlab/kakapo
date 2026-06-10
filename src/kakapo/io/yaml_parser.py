@@ -4,6 +4,9 @@ This module loads atom-level rBAN records serialized by nerpa-ms and converts
 them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
 """
 
+from collections.abc import Iterable
+from pathlib import Path
+
 import yaml
 from rban_parsing.rban_parser import AtomInfo, MonomerInfo, Parsed_rBAN_Record
 
@@ -185,7 +188,7 @@ def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
     )
 
 
-def parse_rban_yaml(yaml_path: str) -> Molecule | dict[str, Molecule]:
+def parse_rban_yaml(yaml_path: str | Path) -> Molecule | dict[str, Molecule]:
     """Parse a Parsed_rBAN_Record YAML file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
@@ -201,6 +204,7 @@ def parse_rban_yaml(yaml_path: str) -> Molecule | dict[str, Molecule]:
         yaml.YAMLError: If the file is not valid YAML.
         ValueError: If the YAML is not a valid Parsed_rBAN_Record payload.
     """
+    yaml_path = Path(yaml_path)
     logger.info("Parsing rBAN YAML from %s", yaml_path)
     # Load YAML file
     try:
@@ -258,11 +262,11 @@ def parse_rban_yaml(yaml_path: str) -> Molecule | dict[str, Molecule]:
     return molecule
 
 
-def parse_rban_yaml_batch(yaml_paths: list[str]) -> dict[str, Molecule]:
+def parse_rban_yaml_batch(yaml_paths: Iterable[str | Path]) -> dict[str, Molecule]:
     """Parse multiple rBAN YAML files.
 
     Args:
-        yaml_paths: List of paths to YAML files.
+        yaml_paths: Iterable of paths to YAML files.
 
     Returns:
         Dictionary mapping structure IDs to Molecule instances.
@@ -272,9 +276,10 @@ def parse_rban_yaml_batch(yaml_paths: list[str]) -> dict[str, Molecule]:
     """
     molecules = {}
     errors = []
-    logger.info("Parsing batch of %d YAML file(s)...", len(yaml_paths))
+    logger.info("Parsing batch of YAML file(s)...")
 
-    for yaml_path in yaml_paths:
+    for path in yaml_paths:
+        yaml_path = Path(path)
         try:
             result = parse_rban_yaml(yaml_path)
             if isinstance(result, dict):
