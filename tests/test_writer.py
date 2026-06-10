@@ -1,0 +1,147 @@
+"""Unit tests for the spectrum match results writer module."""
+
+import csv
+from pathlib import Path
+
+import pytest
+
+from kakapo.io.writer import format_as_csv, format_as_table, write_results
+from kakapo.models import MatchResult
+
+
+@pytest.fixture
+def sample_results() -> list[MatchResult]:
+    """Provide a standard list of MatchResult objects for testing."""
+    return [
+        MatchResult(
+            structure_id="NRP_001",
+            spectrum_id="spec_101",
+            structure_mass=800.45,
+            spectrum_mass=800.46,
+            mass_tolerance=0.02,
+            matched_peaks_count=5,
+            theoretical_peaks_count=10,
+            monomer_count=7,
+            matched_peaks=[],
+        ),
+        MatchResult(
+            structure_id="NRP_002",
+            spectrum_id="spec_102",
+            structure_mass=950.50,
+            spectrum_mass=950.48,
+            mass_tolerance=0.05,
+            matched_peaks_count=3,
+            theoretical_peaks_count=12,
+            monomer_count=8,
+            matched_peaks=[],
+        ),
+    ]
+
+
+class TestWriterCsvFormatting:
+    """Test suite for CSV formatting function."""
+
+    def test_format_as_csv_empty(self) -> None:
+        """Test formatting an empty list of results."""
+        csv_str = format_as_csv([])
+        lines = csv_str.strip().split("\n")
+        assert len(lines) == 1  # Only the header
+        assert "structure_id" in lines[0]
+
+    def test_format_as_csv_values(self, sample_results: list[MatchResult]) -> None:
+        """Test formatting a list of results and parsing back the values."""
+        csv_str = format_as_csv(sample_results)
+        reader = csv.DictReader(csv_str.splitlines())
+        rows = list(reader)
+
+        assert len(rows) == 2
+        assert rows[0]["structure_id"] == "NRP_001"
+        assert rows[0]["spectrum_id"] == "spec_101"
+        assert float(rows[0]["structure_mass"]) == 800.45
+        assert int(rows[0]["matched_peaks_count"]) == 5
+
+        assert rows[1]["structure_id"] == "NRP_002"
+        assert rows[1]["spectrum_id"] == "spec_102"
+        assert float(rows[1]["spectrum_mass"]) == 950.48
+        assert int(rows[1]["monomer_count"]) == 8
+
+
+class TestWriterTableFormatting:
+    """Test suite for ASCII table formatting function."""
+
+    def test_format_as_table_empty(self) -> None:
+        """Test formatting an empty list of results."""
+        table_str = format_as_table([])
+        assert "Structure ID" in table_str
+        assert "Spectrum ID" in table_str
+
+    def test_format_as_table_values(self, sample_results: list[MatchResult]) -> None:
+        """Test formatting results as table contains IDs and numbers."""
+        table_str = format_as_table(sample_results)
+        assert "NRP_001" in table_str
+        assert "spec_101" in table_str
+        assert "NRP_002" in table_str
+        assert "spec_102" in table_str
+        # Check table headers are present
+        assert "Structure ID" in table_str
+        assert "Monomer Count" in table_str
+
+
+class TestWriterWriteResults:
+    """Test suite for the main write_results dispatch function."""
+
+    def test_write_results_stdout_table(
+        self, sample_results: list[MatchResult], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test writing table formatted results to stdout."""
+        write_results(sample_results, output_path=None, format_type="table")
+        captured = capsys.readouterr()
+        assert "NRP_001" in captured.out
+        assert "Structure ID" in captured.out
+
+    def test_write_results_stdout_csv(
+        self, sample_results: list[MatchResult], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test writing CSV formatted results to stdout using dash parameter."""
+        write_results(sample_results, output_path="-", format_type="csv")
+        captured = capsys.readouterr()
+        assert "structure_id" in captured.out
+        assert "NRP_001" in captured.out
+
+    def test_write_results_to_file(self, sample_results: list[MatchResult], tmp_path: Path) -> None:
+        """Test writing results to a file path."""
+        out_file = tmp_path / "results.csv"
+        write_results(sample_results, output_path=out_file, format_type="csv")
+
+        assert out_file.exists()
+        content = out_file.read_text(encoding="utf-8")
+        assert "structure_id" in content
+        assert "NRP_002" in content
+
+    def test_write_results_to_file_creates_directories(
+        self, sample_results: list[MatchResult], tmp_path: Path
+    ) -> None:
+        """Test that missing parent directories are automatically created."""
+        out_file = tmp_path / "deep" / "nested" / "output.txt"
+        write_results(sample_results, output_path=out_file, format_type="table")
+
+        assert out_file.exists()
+        content = out_file.read_text(encoding="utf-8")
+        assert "Structure ID" in content
+        assert "NRP_001" in content
+
+    def test_write_results_unsupported_format(self, sample_results: list[MatchResult]) -> None:
+        """Test that unsupported formats raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported format type"):
+            write_results(sample_results, output_path=None, format_type="json")
+
+    def test_write_results_os_error(
+        self, sample_results: list[MatchResult], tmp_path: Path
+    ) -> None:
+        """Test that OSError propagates from file write failure."""
+        # Point to a directory name as the output file to trigger an OSError (IsADirectoryError)
+        invalid_path = tmp_path / "invalid_dir"
+        invalid_path.mkdir()
+
+        with pytest.raises(OSError):
+            write_results(sample_results, output_path=invalid_path, format_type="csv")
