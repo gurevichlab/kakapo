@@ -1,6 +1,6 @@
 import pytest
 
-from kakapo.core.matcher import match_spectrum
+from kakapo.core.matcher import match_spectra, match_spectrum
 from kakapo.models import Peak, Spectrum, TheoreticalIon, TheoreticalSpectrum
 
 
@@ -8,21 +8,27 @@ def make_spectrum(
     peaks_data: list[tuple[float, float]],
     precursor_mass: float = 500.0,
     charge: int | None = None,
+    spectrum_id: str = "spec_1",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
     peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
-    return Spectrum(spectrum_id="spec_1", peaks=peaks, precursor_mass=precursor_mass, charge=charge)
+    return Spectrum(
+        spectrum_id=spectrum_id, peaks=peaks, precursor_mass=precursor_mass, charge=charge
+    )
 
 
 def make_theoretical_spectrum(
-    ion_masses: list[float], structure_mass: float = 500.0, monomer_count: int = 4
+    ion_masses: list[float],
+    structure_mass: float = 500.0,
+    monomer_count: int = 4,
+    structure_id: str = "struct_1",
 ) -> TheoreticalSpectrum:
     """Helper to create a TheoreticalSpectrum from list of masses."""
     ions = frozenset(
         TheoreticalIon(fragment_id=f"frag_{idx}", mass=mass) for idx, mass in enumerate(ion_masses)
     )
     return TheoreticalSpectrum(
-        structure_id="struct_1",
+        structure_id=structure_id,
         ions=ions,
         structure_mass=structure_mass,
         monomer_count=monomer_count,
@@ -210,3 +216,36 @@ class TestSpectrumMatcher:
         assert sorted_matched[1].charge == 2
         assert sorted_matched[1].theoretical_mz == pytest.approx(150.007276)
         assert sorted_matched[1].experimental_mz == pytest.approx(150.007276)
+
+    def test_match_spectra_pairwise(self):
+        """Test matching lists of experimental and theoretical spectra pairwise."""
+        spec1 = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        spec2 = make_spectrum([(200.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_2")
+
+        theo1 = make_theoretical_spectrum(
+            [100.0 - 1.007276], structure_mass=500.0, monomer_count=1, structure_id="struct_1"
+        )
+        theo2 = make_theoretical_spectrum(
+            [200.0 - 1.007276], structure_mass=500.0, monomer_count=1, structure_id="struct_2"
+        )
+
+        results = match_spectra([spec1, spec2], [theo1, theo2], mass_tolerance=0.01)
+
+        assert len(results) == 4
+
+        # Key results by (spectrum_id, structure_id)
+        results_map = {(r.spectrum_id, r.structure_id): r for r in results}
+
+        assert results_map[("spec_1", "struct_1")].matched_peaks_count == 1
+        assert results_map[("spec_1", "struct_2")].matched_peaks_count == 0
+        assert results_map[("spec_2", "struct_1")].matched_peaks_count == 0
+        assert results_map[("spec_2", "struct_2")].matched_peaks_count == 1
+
+    def test_match_spectra_empty_inputs(self):
+        """Test match_spectra with empty input iterables."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0)
+        theo = make_theoretical_spectrum([100.0 - 1.007276], structure_mass=500.0, monomer_count=1)
+
+        assert len(match_spectra([], [theo], mass_tolerance=0.01)) == 0
+        assert len(match_spectra([spec], [], mass_tolerance=0.01)) == 0
+        assert len(match_spectra([], [], mass_tolerance=0.01)) == 0

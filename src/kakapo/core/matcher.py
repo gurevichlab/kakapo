@@ -1,5 +1,7 @@
 """Spectrum scoring engine for matching experimental against theoretical data."""
 
+from collections.abc import Iterable
+
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
 from kakapo.models import MatchedPeak, MatchResult, Spectrum, TheoreticalSpectrum
 from kakapo.utils.logger import get_logger
@@ -101,3 +103,40 @@ def match_spectrum(
         monomer_count=theoretical_spectrum.monomer_count,
         matched_peaks=matched_peaks,
     )
+
+
+def match_spectra(
+    spectra: Iterable[Spectrum],
+    theoretical_spectra: Iterable[TheoreticalSpectrum],
+    mass_tolerance: float,
+) -> list[MatchResult]:
+    """Match each experimental spectrum to each theoretical spectrum pairwise.
+
+    Args:
+        spectra: An iterable of experimental Spectrum instances.
+        theoretical_spectra: An iterable of TheoreticalSpectrum instances.
+        mass_tolerance: The maximum absolute mass difference (in Da) allowed for a match.
+
+    Returns:
+        A list of MatchResult instances for all pairwise matches.
+    """
+    logger.info("Starting batch matching (cross-matching each spectrum against each structure)...")
+    spectra_list = list(spectra)
+    theo_list = list(theoretical_spectra)
+    logger.debug(
+        "Loaded %d experimental spectra and %d theoretical spectra for matching",
+        len(spectra_list),
+        len(theo_list),
+    )
+
+    results: list[MatchResult] = []
+    for spec in spectra_list:
+        for theo in theo_list:
+            result = match_spectrum(spec, theo, mass_tolerance)
+            results.append(result)
+
+    logger.info(
+        "Completed batch matching. Generated %d total MatchResult(s).",
+        len(results),
+    )
+    return results
