@@ -409,7 +409,7 @@ def _calculate_bond_cleavage_shift(
             target_in = bond.target_idx in fragment_monomers
             source_in = bond.source_idx in fragment_monomers
 
-            if not is_reversed:
+            if is_reversed:
                 if target_in:
                     shift += left_shift
                 if source_in:
@@ -469,19 +469,19 @@ def calculate_theoretical_ion(
             rules_shifts.append(rule_shift)
 
     total_shift = sum(item.shift for item in rules_shifts)
-    neutral_mass = monomer_mass_sum + total_shift
+    ion_mass = monomer_mass_sum + total_shift
 
     logger.debug(
-        "Fragment '%s': monomer mass sum = %f, cleavage shifts = %f, neutral mass = %f",
+        "Fragment '%s': monomer mass sum = %f, cleavage shifts = %f, ion mass = %f",
         fragment_id,
         monomer_mass_sum,
         total_shift,
-        neutral_mass,
+        ion_mass,
     )
 
     return TheoreticalIon(
         fragment_id=fragment_id,
-        mass=neutral_mass,
+        mass=ion_mass,
         rules_shifts=tuple(rules_shifts),
     )
 

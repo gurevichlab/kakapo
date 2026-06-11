@@ -488,7 +488,7 @@ class TestMassCalculation:
 
         assert len(ion_ala.rules_shifts) == 1
         assert ion_ala.rules_shifts[0].rule_name == "PEPTIDE"
-        assert pytest.approx(ion_ala.rules_shifts[0].shift) == -H_MASS
+        assert pytest.approx(ion_ala.rules_shifts[0].shift) == H_MASS
 
 
 # ============================================================================
@@ -578,8 +578,8 @@ class TestIntegration:
         ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
         ion_gly = calculate_theoretical_ion(frag_gly, linear_dimer.monomers, rules=TEST_RULES)
 
-        expected_ala = linear_dimer.monomers[0].mass - H_MASS
-        expected_gly = linear_dimer.monomers[1].mass + H_MASS
+        expected_ala = linear_dimer.monomers[0].mass + H_MASS
+        expected_gly = linear_dimer.monomers[1].mass - H_MASS
 
         assert pytest.approx(ion_ala.mass) == expected_ala
         assert pytest.approx(ion_gly.mass) == expected_gly
@@ -725,10 +725,10 @@ class TestIntegration:
         ion_0 = calculate_theoretical_ion(frag_0, mol.monomers, rules=rules)
         ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
 
-        # target of bond (index 1) is in frag_1 -> receives left_shift (+1.0)
-        # source of bond (index 0) is in frag_0 -> receives right_shift (-1.0)
-        assert pytest.approx(ion_0.mass) == 71.03718 - 1.0
-        assert pytest.approx(ion_1.mass) == 57.02146 + 1.0
+        # target of bond (index 1) is in frag_1 -> receives right_shift (-1.0)
+        # source of bond (index 0) is in frag_0 -> receives left_shift (+1.0)
+        assert pytest.approx(ion_0.mass) == 71.03718 + 1.0
+        assert pytest.approx(ion_1.mass) == 57.02146 - 1.0
 
     def test_subtype_reversed_cleavage_shifts(self):
         """Verify that mass shifts are inverted when the matching subtype is reversed."""
@@ -767,10 +767,10 @@ class TestIntegration:
         ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
 
         # Since reversed is True:
-        # left_shift (+1.0) is applied to source (index 0) -> frag_0
-        # right_shift (-1.0) is applied to target (index 1) -> frag_1
-        assert pytest.approx(ion_0.mass) == 71.03718 + 1.0
-        assert pytest.approx(ion_1.mass) == 57.02146 - 1.0
+        # left_shift (+1.0) is applied to target (index 1) -> frag_1
+        # right_shift (-1.0) is applied to source (index 0) -> frag_0
+        assert pytest.approx(ion_0.mass) == 71.03718 - 1.0
+        assert pytest.approx(ion_1.mass) == 57.02146 + 1.0
 
     def test_branched_structure_fragmentation(self):
         """Verify that a branched tree-like structure generates expected single-cut fragments."""

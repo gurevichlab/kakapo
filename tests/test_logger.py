@@ -81,3 +81,21 @@ def test_setup_logging_prevents_duplicate_handlers() -> None:
     # Second setup
     logger = setup_logging(verbosity=2)
     assert len(logger.handlers) == 1
+
+
+def test_setup_logging_clears_file(tmp_path: Path) -> None:
+    """Test that setup_logging clears/truncates the log file if it already exists."""
+    log_file = tmp_path / "test_clear.log"
+    log_file.write_text("pre-existing content", encoding="utf-8")
+
+    logger = setup_logging(verbosity=1, log_file=log_file)
+    logger.info("new content")
+
+    # Close handlers to release file lock before reading
+    for handler in logger.handlers:
+        handler.close()
+
+    log_content = log_file.read_text(encoding="utf-8")
+    assert "pre-existing content" not in log_content
+    assert "new content" in log_content
+
