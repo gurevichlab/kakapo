@@ -100,6 +100,7 @@ def match_spectrum(
         mass_tolerance=mass_tolerance,
         matched_peaks_count=matched_peaks_count,
         theoretical_peaks_count=len(theoretical_spectrum.ions),
+        experimental_peaks_count=len(spectrum.peaks),
         monomer_count=theoretical_spectrum.monomer_count,
         matched_peaks=matched_peaks,
     )

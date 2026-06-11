@@ -364,6 +364,7 @@ class MatchResult:
         mass_tolerance: Mass tolerance used for matching.
         matched_peaks_count: Number of experimental peaks matching theory.
         theoretical_peaks_count: Number of theoretical peaks generated.
+        experimental_peaks_count: Number of experimental peaks in the spectrum.
         monomer_count: Number of monomers in the matched molecule.
         matched_peaks: List of matched peaks.
     """
@@ -375,9 +376,9 @@ class MatchResult:
     mass_tolerance: float
     matched_peaks_count: int
     theoretical_peaks_count: int
+    experimental_peaks_count: int
     monomer_count: int
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
-
 
     def __post_init__(self):
         if self.structure_mass < 0:
@@ -390,6 +391,9 @@ class MatchResult:
             raise ValueError("Matched peaks count must be non-negative")
         if self.theoretical_peaks_count <= 0:
             raise ValueError("Theoretical peaks count must be positive")
+        if self.experimental_peaks_count < 0:
+            raise ValueError("Experimental peaks count must be non-negative")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
+
 

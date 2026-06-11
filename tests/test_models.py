@@ -63,6 +63,7 @@ class TestModelsValidation:
                 mass_tolerance=0.01,
                 matched_peaks_count=5,
                 theoretical_peaks_count=0,  # Invalid: must be > 0
+                experimental_peaks_count=10,
                 monomer_count=3,
             )
 
@@ -77,6 +78,7 @@ class TestModelsValidation:
                 mass_tolerance=0.01,
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
+                experimental_peaks_count=12,
                 monomer_count=3,
             )
 
@@ -91,6 +93,7 @@ class TestModelsValidation:
                 mass_tolerance=0.01,
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
+                experimental_peaks_count=12,
                 monomer_count=3,
             )
 
@@ -105,6 +108,7 @@ class TestModelsValidation:
                 mass_tolerance=-0.01,
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
+                experimental_peaks_count=12,
                 monomer_count=3,
             )
 
@@ -145,6 +149,22 @@ class TestModelsValidation:
             mass_tolerance=0.01,
             matched_peaks_count=5,
             theoretical_peaks_count=10,
+            experimental_peaks_count=15,
             monomer_count=3,
         )
         assert mr.matched_peaks == []
+
+    def test_match_result_negative_experimental_peaks_count(self):
+        """MatchResult validates that experimental peaks count is non-negative."""
+        with pytest.raises(ValueError, match="Experimental peaks count must be non-negative"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                structure_mass=100.0,
+                spectrum_mass=100.5,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
+                experimental_peaks_count=-1,
+                monomer_count=3,
+            )

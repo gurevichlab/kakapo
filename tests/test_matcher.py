@@ -51,6 +51,7 @@ class TestSpectrumMatcher:
 
         assert result.matched_peaks_count == 3
         assert result.theoretical_peaks_count == 3
+        assert result.experimental_peaks_count == 3
         assert result.structure_id == "struct_1"
         assert result.spectrum_id == "spec_1"
         assert result.structure_mass == 500.0
@@ -135,6 +136,7 @@ class TestSpectrumMatcher:
 
         result = match_spectrum(spec, theo, mass_tolerance=0.02)
         assert result.matched_peaks_count == 2
+        assert result.experimental_peaks_count == 3
         assert len(result.matched_peaks) == 2
 
         # Check first matched peak

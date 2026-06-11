@@ -104,6 +104,7 @@ class TestCliMainFunction:
                 mass_tolerance=0.01,
                 matched_peaks_count=2,
                 theoretical_peaks_count=5,
+                experimental_peaks_count=10,
                 monomer_count=1,
                 matched_peaks=[],
             )

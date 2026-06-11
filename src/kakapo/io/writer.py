@@ -40,6 +40,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
         "mass_tolerance",
         "matched_peaks_count",
         "theoretical_peaks_count",
+        "experimental_peaks_count",
         "monomer_count",
     ]
     writer.writerow(headers)
@@ -54,6 +55,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
                 result.mass_tolerance,
                 result.matched_peaks_count,
                 result.theoretical_peaks_count,
+                result.experimental_peaks_count,
                 result.monomer_count,
             ]
         )
@@ -80,6 +82,7 @@ def format_as_table(results: list[MatchResult]) -> str:
         "Tolerance",
         "Matched Peaks",
         "Theoretical Peaks",
+        "Experimental Peaks",
         "Monomer Count",
     ]
 
@@ -92,6 +95,7 @@ def format_as_table(results: list[MatchResult]) -> str:
             result.mass_tolerance,
             result.matched_peaks_count,
             result.theoretical_peaks_count,
+            result.experimental_peaks_count,
             result.monomer_count,
         ]
         for result in results
