@@ -383,7 +383,7 @@ END IONS
             os.unlink(mgf_path_2)
 
     def test_load_mgf_batch_with_error(self):
-        """Batch loading should propagate errors."""
+        """Batch loading should continue and load valid files even if one file fails."""
         mgf_content_valid = """BEGIN IONS
 TITLE=valid
 PEPMASS=500.0
@@ -393,8 +393,11 @@ END IONS
         mgf_path_valid = self._create_test_mgf(mgf_content_valid, "valid.mgf")
 
         try:
-            with pytest.raises(FileNotFoundError):
-                load_mgf_batch([mgf_path_valid, "/nonexistent/file.mgf"], apply_filters=False)
+            spectra = load_mgf_batch(
+                [mgf_path_valid, "/nonexistent/file.mgf"], apply_filters=False
+            )
+            assert len(spectra) == 1
+            assert spectra[0].spectrum_id == "valid"
         finally:
             os.unlink(mgf_path_valid)
 

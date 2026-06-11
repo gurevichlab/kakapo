@@ -160,8 +160,12 @@ def load_mgf_batch(
     logger.info("Loading batch of %d MGF file(s)...", len(file_paths))
 
     for file_path in file_paths:
-        spectra = load_mgf(file_path, apply_filters, min_peaks)
-        all_spectra.extend(spectra)
+        try:
+            spectra = load_mgf(file_path, apply_filters, min_peaks)
+            all_spectra.extend(spectra)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            logger.warning("Failed to load MGF file %s: %s", file_path, e)
+            continue
 
     logger.info("Completed batch load. Loaded %d total spectra.", len(all_spectra))
     return all_spectra
