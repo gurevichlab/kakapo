@@ -59,18 +59,27 @@ def run_pipeline(
     else:
         struct_paths = [Path(p) for p in structure_files]
 
-    logger.debug(
-        "Normalized paths: %d spectra file(s), %d structure file(s)",
-        len(spec_paths),
-        len(struct_paths),
-    )
-
     if not spec_paths:
         logger.error("No spectra files provided to run_pipeline")
         raise ValueError("No spectra files provided")
     if not struct_paths:
         logger.error("No structure files provided to run_pipeline")
         raise ValueError("No structure files provided")
+
+    for p in spec_paths:
+        if not p.exists():
+            logger.error("Spectra file not found: %s", p)
+            raise FileNotFoundError(f"Spectra file not found: {p}")
+    for p in struct_paths:
+        if not p.exists():
+            logger.error("Structure file not found: %s", p)
+            raise FileNotFoundError(f"Structure file not found: {p}")
+
+    logger.debug(
+        "Normalized paths: %d spectra file(s), %d structure file(s)",
+        len(spec_paths),
+        len(struct_paths),
+    )
 
     # 1. Load experimental spectra
     logger.info("Loading experimental spectra from %d file(s)", len(spec_paths))
