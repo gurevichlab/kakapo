@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from kakapo.config import DEFAULT_LOG_PATH, DEFAULT_OUTPUT_DIR
+from kakapo.config import DEFAULT_OUTPUT_DIR
 from kakapo.io.writer import write_results
 from kakapo.main import run_pipeline
 from kakapo.utils.logger import get_logger, setup_logging
@@ -157,6 +157,54 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def configure_logging(parsed_args: argparse.Namespace) -> None:
+    """Configure logging based on CLI arguments.
+
+    Determines the log file path and calls setup_logging.
+
+    Args:
+        parsed_args: Parsed command-line arguments.
+    """
+    if parsed_args.no_log_file:
+        log_path = None
+    elif parsed_args.log_file:
+        log_path = Path(parsed_args.log_file)
+    else:
+        if parsed_args.output and parsed_args.output != "-":
+            base_out = Path(parsed_args.output)
+            if base_out.is_dir() or not base_out.suffix:
+                output_dir = base_out
+            else:
+                output_dir = base_out.parent
+        else:
+            output_dir = DEFAULT_OUTPUT_DIR
+        log_path = output_dir / "kakapo.log"
+
+    verbosity = min(parsed_args.verbose, 2)
+    setup_logging(verbosity=verbosity, log_file=log_path)
+
+
+def determine_output_path(parsed_args: argparse.Namespace) -> Optional[Path | str]:
+    """Determine the output file path or stdout option from arguments.
+
+    Args:
+        parsed_args: Parsed command-line arguments.
+
+    Returns:
+        The output path as a Path, a string (e.g. "-"), or None.
+    """
+    if parsed_args.stdout:
+        return None
+    if parsed_args.output == "-":
+        return "-"
+
+    base_out = Path(parsed_args.output) if parsed_args.output else DEFAULT_OUTPUT_DIR
+    if base_out.is_dir() or not base_out.suffix:
+        ext = "csv" if parsed_args.format == "csv" else "txt"
+        return base_out / f"results.{ext}"
+    return base_out
+
+
 def main(args: Optional[list[str]] = None) -> int:
     """Command-line interface entry point for kakapo.
 
@@ -173,16 +221,8 @@ def main(args: Optional[list[str]] = None) -> int:
     # Parse arguments
     parsed_args = parser.parse_args(args)
 
-    # 1. Determine log file path and set up logging
-    log_path = DEFAULT_LOG_PATH
-    if parsed_args.no_log_file:
-        log_path = None
-    elif parsed_args.log_file:
-        log_path = Path(parsed_args.log_file)
-
-    # Set up global logging based on verbosity (0: WARNING, 1: INFO, 2: DEBUG)
-    verbosity = min(parsed_args.verbose, 2)
-    setup_logging(verbosity=verbosity, log_file=log_path)
+    # 1. Configure logging
+    configure_logging(parsed_args)
 
     logger.info("Initializing Kakapo CLI")
 
@@ -205,22 +245,7 @@ def main(args: Optional[list[str]] = None) -> int:
         return 1
 
     # 3. Determine output path
-    # If stdout flag is active, or output is '-', output_path is stdout (None or '-')
-    output_path = None
-    if parsed_args.stdout:
-        output_path = None
-    elif parsed_args.output == "-":
-        output_path = "-"
-    else:
-        # Determine actual file path
-        base_out = Path(parsed_args.output) if parsed_args.output else DEFAULT_OUTPUT_DIR
-        # If the path exists as a directory or does not have a suffix, treat as directory
-        # (or if it matches DEFAULT_OUTPUT_DIR)
-        if base_out.is_dir() or not base_out.suffix:
-            ext = "csv" if parsed_args.format == "csv" else "txt"
-            output_path = base_out / f"results.{ext}"
-        else:
-            output_path = base_out
+    output_path = determine_output_path(parsed_args)
 
     # 4. Run pipeline
     try:
