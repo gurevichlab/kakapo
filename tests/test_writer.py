@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from kakapo.io.writer import format_as_csv, format_as_table, write_results
+from kakapo.io.writer import (
+    format_as_csv,
+    format_as_table,
+    write_mass_matched_results,
+    write_results,
+)
 from kakapo.models import MatchResult
 
 
@@ -150,3 +155,60 @@ class TestWriterWriteResults:
 
         with pytest.raises(OSError):
             write_results(sample_results, output_path=invalid_path, format_type="csv")
+
+
+class TestWriterWriteMassMatchedResults:
+    """Test suite for write_mass_matched_results function."""
+
+    def test_write_mass_matched_results_some_match(
+        self, sample_results: list[MatchResult], tmp_path: Path
+    ) -> None:
+        """Test that only a subset of matches within the mass tolerance are written."""
+        out_file = tmp_path / "matched_some.csv"
+        write_mass_matched_results(
+            sample_results, output_path=out_file, tolerance=0.015, format_type="csv"
+        )
+        assert out_file.exists()
+        content = out_file.read_text(encoding="utf-8")
+        assert "NRP_001" in content
+        assert "NRP_002" not in content
+
+    def test_write_mass_matched_results_none_match(
+        self, sample_results: list[MatchResult], tmp_path: Path
+    ) -> None:
+        """Test that no matches are written when tolerance is too small."""
+        out_file = tmp_path / "matched_none.csv"
+        write_mass_matched_results(
+            sample_results, output_path=out_file, tolerance=0.005, format_type="csv"
+        )
+        assert out_file.exists()
+        content = out_file.read_text(encoding="utf-8")
+        assert "NRP_001" not in content
+        assert "NRP_002" not in content
+
+    def test_write_mass_matched_results_all_match(
+        self, sample_results: list[MatchResult], tmp_path: Path
+    ) -> None:
+        """Test that all matches are written when tolerance is sufficiently large."""
+        out_file = tmp_path / "matched_all.csv"
+        write_mass_matched_results(
+            sample_results, output_path=out_file, tolerance=0.03, format_type="csv"
+        )
+        assert out_file.exists()
+        content = out_file.read_text(encoding="utf-8")
+        assert "NRP_001" in content
+        assert "NRP_002" in content
+
+    def test_write_mass_matched_results_stdout(
+        self, sample_results: list[MatchResult], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test writing mass-matched results to stdout when output_path is None."""
+        write_mass_matched_results(
+            sample_results, output_path=None, tolerance=0.015, format_type="csv"
+        )
+        captured = capsys.readouterr()
+        assert "structure_id" in captured.out
+        assert "NRP_001" in captured.out
+        assert "NRP_002" not in captured.out
+
+

@@ -156,3 +156,34 @@ def write_results(
         except OSError as e:
             logger.error("Failed to write results to %s: %s", file_path, e)
             raise
+
+
+def write_mass_matched_results(
+    results: list[MatchResult],
+    tolerance: float,
+    output_path: Optional[Union[str, Path]] = None,
+    format_type: str = "table",
+) -> None:
+    """Filter match results by mass tolerance and write them to a separate file or stdout.
+
+    Keep only the results where the absolute difference between structure mass and
+    spectrum precursor mass is within the given tolerance.
+
+    Args:
+        results: List of MatchResult objects.
+        tolerance: The mass tolerance window in Daltons.
+        output_path: Target file path to write results, or None/"-" for stdout.
+        format_type: Output format ("table", "txt", or "csv"). Case-insensitive.
+
+    Raises:
+        ValueError: If an unsupported format_type is provided.
+        OSError: If writing to the file fails.
+    """
+    logger.info(
+        "Filtering mass-matched results with tolerance %f Da (output: %s)",
+        tolerance,
+        output_path if output_path is not None else "stdout",
+    )
+    matched = [r for r in results if abs(r.structure_mass - r.spectrum_mass) <= tolerance]
+    logger.info("Writing %d mass-matched results out of %d total", len(matched), len(results))
+    write_results(matched, output_path=output_path, format_type=format_type)

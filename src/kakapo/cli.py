@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from kakapo.config import DEFAULT_OUTPUT_DIR
-from kakapo.io.writer import write_results
+from kakapo.io.writer import write_mass_matched_results, write_results
 from kakapo.main import run_pipeline
 from kakapo.utils.logger import get_logger, setup_logging
 
@@ -133,6 +133,16 @@ def create_parser() -> argparse.ArgumentParser:
         default="table",
         help="Format of the output results (default: table).",
     )
+    parser.add_argument(
+        "--mass-match",
+        action="store_true",
+        help="Output an additional results file where structure mass matches spectrum mass.",
+    )
+    parser.add_argument(
+        "--mass-match-tolerance",
+        type=float,
+        help="Mass tolerance in Daltons for matching structure mass to spectrum mass.",
+    )
 
     # Logging options
     parser.add_argument(
@@ -205,6 +215,32 @@ def determine_output_path(parsed_args: argparse.Namespace) -> Optional[Path | st
     return base_out
 
 
+def determine_matched_mass_output_path(
+    output_path: Optional[Path | str],
+    format_type: str,
+) -> Optional[Path | str]:
+    """Determine the output file path for mass-matched results.
+
+    Args:
+        output_path: The main output path (Path, "-", or None).
+        format_type: Output format ("table", "txt", or "csv").
+
+    Returns:
+        The Path to write the mass-matched results, or None / "-" for stdout.
+    """
+    if output_path is None:
+        return None
+    if output_path == "-":
+        return "-"
+
+    ext = "csv" if format_type.lower() == "csv" else "txt"
+    main_path = Path(output_path)
+    if main_path.is_dir() or not main_path.suffix:
+        return main_path / f"results_mass_matched.{ext}"
+
+    return main_path.with_name(f"{main_path.stem}_mass_matched{main_path.suffix}")
+
+
 def main(args: Optional[list[str]] = None) -> int:
     """Command-line interface entry point for kakapo.
 
@@ -220,6 +256,12 @@ def main(args: Optional[list[str]] = None) -> int:
     parser = create_parser()
     # Parse arguments
     parsed_args = parser.parse_args(args)
+
+    # Validate arguments
+    if parsed_args.mass_match and parsed_args.mass_match_tolerance is None:
+        parser.error("--mass-match-tolerance is required when --mass-match is specified.")
+    if parsed_args.mass_match_tolerance is not None and parsed_args.mass_match_tolerance < 0:
+        parser.error("--mass-match-tolerance must be non-negative.")
 
     # 1. Configure logging
     configure_logging(parsed_args)
@@ -259,6 +301,18 @@ def main(args: Optional[list[str]] = None) -> int:
 
         # 5. Write results
         write_results(results, output_path=output_path, format_type=parsed_args.format)
+
+        # 6. Write mass-matched results if requested
+        if parsed_args.mass_match:
+            matched_output_path = determine_matched_mass_output_path(
+                output_path, parsed_args.format
+            )
+            write_mass_matched_results(
+                results,
+                output_path=matched_output_path,
+                tolerance=parsed_args.mass_match_tolerance,
+                format_type=parsed_args.format,
+            )
 
     except Exception as e:
         logger.exception("Pipeline execution failed")
