@@ -6,6 +6,7 @@ set up logging, invoke the orchestration pipeline, and write output results.
 
 import argparse
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -253,6 +254,7 @@ def main(args: Optional[list[str]] = None) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure).
     """
+    start_total = time.perf_counter()
     parser = create_parser()
     # Parse arguments
     parsed_args = parser.parse_args(args)
@@ -319,6 +321,8 @@ def main(args: Optional[list[str]] = None) -> int:
         print(f"Pipeline execution failed: {e}", file=sys.stderr)
         return 1
 
+    total_duration = time.perf_counter() - start_total
+    logger.debug("CLI execution completed in %.4f seconds", total_duration)
     logger.info("CLI execution completed successfully")
     return 0
 

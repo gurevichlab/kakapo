@@ -1,5 +1,6 @@
 """Main pipeline orchestration module for kakapo."""
 
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, Union
@@ -83,16 +84,30 @@ def run_pipeline(
 
     # 1. Load experimental spectra
     logger.info("Loading experimental spectra from %d file(s)", len(spec_paths))
+    start_load_spectra = time.perf_counter()
     spectra = load_mgf_batch(
         file_paths=spec_paths,  # pyright: ignore [reportArgumentType] (paths are normalized)
         apply_filters=apply_filters,
         min_peaks=min_peaks,
     )
+    duration_load_spectra = time.perf_counter() - start_load_spectra
+    logger.debug(
+        "Loaded %d experimental spectra in %.4f seconds",
+        len(spectra),
+        duration_load_spectra,
+    )
     logger.info("Successfully loaded %d experimental spectra", len(spectra))
 
     # 2. Load and parse structures
     logger.info("Loading structures from %d file(s)", len(struct_paths))
+    start_load_structures = time.perf_counter()
     molecules = parse_rban_yaml_batch(struct_paths)
+    duration_load_structures = time.perf_counter() - start_load_structures
+    logger.debug(
+        "Loaded %d structures in %.4f seconds",
+        len(molecules),
+        duration_load_structures,
+    )
     logger.info("Successfully loaded %d structures", len(molecules))
 
     # Use default fragmentation rules if none provided
@@ -100,18 +115,31 @@ def run_pipeline(
 
     # 3. Generate theoretical spectra
     logger.info("Generating theoretical spectra for %d structures", len(molecules))
+    start_gen_spectra = time.perf_counter()
     theoretical_spectra = []
     for mol in molecules.values():
         logger.debug("Generating theoretical spectrum for structure: %s", mol.structure_id)
         theo_spec = generate_theoretical_spectrum(mol, rules=frag_rules)
         theoretical_spectra.append(theo_spec)
+    duration_gen_spectra = time.perf_counter() - start_gen_spectra
+    logger.debug(
+        "Generated %d theoretical spectra in %.4f seconds",
+        len(theoretical_spectra),
+        duration_gen_spectra,
+    )
 
     # 4. Pairwise spectrum matching
     logger.info("Matching %d spectra against %d structures", len(spectra), len(theoretical_spectra))
+    start_match = time.perf_counter()
     results = match_spectra(
         spectra=spectra,
         theoretical_spectra=theoretical_spectra,
         mass_tolerance=mass_tolerance,
+    )
+    duration_match = time.perf_counter() - start_match
+    logger.debug(
+        "Matched spectra in %.4f seconds",
+        duration_match,
     )
 
     # 5. Sort results
@@ -119,7 +147,13 @@ def run_pipeline(
     # Secondary key: spectrum_id (ascending)
     # Tertiary key: structure_id (ascending)
     logger.info("Sorting %d match results", len(results))
+    start_sort = time.perf_counter()
     results.sort(key=lambda r: (-r.matched_peaks_count, r.spectrum_id, r.structure_id))
+    duration_sort = time.perf_counter() - start_sort
+    logger.debug(
+        "Sorted match results in %.4f seconds",
+        duration_sort,
+    )
 
     logger.info("Pipeline execution complete")
     return results
