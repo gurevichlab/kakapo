@@ -30,11 +30,10 @@ def test_redca_yaml_parsing_and_classification():
     assert isinstance(molecule, Molecule)
     assert molecule.structure_id == "RE001"
 
-    # 2. Monomer Mass Precalculation Assertions
-    # Ala (Monomer 5) mass: formula C3H7NO2 - H2O = C3H5NO (monomer residue)
+    # Ala (Monomer at 0-indexed key 4) mass: formula C3H7NO2 - H2O = C3H5NO (monomer residue)
     # Atoms: [37, 35, 38, 34, 36] (C, C, O, N, C)
     # Expected mass: 71.037 Da
-    ala = molecule.monomers[5]
+    ala = molecule.monomers[4]
     assert ala.norine_name == "Ala"
     assert ala.mass is not None
     assert pytest.approx(ala.mass, rel=1e-3) == 71.03718

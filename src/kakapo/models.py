@@ -4,7 +4,7 @@ Defines immutable data structures used throughout the application for type safet
 and explicit contracts between modules.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 
 import networkx as nx
@@ -291,6 +291,22 @@ class Molecule:
             raise ValueError("Structure ID cannot be empty")
         if len(self.monomers) == 0:
             raise ValueError("Molecule must contain at least one monomer")
+
+        # Map current monomer keys to sequential 0-indexed keys
+        sorted_keys = sorted(self.monomers.keys())
+        if sorted_keys != list(range(len(self.monomers))):
+            key_map = {old_k: i for i, old_k in enumerate(sorted_keys)}
+
+            # Reindex monomers
+            new_monomers = {key_map[k]: v for k, v in self.monomers.items()}
+            object.__setattr__(self, "monomers", new_monomers)
+
+            # Reindex bonds
+            new_bonds = tuple(
+                replace(bond, source_idx=key_map[bond.source_idx], target_idx=key_map[bond.target_idx])
+                for bond in self.bonds
+            )
+            object.__setattr__(self, "bonds", new_bonds)
 
         # Validate bond indices
         for bond in self.bonds:

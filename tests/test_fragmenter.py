@@ -35,6 +35,7 @@ TEST_RULES = (
     FragmentationRule("ESTER", H_MASS, -H_MASS),
 )
 
+
 # ============================================================================
 # Fixtures: Reusable Test Data
 # ============================================================================
@@ -267,10 +268,10 @@ class TestFragment:
     """Test Fragment dataclass validation and properties."""
 
     def test_fragment_creation(self):
-        """Fragment should be creatable with monomer indices and bonds."""
+        """Fragment should be creatable with mask and bonds."""
         frag = Fragment(
             fragment_id="frag",
-            monomer_indices=(0, 1, 2),
+            mask=7,  # nodes 0, 1, 2
             removed_bonds=(),
             is_from_cycle=False,
         )
@@ -282,7 +283,7 @@ class TestFragment:
         """Fragment should store a custom fragment_id correctly."""
         frag = Fragment(
             fragment_id="custom_id",
-            monomer_indices=(0, 1),
+            mask=3,  # nodes 0, 1
             removed_bonds=(),
         )
         assert frag.fragment_id == "custom_id"
@@ -290,12 +291,7 @@ class TestFragment:
     def test_fragment_empty_fails(self):
         """Fragment with no monomers should raise ValueError."""
         with pytest.raises(ValueError, match="must contain at least one monomer"):
-            Fragment(fragment_id="frag", monomer_indices=(), removed_bonds=())
-
-    def test_fragment_duplicate_indices_fails(self):
-        """Fragment with duplicate indices should raise ValueError."""
-        with pytest.raises(ValueError, match="must be unique"):
-            Fragment(fragment_id="frag", monomer_indices=(0, 1, 0), removed_bonds=())
+            Fragment(fragment_id="frag", mask=0, removed_bonds=())
 
 
 # ============================================================================
@@ -323,43 +319,11 @@ class TestFragmentationGraph:
         graph = FragmentationGraph(cyclic_trimer, rules=TEST_RULES)
         bridges = graph.find_all_bridges()
         assert len(bridges) == 0
-
-    def test_cycles_detection_cyclic(self, cyclic_trimer):
-        """Cyclic molecule should detect at least one cycle."""
-        graph = FragmentationGraph(cyclic_trimer, rules=TEST_RULES)
-        cycles = graph.find_all_cycles()
-        assert len(cycles) > 0
-
-    def test_cycles_detection_linear(self, linear_trimer):
-        """Linear molecule should have no cycles."""
-        graph = FragmentationGraph(linear_trimer, rules=TEST_RULES)
-        cycles = graph.find_all_cycles()
-        assert len(cycles) == 0
-
-    def test_2cut_pairs_in_cycle(self, cyclic_trimer):
-        """3-node cycle should have 3 possible 2-cut pairs."""
-        graph = FragmentationGraph(cyclic_trimer, rules=TEST_RULES)
-        cycle = [0, 1, 2]
-        pairs = graph.extract_2cut_pairs(cycle)
-        assert len(pairs) == 3
-
-    def test_connected_components_after_removal(self, linear_trimer):
-        """Removing a bridge should disconnect the graph."""
-        graph = FragmentationGraph(linear_trimer, rules=TEST_RULES)
-        components = graph.get_connected_components_after_removal([(0, 1)])
-        assert len(components) == 2
-
     def test_reversed_edge_orientation_still_detects_bridges(self, linear_trimer_reversed_edges):
         """Bridge detection should be direction-agnostic."""
         graph = FragmentationGraph(linear_trimer_reversed_edges, rules=TEST_RULES)
         bridges = graph.find_all_bridges()
         assert len(bridges) == 2
-
-    def test_mixed_direction_cycle_is_still_detected(self, cyclic_trimer_mixed_directions):
-        """Undirected cycle detection should work for mixed directed orientations."""
-        graph = FragmentationGraph(cyclic_trimer_mixed_directions, rules=TEST_RULES)
-        cycles = graph.find_all_cycles()
-        assert len(cycles) > 0
 
 
 # ============================================================================
@@ -372,9 +336,13 @@ class TestMassCalculationLookups:
 
     def test_mass_index_out_of_bounds(self, simple_monomer):
         """Invalid index should raise IndexError."""
-        frag = Fragment(fragment_id="frag", monomer_indices=(10,), removed_bonds=())
+        frag = Fragment(fragment_id="frag", mask=(1 << 10), removed_bonds=())
         with pytest.raises(IndexError, match="out of bounds"):
-            calculate_theoretical_ion(frag, {0: simple_monomer}, rules=TEST_RULES)
+            calculate_theoretical_ion(
+                frag,
+                masses_vector=[simple_monomer.mass],
+                rules=TEST_RULES,
+            )
 
     def test_unknown_residue_fails(self):
         """Monomer with None mass should raise ValueError."""
@@ -385,9 +353,12 @@ class TestMassCalculationLookups:
             chirality=Chirality.L,
             mass=None,
         )
-        frag = Fragment(fragment_id="frag", monomer_indices=(0,), removed_bonds=())
+        mol = Molecule(
+            structure_id="unknown_mass",
+            monomers={0: m_unknown},
+        )
         with pytest.raises(ValueError, match="Cannot determine mass"):
-            calculate_theoretical_ion(frag, {0: m_unknown}, rules=TEST_RULES)
+            generate_all_theoretical_masses(mol, rules=TEST_RULES)
 
     def test_atomic_mass_calculation_with_parsed_record(self):
         """Monomer mass precalculated from atomic composition should be correct."""
@@ -397,15 +368,12 @@ class TestMassCalculationLookups:
             + 14.003074  # 1 nitrogen
             + 2 * 15.994915  # 2 oxygens
         )
-        m_gly = Monomer(
-            norine_name="GLY",
-            residue="GLY",
-            is_methylated=False,
-            chirality=Chirality.L,
-            mass=expected_mass,
+        frag = Fragment(fragment_id="frag", mask=(1 << 0), removed_bonds=())
+        ion = calculate_theoretical_ion(
+            frag,
+            masses_vector=[expected_mass],
+            rules=TEST_RULES,
         )
-        frag = Fragment(fragment_id="frag", monomer_indices=(0,), removed_bonds=())
-        ion = calculate_theoretical_ion(frag, {0: m_gly}, rules=TEST_RULES)
         assert pytest.approx(ion.mass, rel=1e-2) == expected_mass
 
 
@@ -422,25 +390,25 @@ class TestFragmentGeneration:
         mol = Molecule(structure_id="single", monomers={0: simple_monomer}, bonds=())
         fragments = generate_fragments(mol, rules=TEST_RULES)
         assert len(fragments) == 1
-        assert fragments[0].monomer_indices == (0,)
+        assert fragments[0].mask == (1 << 0)
         assert fragments[0].fragment_id == "frag_0"
 
     def test_linear_dimer_fragments(self, linear_dimer):
         """Linear dimer should generate fragments from bridge cut."""
         fragments = generate_fragments(linear_dimer, rules=TEST_RULES)
         assert len(fragments) >= 1
-        monomer_sets = [set(f.monomer_indices) for f in fragments]
-        assert {0} in monomer_sets
-        assert {1} in monomer_sets
+        masks = [f.mask for f in fragments]
+        assert (1 << 0) in masks
+        assert (1 << 1) in masks
 
     def test_linear_trimer_fragments(self, linear_trimer):
         """Linear trimer should generate multiple fragments from bridge cuts."""
         fragments = generate_fragments(linear_trimer, rules=TEST_RULES)
         assert len(fragments) >= 3
-        monomer_sets = [set(f.monomer_indices) for f in fragments]
-        assert {0} in monomer_sets
-        assert {2} in monomer_sets
-        assert {0, 1} in monomer_sets or {1, 2} in monomer_sets
+        masks = [f.mask for f in fragments]
+        assert (1 << 0) in masks
+        assert (1 << 2) in masks
+        assert ((1 << 0) | (1 << 1)) in masks or ((1 << 1) | (1 << 2)) in masks
 
     def test_cyclic_trimer_2cut_fragments(self, cyclic_trimer):
         """Cyclic trimer should generate fragments from 2-cuts."""
@@ -455,9 +423,9 @@ class TestFragmentGeneration:
     def test_reversed_linear_edges_generate_expected_fragments(self, linear_trimer_reversed_edges):
         """Linear fragments should be identical regardless of bond orientation."""
         fragments = generate_fragments(linear_trimer_reversed_edges, rules=TEST_RULES)
-        monomer_sets = [set(f.monomer_indices) for f in fragments]
-        assert {0} in monomer_sets
-        assert {2} in monomer_sets
+        masks = [f.mask for f in fragments]
+        assert (1 << 0) in masks
+        assert (1 << 2) in masks
 
     def test_mixed_direction_cycle_generates_2cut_fragments(self, cyclic_trimer_mixed_directions):
         """2-cut fragments should be produced even without a directed cycle."""
@@ -475,16 +443,25 @@ class TestMassCalculation:
 
     def test_single_monomer_mass(self, simple_monomer):
         """Single monomer mass should be its residue mass."""
-        frag = Fragment(fragment_id="frag", monomer_indices=(0,), removed_bonds=())
-        ion = calculate_theoretical_ion(frag, {0: simple_monomer}, rules=TEST_RULES)
+        frag = Fragment(fragment_id="frag", mask=(1 << 0), removed_bonds=())
+        ion = calculate_theoretical_ion(
+            frag,
+            masses_vector=[simple_monomer.mass],
+            rules=TEST_RULES,
+        )
         assert pytest.approx(ion.mass, rel=1e-3) == 71.0372
         assert ion.rules_shifts == ()
 
     def test_rules_shifts_population(self, linear_dimer):
         """Verify that rules_shifts tuple contains RuleShift instances mapped to their shifts."""
         fragments = generate_fragments(linear_dimer, rules=TEST_RULES)
-        frag_ala = next(f for f in fragments if f.monomer_indices == (0,))
-        ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
+        frag_ala = next(f for f in fragments if f.mask == (1 << 0))
+        masses_vector = [linear_dimer.monomers[node].mass for node in linear_dimer.monomers.keys()]
+        ion_ala = calculate_theoretical_ion(
+            frag_ala,
+            masses_vector=masses_vector,
+            rules=TEST_RULES,
+        )
 
         assert len(ion_ala.rules_shifts) == 1
         assert ion_ala.rules_shifts[0].rule_name == "PEPTIDE"
@@ -563,20 +540,30 @@ class TestIntegration:
 
         rules = (FragmentationRule("PEPTIDE", H_MASS, -H_MASS),)
         fragments = generate_fragments(mol, rules=rules)
-        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
-        assert frozenset({0}) in monomer_sets
-        assert frozenset({1, 2}) in monomer_sets
-        assert frozenset({2}) not in monomer_sets
+        masks = {f.mask for f in fragments}
+        assert (1 << 0) in masks
+        assert ((1 << 1) | (1 << 2)) in masks
+        assert (1 << 2) not in masks
 
     def test_rule_based_cleavage_shifts(self, linear_dimer):
         """Verify that rule-based cleavage shifts are correctly applied to fragment masses."""
         fragments = generate_fragments(linear_dimer, rules=TEST_RULES)
 
-        frag_ala = next(f for f in fragments if f.monomer_indices == (0,))
-        frag_gly = next(f for f in fragments if f.monomer_indices == (1,))
+        frag_ala = next(f for f in fragments if f.mask == (1 << 0))
+        frag_gly = next(f for f in fragments if f.mask == (1 << 1))
 
-        ion_ala = calculate_theoretical_ion(frag_ala, linear_dimer.monomers, rules=TEST_RULES)
-        ion_gly = calculate_theoretical_ion(frag_gly, linear_dimer.monomers, rules=TEST_RULES)
+        masses_vector = [linear_dimer.monomers[node].mass for node in linear_dimer.monomers.keys()]
+
+        ion_ala = calculate_theoretical_ion(
+            frag_ala,
+            masses_vector=masses_vector,
+            rules=TEST_RULES,
+        )
+        ion_gly = calculate_theoretical_ion(
+            frag_gly,
+            masses_vector=masses_vector,
+            rules=TEST_RULES,
+        )
 
         expected_ala = linear_dimer.monomers[0].mass + H_MASS
         expected_gly = linear_dimer.monomers[1].mass - H_MASS
@@ -683,12 +670,12 @@ class TestIntegration:
 
         rules = (FragmentationRule("amide_1", H_MASS, -H_MASS),)
         fragments = generate_fragments(mol, rules=rules)
-        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
+        masks = {f.mask for f in fragments}
         # bond1 should be cleaved since its subtype "amide_1" matches the rule.
         # bond2 should NOT be cleaved.
-        assert frozenset({0}) in monomer_sets
-        assert frozenset({1, 2}) in monomer_sets
-        assert frozenset({2}) not in monomer_sets
+        assert (1 << 0) in masks
+        assert ((1 << 1) | (1 << 2)) in masks
+        assert (1 << 2) not in masks
 
     def test_subtype_cleavage_shifts(self):
         """Verify that rule-based shifts are correctly applied when matching via subtypes."""
@@ -719,11 +706,21 @@ class TestIntegration:
         rules = (FragmentationRule("amide_1", 1.0, -1.0),)
         fragments = generate_fragments(mol, rules=rules)
 
-        frag_0 = next(f for f in fragments if f.monomer_indices == (0,))
-        frag_1 = next(f for f in fragments if f.monomer_indices == (1,))
+        frag_0 = next(f for f in fragments if f.mask == (1 << 0))
+        frag_1 = next(f for f in fragments if f.mask == (1 << 1))
 
-        ion_0 = calculate_theoretical_ion(frag_0, mol.monomers, rules=rules)
-        ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
+        masses_vector = [71.03718, 57.02146]
+
+        ion_0 = calculate_theoretical_ion(
+            frag_0,
+            masses_vector=masses_vector,
+            rules=rules,
+        )
+        ion_1 = calculate_theoretical_ion(
+            frag_1,
+            masses_vector=masses_vector,
+            rules=rules,
+        )
 
         # target of bond (index 1) is in frag_1 -> receives right_shift (-1.0)
         # source of bond (index 0) is in frag_0 -> receives left_shift (+1.0)
@@ -760,11 +757,21 @@ class TestIntegration:
         rules = (FragmentationRule("amide_1", 1.0, -1.0),)
         fragments = generate_fragments(mol, rules=rules)
 
-        frag_0 = next(f for f in fragments if f.monomer_indices == (0,))
-        frag_1 = next(f for f in fragments if f.monomer_indices == (1,))
+        frag_0 = next(f for f in fragments if f.mask == (1 << 0))
+        frag_1 = next(f for f in fragments if f.mask == (1 << 1))
 
-        ion_0 = calculate_theoretical_ion(frag_0, mol.monomers, rules=rules)
-        ion_1 = calculate_theoretical_ion(frag_1, mol.monomers, rules=rules)
+        masses_vector = [71.03718, 57.02146]
+
+        ion_0 = calculate_theoretical_ion(
+            frag_0,
+            masses_vector=masses_vector,
+            rules=rules,
+        )
+        ion_1 = calculate_theoretical_ion(
+            frag_1,
+            masses_vector=masses_vector,
+            rules=rules,
+        )
 
         # Since reversed is True:
         # left_shift (+1.0) is applied to target (index 1) -> frag_1
@@ -795,16 +802,16 @@ class TestIntegration:
             bonds=bonds,
         )
         fragments = generate_fragments(mol, rules=TEST_RULES)
-        monomer_sets = {frozenset(f.monomer_indices) for f in fragments}
+        masks = {f.mask for f in fragments}
 
         # Single cuts of each of the 3 bridges:
         # Cut (0, 1) -> {1}, {0, 2, 3}
         # Cut (0, 2) -> {2}, {0, 1, 3}
         # Cut (0, 3) -> {3}, {0, 1, 2}
-        assert frozenset({1}) in monomer_sets
-        assert frozenset({0, 2, 3}) in monomer_sets
-        assert frozenset({2}) in monomer_sets
-        assert frozenset({0, 1, 3}) in monomer_sets
-        assert frozenset({3}) in monomer_sets
-        assert frozenset({0, 1, 2}) in monomer_sets
-        assert len(monomer_sets) == 6
+        assert (1 << 1) in masks
+        assert ((1 << 0) | (1 << 2) | (1 << 3)) in masks
+        assert (1 << 2) in masks
+        assert ((1 << 0) | (1 << 1) | (1 << 3)) in masks
+        assert (1 << 3) in masks
+        assert ((1 << 0) | (1 << 1) | (1 << 2)) in masks
+        assert len(masks) == 6
