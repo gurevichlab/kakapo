@@ -210,5 +210,3 @@ class TestWriterWriteMassMatchedResults:
         assert "structure_id" in captured.out
         assert "NRP_001" in captured.out
         assert "NRP_002" not in captured.out
-
-

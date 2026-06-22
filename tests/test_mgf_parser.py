@@ -393,9 +393,7 @@ END IONS
         mgf_path_valid = self._create_test_mgf(mgf_content_valid, "valid.mgf")
 
         try:
-            spectra = load_mgf_batch(
-                [mgf_path_valid, "/nonexistent/file.mgf"], apply_filters=False
-            )
+            spectra = load_mgf_batch([mgf_path_valid, "/nonexistent/file.mgf"], apply_filters=False)
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "valid"
         finally:

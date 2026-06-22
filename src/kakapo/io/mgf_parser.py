@@ -104,10 +104,7 @@ def load_mgf(  # noqa: C901
             kakapo_spectra.append(spectrum)
         except (ValueError, KeyError, RuntimeError) as e:
             logger.error("Failed to convert spectrum %s: %s", spec_id, e)
-            raise RuntimeError(
-                f"Failed to convert spectrum {spec_id}:"
-                f" {e}"
-            ) from e
+            raise RuntimeError(f"Failed to convert spectrum {spec_id}: {e}") from e
 
     if not kakapo_spectra:
         logger.warning(

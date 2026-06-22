@@ -507,7 +507,6 @@ class TestCliMainFunction:
             format_type="table",
         )
 
-
     def test_main_mass_match_missing_tolerance(self, temp_io_structure) -> None:
         """Test that missing tolerance when --mass-match is present raises SystemExit."""
         args = [
@@ -611,5 +610,3 @@ class TestCliMainFunction:
             tolerance=0.05,
             format_type="table",
         )
-
-

@@ -98,4 +98,3 @@ def test_setup_logging_clears_file(tmp_path: Path) -> None:
     log_content = log_file.read_text(encoding="utf-8")
     assert "pre-existing content" not in log_content
     assert "new content" in log_content
-
