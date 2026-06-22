@@ -10,7 +10,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from kakapo.config import DEFAULT_OUTPUT_DIR
+from kakapo.config import (
+    DEFAULT_APPLY_FILTERS,
+    DEFAULT_FRAGMENTATION_RULES,
+    DEFAULT_MASS_TOLERANCE,
+    DEFAULT_MIN_PEAKS,
+    DEFAULT_OUTPUT_DIR,
+)
 from kakapo.io.writer import write_mass_matched_results, write_results
 from kakapo.main import run_pipeline
 from kakapo.utils.logger import get_logger, setup_logging
@@ -96,19 +102,20 @@ def create_parser() -> argparse.ArgumentParser:
         "--tolerance",
         "-t",
         type=float,
-        required=True,
+        default=DEFAULT_MASS_TOLERANCE,
         help="Mass tolerance window in Daltons for peak matching.",
     )
     parser.add_argument(
         "--min-peaks",
         type=int,
-        default=1,
+        default=DEFAULT_MIN_PEAKS,
         help="Minimum number of peaks required to include an experimental spectrum (default: 1).",
     )
     parser.add_argument(
         "--no-filters",
         action="store_false",
         dest="apply_filters",
+        default=DEFAULT_APPLY_FILTERS,
         help="Disable applying default matchms filters to experimental spectra.",
     )
 
@@ -299,6 +306,7 @@ def main(args: Optional[list[str]] = None) -> int:
             mass_tolerance=parsed_args.tolerance,
             apply_filters=parsed_args.apply_filters,
             min_peaks=parsed_args.min_peaks,
+            rules=DEFAULT_FRAGMENTATION_RULES,
         )
 
         # 5. Write results

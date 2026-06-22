@@ -121,6 +121,8 @@ class TestPipelineOrchestration:
             structure_files=temp_files["ala_yaml"],
             mass_tolerance=0.5,
             apply_filters=False,
+            min_peaks=1,
+            rules=None,
         )
 
         assert isinstance(results, list)
@@ -137,6 +139,8 @@ class TestPipelineOrchestration:
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
             mass_tolerance=0.5,
             apply_filters=False,
+            min_peaks=1,
+            rules=None,
         )
 
         # 2 spectra * 2 structures = 4 results
@@ -149,6 +153,8 @@ class TestPipelineOrchestration:
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
             mass_tolerance=0.5,
             apply_filters=False,
+            min_peaks=1,
+            rules=None,
         )
 
         # Ensure they are sorted primarily by matched_peaks_count in descending order.
@@ -171,6 +177,7 @@ class TestPipelineOrchestration:
             structure_files=temp_files["dimer_yaml"],
             mass_tolerance=0.5,
             apply_filters=False,
+            min_peaks=1,
             rules=custom_rules,
         )
 
@@ -182,10 +189,24 @@ class TestPipelineOrchestration:
     def test_run_pipeline_missing_inputs(self):
         """Test raising ValueError for empty spectra/structure file lists."""
         with pytest.raises(ValueError, match="No spectra files"):
-            run_pipeline(spectra_files=[], structure_files=["dummy.yaml"], mass_tolerance=0.1)
+            run_pipeline(
+                spectra_files=[],
+                structure_files=["dummy.yaml"],
+                mass_tolerance=0.1,
+                apply_filters=True,
+                min_peaks=1,
+                rules=None,
+            )
 
         with pytest.raises(ValueError, match="No structure files"):
-            run_pipeline(spectra_files=["dummy.mgf"], structure_files=[], mass_tolerance=0.1)
+            run_pipeline(
+                spectra_files=["dummy.mgf"],
+                structure_files=[],
+                mass_tolerance=0.1,
+                apply_filters=True,
+                min_peaks=1,
+                rules=None,
+            )
 
     def test_run_pipeline_nonexistent_files(self):
         """Test raising FileNotFoundError for missing files."""
@@ -194,4 +215,7 @@ class TestPipelineOrchestration:
                 spectra_files="nonexistent.mgf",
                 structure_files="nonexistent.yaml",
                 mass_tolerance=0.1,
+                apply_filters=True,
+                min_peaks=1,
+                rules=None,
             )

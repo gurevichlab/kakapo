@@ -20,9 +20,9 @@ def run_pipeline(
     spectra_files: Union[str, Path, Iterable[Union[str, Path]]],
     structure_files: Union[str, Path, Iterable[Union[str, Path]]],
     mass_tolerance: float,
-    apply_filters: bool = True,
-    min_peaks: int = 1,
-    rules: Optional[tuple[FragmentationRule, ...]] = None,
+    apply_filters: bool,
+    min_peaks: int,
+    rules: Optional[tuple[FragmentationRule, ...]],
 ) -> list[MatchResult]:
     """Run the main kakapo analysis pipeline.
 
@@ -35,7 +35,7 @@ def run_pipeline(
         mass_tolerance: The maximum absolute mass difference (in Da) allowed for matching peaks.
         apply_filters: Whether to clean up experimental spectra using matchms filters.
         min_peaks: Minimum number of peaks required to include an experimental spectrum.
-        rules: Fragmentation rules to apply. Defaults to DEFAULT_RULES if None.
+        rules: Fragmentation rules to apply.
 
     Returns:
         A sorted list of MatchResult objects. Results are sorted primarily by matched_peaks_count in
@@ -47,6 +47,16 @@ def run_pipeline(
         FileNotFoundError: If any of the input files do not exist.
     """
     logger.info("Starting Kakapo workflow pipeline")
+    logger.info(
+        "Running pipeline with parameters: spectra_files=%s, structure_files=%s, "
+        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s",
+        spectra_files,
+        structure_files,
+        mass_tolerance,
+        apply_filters,
+        min_peaks,
+        rules,
+    )
 
     # Normalize spectra files to a list of Path objects
     if isinstance(spectra_files, (str, Path)):
