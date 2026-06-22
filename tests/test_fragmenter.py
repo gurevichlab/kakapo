@@ -319,6 +319,7 @@ class TestFragmentationGraph:
         graph = FragmentationGraph(cyclic_trimer, rules=TEST_RULES)
         bridges = graph.find_all_bridges()
         assert len(bridges) == 0
+
     def test_reversed_edge_orientation_still_detects_bridges(self, linear_trimer_reversed_edges):
         """Bridge detection should be direction-agnostic."""
         graph = FragmentationGraph(linear_trimer_reversed_edges, rules=TEST_RULES)
@@ -579,57 +580,123 @@ class TestIntegration:
         assert len(theo_spec.ions) == 2
         assert pytest.approx(theo_spec.structure_mass) == 128.05864
         assert theo_spec.monomer_count == 2
+        assert pytest.approx(theo_spec.monomer_mass_vector) == (71.03718, 57.02146)
 
         sorted_ions = theo_spec.get_sorted_ions()
         assert len(sorted_ions) == 2
         assert sorted_ions == sorted(theo_spec.ions, key=lambda ion: ion.mass)
+        # Check that masks are correct (one is 1 << 0, one is 1 << 1)
+        masks = {ion.mask for ion in theo_spec.ions}
+        assert masks == {1, 2}
 
-    def test_theoretical_spectrum_validation(self):
-        """Test validation rules for TheoreticalSpectrum and TheoreticalIon."""
+    def test_theoretical_ion_empty_id(self):
+        """TheoreticalIon should raise ValueError if fragment_id is empty."""
         with pytest.raises(ValueError, match="Fragment ID cannot be empty"):
-            TheoreticalIon(fragment_id="", mass=100.0)
+            TheoreticalIon(fragment_id="", mass=100.0, mask=1)
 
+    def test_theoretical_ion_negative_mass(self):
+        """TheoreticalIon should raise ValueError if mass is negative."""
         with pytest.raises(ValueError, match="Theoretical ion mass must be non-negative"):
-            TheoreticalIon(fragment_id="frag_0", mass=-10.0)
+            TheoreticalIon(fragment_id="frag_0", mass=-10.0, mask=1)
 
+    def test_theoretical_ion_mask_type(self):
+        """TheoreticalIon should raise TypeError if mask is not an integer."""
+        with pytest.raises(TypeError, match="Mask must be an integer"):
+            TheoreticalIon(fragment_id="frag_0", mass=100.0, mask="1")  # type: ignore
+
+    def test_theoretical_ion_mask_value(self):
+        """TheoreticalIon should raise ValueError if mask is non-positive."""
+        with pytest.raises(ValueError, match="Mask must be positive"):
+            TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=0)
+
+    def test_theoretical_ion_hashability(self):
+        """TheoreticalIon should support hashing and membership checks."""
         ion = TheoreticalIon(
-            fragment_id="frag_0", mass=100.0, rules_shifts=(RuleShift("PEPTIDE", 1.0),)
+            fragment_id="frag_0", mass=100.0, mask=1, rules_shifts=(RuleShift("PEPTIDE", 1.0),)
         )
-        # Test hashability and set operations
-        ions_set = {ion}
-        assert ion in ions_set
+        assert ion in {ion}
 
+    def test_theoretical_spectrum_empty_id(self):
+        """TheoreticalSpectrum should raise ValueError if structure_id is empty."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
         with pytest.raises(ValueError, match="Structure ID cannot be empty"):
             TheoreticalSpectrum(
                 structure_id="",
                 ions=frozenset({ion}),
                 structure_mass=100.0,
                 monomer_count=1,
+                monomer_mass_vector=(100.0,),
             )
 
-        msg = "Theoretical spectrum must contain at least one ion"
-        with pytest.raises(ValueError, match=msg):
+    def test_theoretical_spectrum_empty_ions(self):
+        """TheoreticalSpectrum should raise ValueError if ions set is empty."""
+        with pytest.raises(ValueError, match="must contain at least one ion"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
                 ions=frozenset(),
                 structure_mass=100.0,
                 monomer_count=1,
+                monomer_mass_vector=(100.0,),
             )
 
+    def test_theoretical_spectrum_negative_mass(self):
+        """TheoreticalSpectrum should raise ValueError if structure_mass is negative."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
         with pytest.raises(ValueError, match="Structure mass must be non-negative"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
                 ions=frozenset({ion}),
                 structure_mass=-1.0,
                 monomer_count=1,
+                monomer_mass_vector=(100.0,),
             )
 
+    def test_theoretical_spectrum_invalid_monomer_count(self):
+        """TheoreticalSpectrum should raise ValueError if monomer_count is non-positive."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
         with pytest.raises(ValueError, match="Monomer count must be positive"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
                 ions=frozenset({ion}),
                 structure_mass=100.0,
                 monomer_count=0,
+                monomer_mass_vector=(),
+            )
+
+    def test_theoretical_spectrum_vector_type(self):
+        """TheoreticalSpectrum should raise TypeError if monomer_mass_vector is not a tuple."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        with pytest.raises(TypeError, match="Monomer mass vector must be a tuple"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=1,
+                monomer_mass_vector=[100.0],  # type: ignore
+            )
+
+    def test_theoretical_spectrum_vector_values(self):
+        """TheoreticalSpectrum should raise ValueError if vector has negative values."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        with pytest.raises(ValueError, match="All monomer masses.*must be non-negative"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=1,
+                monomer_mass_vector=(-5.0,),
+            )
+
+    def test_theoretical_spectrum_vector_length_mismatch(self):
+        """TheoreticalSpectrum should raise ValueError if vector length mismatches count."""
+        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        with pytest.raises(ValueError, match="length must match monomer count"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=2,
+                monomer_mass_vector=(100.0,),
             )
 
     def test_rule_based_bond_filtering_with_subtypes(self):

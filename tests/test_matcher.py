@@ -25,13 +25,15 @@ def make_theoretical_spectrum(
 ) -> TheoreticalSpectrum:
     """Helper to create a TheoreticalSpectrum from list of masses."""
     ions = frozenset(
-        TheoreticalIon(fragment_id=f"frag_{idx}", mass=mass) for idx, mass in enumerate(ion_masses)
+        TheoreticalIon(fragment_id=f"frag_{idx}", mass=mass, mask=(1 << idx))
+        for idx, mass in enumerate(ion_masses)
     )
     return TheoreticalSpectrum(
         structure_id=structure_id,
         ions=ions,
         structure_mass=structure_mass,
         monomer_count=monomer_count,
+        monomer_mass_vector=(125.0,) * monomer_count,
     )
 
 

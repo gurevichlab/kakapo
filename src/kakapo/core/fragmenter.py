@@ -391,6 +391,7 @@ def calculate_theoretical_ion(
     return TheoreticalIon(
         fragment_id=fragment_id,
         mass=ion_mass,
+        mask=fragment.mask,
         rules_shifts=tuple(rules_shifts),
     )
 
@@ -398,6 +399,7 @@ def calculate_theoretical_ion(
 def generate_all_theoretical_masses(
     molecule: Molecule,
     rules: tuple[FragmentationRule, ...] = DEFAULT_RULES,
+    masses_vector: list[float] | None = None,
 ) -> list[TheoreticalIon]:
     """Generate all theoretical masses from a molecule.
 
@@ -410,16 +412,18 @@ def generate_all_theoretical_masses(
         molecule: The Molecule to fragment and analyze.
         rules: Tuple of FragmentationRules allowed for cleavage.
             Defaults to DEFAULT_RULES.
+        masses_vector: Optional precomputed list of monomer masses.
 
     Returns:
         List of TheoreticalIon objects sorted by mass.
     """
-    # Build masses_vector directly aligned with 0-indexed monomers
-    masses_vector = [0.0] * len(molecule.monomers)
-    for node, monomer in molecule.monomers.items():
-        if monomer.mass is None:
-            raise ValueError(f"Cannot determine mass for monomer {monomer.norine_name}")
-        masses_vector[node] = monomer.mass
+    if masses_vector is None:
+        # Build masses_vector directly aligned with 0-indexed monomers
+        masses_vector = [0.0] * len(molecule.monomers)
+        for node, monomer in molecule.monomers.items():
+            if monomer.mass is None:
+                raise ValueError(f"Cannot determine mass for monomer {monomer.norine_name}")
+            masses_vector[node] = monomer.mass
 
     fragments = generate_fragments(molecule, rules=rules)
     all_masses = []
@@ -453,22 +457,26 @@ def generate_theoretical_spectrum(
     Returns:
         TheoreticalSpectrum object representing the predicted ions.
     """
-    all_masses = generate_all_theoretical_masses(
-        molecule,
-        rules=rules,
-    )
-
-    structure_mass = 0.0
-    for monomer in molecule.monomers.values():
+    masses_vector = [0.0] * len(molecule.monomers)
+    for node, monomer in molecule.monomers.items():
         if monomer.mass is None:
             raise ValueError(
                 f"Cannot calculate structure mass: monomer '{monomer.norine_name}' has no mass"
             )
-        structure_mass += monomer.mass
+        masses_vector[node] = monomer.mass
+
+    all_masses = generate_all_theoretical_masses(
+        molecule,
+        rules=rules,
+        masses_vector=masses_vector,
+    )
+
+    structure_mass = sum(masses_vector)
 
     return TheoreticalSpectrum(
         structure_id=molecule.structure_id,
         ions=frozenset(all_masses),
         structure_mass=structure_mass,
         monomer_count=molecule.monomer_count,
+        monomer_mass_vector=tuple(masses_vector),
     )

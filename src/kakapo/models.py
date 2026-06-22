@@ -89,11 +89,13 @@ class TheoreticalIon:
     Attributes:
         fragment_id: Unique identifier for the source fragment (e.g., 'frag_0').
         mass: Calculated exact mass of the ion in Daltons.
+        mask: Bitmask representing the monomers in this fragment.
         rules_shifts: Tuple of RuleShift instances applied to generate this ion.
     """
 
     fragment_id: str
     mass: float
+    mask: int
     rules_shifts: tuple[RuleShift, ...] = ()
 
     def __post_init__(self):
@@ -101,6 +103,10 @@ class TheoreticalIon:
             raise ValueError("Fragment ID cannot be empty")
         if self.mass < 0:
             raise ValueError("Theoretical ion mass must be non-negative")
+        if not isinstance(self.mask, int):
+            raise TypeError("Mask must be an integer")
+        if self.mask <= 0:
+            raise ValueError("Mask must be positive")
 
 
 @dataclass(frozen=True)
@@ -112,12 +118,14 @@ class TheoreticalSpectrum:
         ions: Frozenset of TheoreticalIon objects.
         structure_mass: Exact mass of the matched molecule.
         monomer_count: Number of monomers in the parent Molecule.
+        monomer_mass_vector: Precomputed list of monomer masses.
     """
 
     structure_id: str
     ions: frozenset[TheoreticalIon]
     structure_mass: float
     monomer_count: int
+    monomer_mass_vector: tuple[float, ...]
 
     def __post_init__(self):
         if not self.structure_id:
@@ -128,6 +136,12 @@ class TheoreticalSpectrum:
             raise ValueError("Structure mass must be non-negative")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
+        if not isinstance(self.monomer_mass_vector, tuple):
+            raise TypeError("Monomer mass vector must be a tuple")
+        if any(not isinstance(m, (int, float)) or m < 0 for m in self.monomer_mass_vector):
+            raise ValueError("All monomer masses in vector must be non-negative numbers")
+        if len(self.monomer_mass_vector) != self.monomer_count:
+            raise ValueError("Monomer mass vector length must match monomer count")
 
     def get_sorted_ions(self) -> list[TheoreticalIon]:
         """Return ions sorted by mass."""
@@ -303,7 +317,9 @@ class Molecule:
 
             # Reindex bonds
             new_bonds = tuple(
-                replace(bond, source_idx=key_map[bond.source_idx], target_idx=key_map[bond.target_idx])
+                replace(
+                    bond, source_idx=key_map[bond.source_idx], target_idx=key_map[bond.target_idx]
+                )
                 for bond in self.bonds
             )
             object.__setattr__(self, "bonds", new_bonds)
@@ -411,5 +427,3 @@ class MatchResult:
             raise ValueError("Experimental peaks count must be non-negative")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
-
-
