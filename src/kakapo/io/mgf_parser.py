@@ -8,6 +8,8 @@ This module handles:
 - Robust error handling for malformed data
 """
 
+import hashlib
+import json
 from pathlib import Path
 
 from matchms import Spectrum as MatchmsSpectrum
@@ -20,10 +22,91 @@ from kakapo.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _get_cache_path(
+    file_path: Path,
+    apply_filters: bool,
+    min_peaks: int,
+    cache_dir: Path,
+) -> Path:
+    """Generate a unique cache path based on the file path, modification time, and parameters.
+
+    Args:
+        file_path: Path to the original MGF file.
+        apply_filters: Whether filters were applied.
+        min_peaks: Minimum peaks filter value.
+        cache_dir: Path to the cache directory.
+
+    Returns:
+        Path to the JSON cache file.
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use modification time and file size to automatically invalidate cache if original file changes
+    stat_info = file_path.stat()
+    mtime = stat_info.st_mtime
+    size = stat_info.st_size
+
+    # Build unique hash based on path, mtime, size, and configuration params
+    hash_input = f"{file_path.resolve()}_{mtime}_{size}_{apply_filters}_{min_peaks}"
+    file_hash = hashlib.md5(hash_input.encode("utf-8")).hexdigest()
+
+    return cache_dir / f"{file_path.name}_{file_hash}.json"
+
+
+def _load_from_cache(cache_path: Path) -> list[Spectrum]:
+    """Load serialized spectra from a JSON cache file.
+
+    Args:
+        cache_path: Path to the JSON cache file.
+
+    Returns:
+        List of parsed kakapo Spectrum objects.
+    """
+    logger.debug("Loading spectra from cache file: %s", cache_path)
+    with open(cache_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    spectra = []
+    for item in data:
+        peaks = frozenset(Peak(mass=p[0], intensity=p[1]) for p in item["peaks"])
+        spectra.append(
+            Spectrum(
+                spectrum_id=item["spectrum_id"],
+                peaks=peaks,
+                precursor_mass=item["precursor_mass"],
+                charge=item["charge"],
+            )
+        )
+    return spectra
+
+
+def _save_to_cache(spectra: list[Spectrum], cache_path: Path) -> None:
+    """Save parsed spectra to a JSON cache file.
+
+    Args:
+        spectra: List of parsed kakapo Spectrum objects.
+        cache_path: Path to save the JSON cache file.
+    """
+    logger.debug("Saving %d spectra to cache file: %s", len(spectra), cache_path)
+    data = [
+        {
+            "spectrum_id": spec.spectrum_id,
+            "precursor_mass": spec.precursor_mass,
+            "charge": spec.charge,
+            "peaks": [[p.mass, p.intensity] for p in spec.get_sorted_peaks()],
+        }
+        for spec in spectra
+    ]
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
 def load_mgf(  # noqa: C901
     file_path: str | Path,
+    cache_dir: Path,
     apply_filters: bool = True,
     min_peaks: int = 1,
+    use_cache: bool = True,
 ) -> list[Spectrum]:
     """Load and parse MGF file into kakapo Spectrum objects.
 
@@ -32,10 +115,13 @@ def load_mgf(  # noqa: C901
 
     Args:
         file_path: Path to the .mgf file.
+        cache_dir: Path to the cache directory.
         apply_filters: If True, apply matchms CLEAN_PEAKS and DEFAULT_FILTERS.
                       Default is True.
         min_peaks: Minimum number of peaks a spectrum must have to be included.
                   Default is 1.
+        use_cache: If True, check and use the JSON cache for parsed spectra.
+                   Default is True.
 
     Returns:
         List of kakapo Spectrum objects parsed from the MGF file.
@@ -46,10 +132,8 @@ def load_mgf(  # noqa: C901
         RuntimeError: If spectrum conversion fails.
 
     Examples:
-        >>> spectra = load_mgf("data/spectra.mgf")
+        >>> spectra = load_mgf("data/spectra.mgf", Path(".cache"))
         >>> print(f"Loaded {len(spectra)} spectra")
-
-        >>> spectra = load_mgf("data/spectra.mgf", apply_filters=False)
     """
     file_path = Path(file_path)
     logger.info("Loading MGF file from %s", file_path)
@@ -61,6 +145,18 @@ def load_mgf(  # noqa: C901
     if not file_path.suffix.lower() == ".mgf":
         logger.error("Expected .mgf file, got: %s", file_path.suffix)
         raise ValueError(f"Expected .mgf file, got: {file_path.suffix}")
+
+    if use_cache:
+        try:
+            cache_path = _get_cache_path(file_path, apply_filters, min_peaks, cache_dir)
+            if cache_path.exists():
+                try:
+                    logger.info("Cache hit. Loading spectra from cache %s", cache_path)
+                    return _load_from_cache(cache_path)
+                except Exception as e:
+                    logger.warning("Cache is invalid or corrupted. Re-parsing MGF. Error: %s", e)
+        except Exception as e:
+            logger.warning("Failed to check cache. Re-parsing MGF. Error: %s", e)
 
     try:
         matchms_spectra = list(load_from_mgf(str(file_path)))
@@ -124,13 +220,23 @@ def load_mgf(  # noqa: C901
         file_path,
         len(kakapo_spectra),
     )
+
+    if use_cache:
+        try:
+            cache_path = _get_cache_path(file_path, apply_filters, min_peaks, cache_dir)
+            _save_to_cache(kakapo_spectra, cache_path)
+        except Exception as e:
+            logger.warning("Failed to save spectra to cache: %s", e)
+
     return kakapo_spectra
 
 
 def load_mgf_batch(
     file_paths: list[str | Path],
+    cache_dir: Path,
     apply_filters: bool = True,
     min_peaks: int = 1,
+    use_cache: bool = True,
 ) -> list[Spectrum]:
     """Load and parse multiple MGF files into a single list of Spectrum objects.
 
@@ -138,8 +244,10 @@ def load_mgf_batch(
 
     Args:
         file_paths: List of paths to .mgf files.
+        cache_dir: Path to the cache directory.
         apply_filters: If True, apply matchms filtering to each file.
         min_peaks: Minimum number of peaks per spectrum.
+        use_cache: If True, check and use the JSON cache for parsed spectra.
 
     Returns:
         Combined list of kakapo Spectrum objects from all files.
@@ -158,7 +266,13 @@ def load_mgf_batch(
 
     for file_path in file_paths:
         try:
-            spectra = load_mgf(file_path, apply_filters, min_peaks)
+            spectra = load_mgf(
+                file_path=file_path,
+                cache_dir=cache_dir,
+                apply_filters=apply_filters,
+                min_peaks=min_peaks,
+                use_cache=use_cache,
+            )
             all_spectra.extend(spectra)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             logger.warning("Failed to load MGF file %s: %s", file_path, e)

@@ -132,3 +132,8 @@ dmypy.json
 *.yml
 output/
 results/
+.kakapo_cache/
+kakapo_output/
+logs/
+.ruff_cache/
+

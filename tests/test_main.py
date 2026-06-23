@@ -108,6 +108,7 @@ atomic_bonds:
         "mgf": mgf_file,
         "ala_yaml": yaml_ala_file,
         "dimer_yaml": yaml_dimer_file,
+        "tmp_path": tmp_path,
     }
 
 
@@ -123,6 +124,8 @@ class TestPipelineOrchestration:
             apply_filters=False,
             min_peaks=1,
             rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
         assert isinstance(results, list)
@@ -141,6 +144,8 @@ class TestPipelineOrchestration:
             apply_filters=False,
             min_peaks=1,
             rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
         # 2 spectra * 2 structures = 4 results
@@ -155,6 +160,8 @@ class TestPipelineOrchestration:
             apply_filters=False,
             min_peaks=1,
             rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
         # Ensure they are sorted primarily by matched_peaks_count in descending order.
@@ -179,6 +186,8 @@ class TestPipelineOrchestration:
             apply_filters=False,
             min_peaks=1,
             rules=custom_rules,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
         assert len(results) == 2
@@ -186,7 +195,7 @@ class TestPipelineOrchestration:
         for r in results:
             assert r.structure_id == "Ala_Dimer_structure"
 
-    def test_run_pipeline_missing_inputs(self):
+    def test_run_pipeline_missing_inputs(self, tmp_path):
         """Test raising ValueError for empty spectra/structure file lists."""
         with pytest.raises(ValueError, match="No spectra files"):
             run_pipeline(
@@ -196,6 +205,8 @@ class TestPipelineOrchestration:
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,
+                use_cache=False,
+                cache_dir=tmp_path / ".kakapo_cache",
             )
 
         with pytest.raises(ValueError, match="No structure files"):
@@ -206,9 +217,11 @@ class TestPipelineOrchestration:
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,
+                use_cache=False,
+                cache_dir=tmp_path / ".kakapo_cache",
             )
 
-    def test_run_pipeline_nonexistent_files(self):
+    def test_run_pipeline_nonexistent_files(self, tmp_path):
         """Test raising FileNotFoundError for missing files."""
         with pytest.raises(FileNotFoundError):
             run_pipeline(
@@ -218,4 +231,6 @@ class TestPipelineOrchestration:
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,
+                use_cache=False,
+                cache_dir=tmp_path / ".kakapo_cache",
             )

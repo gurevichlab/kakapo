@@ -12,10 +12,12 @@ from typing import Optional
 
 from kakapo.config import (
     DEFAULT_APPLY_FILTERS,
+    DEFAULT_CACHE_DIR,
     DEFAULT_FRAGMENTATION_RULES,
     DEFAULT_MASS_TOLERANCE,
     DEFAULT_MIN_PEAKS,
     DEFAULT_OUTPUT_DIR,
+    DEFAULT_USE_CACHE,
 )
 from kakapo.io.writer import write_mass_matched_results, write_results
 from kakapo.main import run_pipeline
@@ -117,6 +119,19 @@ def create_parser() -> argparse.ArgumentParser:
         dest="apply_filters",
         default=DEFAULT_APPLY_FILTERS,
         help="Disable applying default matchms filters to experimental spectra.",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_false",
+        dest="use_cache",
+        default=DEFAULT_USE_CACHE,
+        help="Disable caching of parsed/cleaned experimental spectra.",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=str,
+        default=str(DEFAULT_CACHE_DIR),
+        help="Directory where parsed/cleaned experimental spectra are cached.",
     )
 
     # Output options
@@ -307,6 +322,8 @@ def main(args: Optional[list[str]] = None) -> int:
             apply_filters=parsed_args.apply_filters,
             min_peaks=parsed_args.min_peaks,
             rules=DEFAULT_FRAGMENTATION_RULES,
+            use_cache=parsed_args.use_cache,
+            cache_dir=Path(parsed_args.cache_dir),
         )
 
         # 5. Write results

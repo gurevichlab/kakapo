@@ -23,6 +23,8 @@ def run_pipeline(
     apply_filters: bool,
     min_peaks: int,
     rules: Optional[tuple[FragmentationRule, ...]],
+    use_cache: bool,
+    cache_dir: Path,
 ) -> list[MatchResult]:
     """Run the main kakapo analysis pipeline.
 
@@ -49,13 +51,15 @@ def run_pipeline(
     logger.info("Starting Kakapo workflow pipeline")
     logger.info(
         "Running pipeline with parameters: spectra_files=%s, structure_files=%s, "
-        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s",
+        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s",
         spectra_files,
         structure_files,
         mass_tolerance,
         apply_filters,
         min_peaks,
         rules,
+        use_cache,
+        cache_dir,
     )
 
     # Normalize spectra files to a list of Path objects
@@ -97,8 +101,10 @@ def run_pipeline(
     start_load_spectra = time.perf_counter()
     spectra = load_mgf_batch(
         file_paths=spec_paths,  # pyright: ignore [reportArgumentType] (paths are normalized)
+        cache_dir=cache_dir,
         apply_filters=apply_filters,
         min_peaks=min_peaks,
+        use_cache=use_cache,
     )
     duration_load_spectra = time.perf_counter() - start_load_spectra
     logger.debug(
