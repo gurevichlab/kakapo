@@ -2,11 +2,32 @@
 
 from collections.abc import Iterable
 
+from kakapo.config import MAX_TOTAL_MASS_DIFFERENCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
 from kakapo.models import MatchedPeak, MatchResult, Spectrum, TheoreticalSpectrum
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _fast_dot_product(vector: tuple[float, ...], mask: int) -> float:
+    """Fast dot product of a float vector and a bitmask.
+
+    Args:
+        vector: A tuple of floats (e.g. monomer masses).
+        mask: An integer bitmask representing which monomers are present.
+
+    Returns:
+        The sum of the masses of the active monomers.
+    """
+    total = 0.0
+    for val in vector:
+        if not mask:
+            break
+        if mask & 1:
+            total += val
+        mask >>= 1
+    return total
 
 
 def match_spectrum(
@@ -40,7 +61,13 @@ def match_spectrum(
 
     # Sort to ensure reproducible greedy matching
     exp_peaks = sorted(spectrum.peaks, key=lambda p: p.mass)
-    theory_ions = sorted(theoretical_spectrum.ions, key=lambda ion: ion.mass)
+
+    # Sort theoretical spectrum ions by dynamic mass
+    monomer_masses = theoretical_spectrum.monomer_mass_vector
+    theory_ions = sorted(
+        theoretical_spectrum.ions,
+        key=lambda ion: _fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass,
+    )
 
     matched_peaks_count = 0
     matched_peaks: list[MatchedPeak] = []
@@ -58,7 +85,8 @@ def match_spectrum(
     for charge in range(1, max_charge + 1):
         last_idx = 0
         for ion in theory_ions:
-            mz = (ion.mass + PROTON_MASS * charge) / charge
+            ion_mass = _fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass
+            mz = (ion_mass + PROTON_MASS * charge) / charge
             for idx in range(last_idx, len(exp_peaks)):
                 peak = exp_peaks[idx]
                 if abs(peak.mass - mz) <= mass_tolerance:
@@ -133,8 +161,13 @@ def match_spectra(
     results: list[MatchResult] = []
     for spec in spectra_list:
         for theo in theo_list:
-            result = match_spectrum(spec, theo, mass_tolerance)
-            results.append(result)
+            if (
+                theo.structure_mass - mass_tolerance
+                <= spec.precursor_mass
+                <= theo.structure_mass + MAX_TOTAL_MASS_DIFFERENCE + mass_tolerance
+            ):
+                result = match_spectrum(spec, theo, mass_tolerance)
+                results.append(result)
 
     logger.info(
         "Completed batch matching. Generated %d total MatchResult(s).",

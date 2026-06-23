@@ -347,7 +347,7 @@ def main(args: Optional[list[str]] = None) -> int:
         return 1
 
     total_duration = time.perf_counter() - start_total
-    logger.debug("CLI execution completed in %.4f seconds", total_duration)
+    logger.info("CLI execution completed in %.4f seconds", total_duration)
     logger.info("CLI execution completed successfully")
     return 0
 

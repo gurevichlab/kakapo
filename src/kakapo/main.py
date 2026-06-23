@@ -107,7 +107,7 @@ def run_pipeline(
         use_cache=use_cache,
     )
     duration_load_spectra = time.perf_counter() - start_load_spectra
-    logger.debug(
+    logger.info(
         "Loaded %d experimental spectra in %.4f seconds",
         len(spectra),
         duration_load_spectra,
@@ -119,7 +119,7 @@ def run_pipeline(
     start_load_structures = time.perf_counter()
     molecules = parse_rban_yaml_batch(struct_paths)
     duration_load_structures = time.perf_counter() - start_load_structures
-    logger.debug(
+    logger.info(
         "Loaded %d structures in %.4f seconds",
         len(molecules),
         duration_load_structures,
@@ -138,7 +138,7 @@ def run_pipeline(
         theo_spec = generate_theoretical_spectrum(mol, rules=frag_rules)
         theoretical_spectra.append(theo_spec)
     duration_gen_spectra = time.perf_counter() - start_gen_spectra
-    logger.debug(
+    logger.info(
         "Generated %d theoretical spectra in %.4f seconds",
         len(theoretical_spectra),
         duration_gen_spectra,
@@ -153,7 +153,7 @@ def run_pipeline(
         mass_tolerance=mass_tolerance,
     )
     duration_match = time.perf_counter() - start_match
-    logger.debug(
+    logger.info(
         "Matched spectra in %.4f seconds",
         duration_match,
     )
@@ -166,7 +166,7 @@ def run_pipeline(
     start_sort = time.perf_counter()
     results.sort(key=lambda r: (-r.matched_peaks_count, r.spectrum_id, r.structure_id))
     duration_sort = time.perf_counter() - start_sort
-    logger.debug(
+    logger.info(
         "Sorted match results in %.4f seconds",
         duration_sort,
     )

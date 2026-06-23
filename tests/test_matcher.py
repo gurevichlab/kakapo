@@ -1,7 +1,7 @@
 import pytest
 
 from kakapo.core.matcher import match_spectra, match_spectrum
-from kakapo.models import Peak, Spectrum, TheoreticalIon, TheoreticalSpectrum
+from kakapo.models import Peak, RuleShift, Spectrum, TheoreticalIon, TheoreticalSpectrum
 
 
 def make_spectrum(
@@ -25,7 +25,11 @@ def make_theoretical_spectrum(
 ) -> TheoreticalSpectrum:
     """Helper to create a TheoreticalSpectrum from list of masses."""
     ions = frozenset(
-        TheoreticalIon(fragment_id=f"frag_{idx}", mass=mass, mask=(1 << idx))
+        TheoreticalIon(
+            fragment_id=f"frag_{idx}",
+            mask=(1 << idx),
+            rules_shifts=(RuleShift("TEST", mass - 125.0),),
+        )
         for idx, mass in enumerate(ion_masses)
     )
     return TheoreticalSpectrum(
@@ -253,3 +257,73 @@ class TestSpectrumMatcher:
         assert len(match_spectra([], [theo], mass_tolerance=0.01)) == 0
         assert len(match_spectra([spec], [], mass_tolerance=0.01)) == 0
         assert len(match_spectra([], [], mass_tolerance=0.01)) == 0
+
+    def test_match_spectra_mass_difference_upper_bound(self):
+        """Test that match_spectra filters out pairs where theo structure mass is too high.
+
+        The matching condition requires:
+        theo.structure_mass <= spec.precursor_mass + mass_tolerance
+        """
+        spec_peak = 100.0
+        theo_ion = 100.0 - 1.007276
+
+        # Setup spectrum with mass 500.0 and tolerance 0.01.
+        # This makes spec.precursor_mass + mass_tolerance = 500.01.
+        spec = make_spectrum([(spec_peak, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+
+        # 1.a. structure_mass strictly less than 500.01 (e.g. 500.0) -> should match
+        theo_upper_less = make_theoretical_spectrum(
+            [theo_ion], structure_mass=500.0, structure_id="theo_upper_less"
+        )
+        # 1.b. structure_mass exactly 500.01 -> should match
+        theo_upper_exact = make_theoretical_spectrum(
+            [theo_ion], structure_mass=500.01, structure_id="theo_upper_exact"
+        )
+        # 1.c. structure_mass strictly greater than 500.01 (e.g. 500.02) -> should NOT match
+        theo_upper_greater = make_theoretical_spectrum(
+            [theo_ion], structure_mass=500.02, structure_id="theo_upper_greater"
+        )
+
+        results = match_spectra(
+            [spec], [theo_upper_less, theo_upper_exact, theo_upper_greater], mass_tolerance=0.01
+        )
+        assert len(results) == 2
+        assert {r.structure_id for r in results} == {
+            "theo_upper_less",
+            "theo_upper_exact",
+        }
+
+    def test_match_spectra_mass_difference_lower_bound(self):
+        """Test that match_spectra filters out pairs where theo structure mass is too low.
+
+        The matching condition requires:
+        spec.precursor_mass <= theo.structure_mass + MAX_TOTAL_MASS_DIFFERENCE + mass_tolerance
+        """
+        spec_peak = 100.0
+        theo_ion = 100.0 - 1.007276
+
+        # Setup spectrum with mass 500.0 and tolerance 0.01.
+        # This makes spec.precursor_mass - MAX_TOTAL_MASS_DIFFERENCE - mass_tolerance = 199.99.
+        spec = make_spectrum([(spec_peak, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+
+        # 2.a. structure_mass strictly greater than 199.99 (e.g. 200.00) -> should match
+        theo_lower_greater = make_theoretical_spectrum(
+            [theo_ion], structure_mass=200.00, structure_id="theo_lower_greater"
+        )
+        # 2.b. structure_mass exactly 199.99 -> should match
+        theo_lower_exact = make_theoretical_spectrum(
+            [theo_ion], structure_mass=199.99, structure_id="theo_lower_exact"
+        )
+        # 2.c. structure_mass strictly less than 199.99 (e.g. 199.98) -> should NOT match
+        theo_lower_less = make_theoretical_spectrum(
+            [theo_ion], structure_mass=199.98, structure_id="theo_lower_less"
+        )
+
+        results = match_spectra(
+            [spec], [theo_lower_greater, theo_lower_exact, theo_lower_less], mass_tolerance=0.01
+        )
+        assert len(results) == 2
+        assert {r.structure_id for r in results} == {
+            "theo_lower_greater",
+            "theo_lower_exact",
+        }

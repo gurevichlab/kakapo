@@ -88,25 +88,24 @@ class TheoreticalIon:
 
     Attributes:
         fragment_id: Unique identifier for the source fragment (e.g., 'frag_0').
-        mass: Calculated exact mass of the ion in Daltons.
         mask: Bitmask representing the monomers in this fragment.
         rules_shifts: Tuple of RuleShift instances applied to generate this ion.
+        total_shift_mass: Sum of rules_shifts.shift.
     """
 
     fragment_id: str
-    mass: float
     mask: int
     rules_shifts: tuple[RuleShift, ...] = ()
+    total_shift_mass: float = field(init=False)
 
     def __post_init__(self):
         if not self.fragment_id:
             raise ValueError("Fragment ID cannot be empty")
-        if self.mass < 0:
-            raise ValueError("Theoretical ion mass must be non-negative")
         if not isinstance(self.mask, int):
             raise TypeError("Mask must be an integer")
         if self.mask <= 0:
             raise ValueError("Mask must be positive")
+        object.__setattr__(self, "total_shift_mass", sum(item.shift for item in self.rules_shifts))
 
 
 @dataclass(frozen=True)
@@ -143,9 +142,6 @@ class TheoreticalSpectrum:
         if len(self.monomer_mass_vector) != self.monomer_count:
             raise ValueError("Monomer mass vector length must match monomer count")
 
-    def get_sorted_ions(self) -> list[TheoreticalIon]:
-        """Return ions sorted by mass."""
-        return sorted(self.ions, key=lambda ion: ion.mass)
 
 
 @dataclass(frozen=True)

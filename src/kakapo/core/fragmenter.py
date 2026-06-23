@@ -390,7 +390,6 @@ def calculate_theoretical_ion(
 
     return TheoreticalIon(
         fragment_id=fragment_id,
-        mass=ion_mass,
         mask=fragment.mask,
         rules_shifts=tuple(rules_shifts),
     )
@@ -415,7 +414,7 @@ def generate_all_theoretical_masses(
         masses_vector: Optional precomputed list of monomer masses.
 
     Returns:
-        List of TheoreticalIon objects sorted by mass.
+        List of TheoreticalIon objects.
     """
     if masses_vector is None:
         # Build masses_vector directly aligned with 0-indexed monomers
@@ -436,9 +435,6 @@ def generate_all_theoretical_masses(
             fragment_id=fragment.fragment_id,
         )
         all_masses.append(ion)
-
-    # Sort by mass
-    all_masses.sort(key=lambda x: x.mass)
 
     return all_masses
 

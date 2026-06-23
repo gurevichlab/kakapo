@@ -36,6 +36,19 @@ TEST_RULES = (
 )
 
 
+def get_ion_mass(ion, masses_vector) -> float:
+    """Helper to calculate mass of a TheoreticalIon dynamically in tests."""
+    total = 0.0
+    mask = ion.mask
+    for val in masses_vector:
+        if not mask:
+            break
+        if mask & 1:
+            total += val
+        mask >>= 1
+    return total + ion.total_shift_mass
+
+
 # ============================================================================
 # Fixtures: Reusable Test Data
 # ============================================================================
@@ -375,7 +388,7 @@ class TestMassCalculationLookups:
             masses_vector=[expected_mass],
             rules=TEST_RULES,
         )
-        assert pytest.approx(ion.mass, rel=1e-2) == expected_mass
+        assert pytest.approx(get_ion_mass(ion, [expected_mass]), rel=1e-2) == expected_mass
 
 
 # ============================================================================
@@ -450,7 +463,7 @@ class TestMassCalculation:
             masses_vector=[simple_monomer.mass],
             rules=TEST_RULES,
         )
-        assert pytest.approx(ion.mass, rel=1e-3) == 71.0372
+        assert pytest.approx(get_ion_mass(ion, [simple_monomer.mass]), rel=1e-3) == 71.0372
         assert ion.rules_shifts == ()
 
     def test_rules_shifts_population(self, linear_dimer):
@@ -484,8 +497,6 @@ class TestIntegration:
             len(masses) == 2
         )  # A dimer has 2 fragments: {0} and {1} (since we cut the single bridge)
         assert all(isinstance(m, TheoreticalIon) for m in masses)
-        mass_values = [m.mass for m in masses]
-        assert mass_values == sorted(mass_values)
 
     def test_full_pipeline_cyclic_trimer(self, cyclic_trimer):
         """Generate fragments and masses for cyclic structure."""
@@ -497,7 +508,10 @@ class TestIntegration:
     def test_all_masses_positive(self, linear_trimer):
         """All theoretical masses should be positive."""
         masses = generate_all_theoretical_masses(linear_trimer, rules=TEST_RULES)
-        mass_values = [m.mass for m in masses]
+        masses_vector = [
+            linear_trimer.monomers[node].mass for node in linear_trimer.monomers.keys()
+        ]
+        mass_values = [get_ion_mass(m, masses_vector) for m in masses]
         assert all(m > 0 for m in mass_values)
 
     def test_fragment_count_reasonable(self, linear_trimer):
@@ -569,8 +583,8 @@ class TestIntegration:
         expected_ala = linear_dimer.monomers[0].mass + H_MASS
         expected_gly = linear_dimer.monomers[1].mass - H_MASS
 
-        assert pytest.approx(ion_ala.mass) == expected_ala
-        assert pytest.approx(ion_gly.mass) == expected_gly
+        assert pytest.approx(get_ion_mass(ion_ala, masses_vector)) == expected_ala
+        assert pytest.approx(get_ion_mass(ion_gly, masses_vector)) == expected_gly
 
     def test_generate_theoretical_spectrum(self, linear_dimer):
         """Verify that theoretical spectrum generation works as expected."""
@@ -582,9 +596,11 @@ class TestIntegration:
         assert theo_spec.monomer_count == 2
         assert pytest.approx(theo_spec.monomer_mass_vector) == (71.03718, 57.02146)
 
-        sorted_ions = theo_spec.get_sorted_ions()
+        sorted_ions = sorted(
+            theo_spec.ions,
+            key=lambda ion: get_ion_mass(ion, theo_spec.monomer_mass_vector),
+        )
         assert len(sorted_ions) == 2
-        assert sorted_ions == sorted(theo_spec.ions, key=lambda ion: ion.mass)
         # Check that masks are correct (one is 1 << 0, one is 1 << 1)
         masks = {ion.mask for ion in theo_spec.ions}
         assert masks == {1, 2}
@@ -592,33 +608,28 @@ class TestIntegration:
     def test_theoretical_ion_empty_id(self):
         """TheoreticalIon should raise ValueError if fragment_id is empty."""
         with pytest.raises(ValueError, match="Fragment ID cannot be empty"):
-            TheoreticalIon(fragment_id="", mass=100.0, mask=1)
-
-    def test_theoretical_ion_negative_mass(self):
-        """TheoreticalIon should raise ValueError if mass is negative."""
-        with pytest.raises(ValueError, match="Theoretical ion mass must be non-negative"):
-            TheoreticalIon(fragment_id="frag_0", mass=-10.0, mask=1)
+            TheoreticalIon(fragment_id="", mask=1)
 
     def test_theoretical_ion_mask_type(self):
         """TheoreticalIon should raise TypeError if mask is not an integer."""
         with pytest.raises(TypeError, match="Mask must be an integer"):
-            TheoreticalIon(fragment_id="frag_0", mass=100.0, mask="1")  # type: ignore
+            TheoreticalIon(fragment_id="frag_0", mask="1")  # type: ignore
 
     def test_theoretical_ion_mask_value(self):
         """TheoreticalIon should raise ValueError if mask is non-positive."""
         with pytest.raises(ValueError, match="Mask must be positive"):
-            TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=0)
+            TheoreticalIon(fragment_id="frag_0", mask=0)
 
     def test_theoretical_ion_hashability(self):
         """TheoreticalIon should support hashing and membership checks."""
         ion = TheoreticalIon(
-            fragment_id="frag_0", mass=100.0, mask=1, rules_shifts=(RuleShift("PEPTIDE", 1.0),)
+            fragment_id="frag_0", mask=1, rules_shifts=(RuleShift("PEPTIDE", 1.0),)
         )
         assert ion in {ion}
 
     def test_theoretical_spectrum_empty_id(self):
         """TheoreticalSpectrum should raise ValueError if structure_id is empty."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(ValueError, match="Structure ID cannot be empty"):
             TheoreticalSpectrum(
                 structure_id="",
@@ -641,7 +652,7 @@ class TestIntegration:
 
     def test_theoretical_spectrum_negative_mass(self):
         """TheoreticalSpectrum should raise ValueError if structure_mass is negative."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(ValueError, match="Structure mass must be non-negative"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -653,7 +664,7 @@ class TestIntegration:
 
     def test_theoretical_spectrum_invalid_monomer_count(self):
         """TheoreticalSpectrum should raise ValueError if monomer_count is non-positive."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(ValueError, match="Monomer count must be positive"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -665,7 +676,7 @@ class TestIntegration:
 
     def test_theoretical_spectrum_vector_type(self):
         """TheoreticalSpectrum should raise TypeError if monomer_mass_vector is not a tuple."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(TypeError, match="Monomer mass vector must be a tuple"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -677,7 +688,7 @@ class TestIntegration:
 
     def test_theoretical_spectrum_vector_values(self):
         """TheoreticalSpectrum should raise ValueError if vector has negative values."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(ValueError, match="All monomer masses.*must be non-negative"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -689,7 +700,7 @@ class TestIntegration:
 
     def test_theoretical_spectrum_vector_length_mismatch(self):
         """TheoreticalSpectrum should raise ValueError if vector length mismatches count."""
-        ion = TheoreticalIon(fragment_id="frag_0", mass=100.0, mask=1)
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
         with pytest.raises(ValueError, match="length must match monomer count"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -791,8 +802,8 @@ class TestIntegration:
 
         # target of bond (index 1) is in frag_1 -> receives right_shift (-1.0)
         # source of bond (index 0) is in frag_0 -> receives left_shift (+1.0)
-        assert pytest.approx(ion_0.mass) == 71.03718 + 1.0
-        assert pytest.approx(ion_1.mass) == 57.02146 - 1.0
+        assert pytest.approx(get_ion_mass(ion_0, masses_vector)) == 71.03718 + 1.0
+        assert pytest.approx(get_ion_mass(ion_1, masses_vector)) == 57.02146 - 1.0
 
     def test_subtype_reversed_cleavage_shifts(self):
         """Verify that mass shifts are inverted when the matching subtype is reversed."""
@@ -843,8 +854,8 @@ class TestIntegration:
         # Since reversed is True:
         # left_shift (+1.0) is applied to target (index 1) -> frag_1
         # right_shift (-1.0) is applied to source (index 0) -> frag_0
-        assert pytest.approx(ion_0.mass) == 71.03718 - 1.0
-        assert pytest.approx(ion_1.mass) == 57.02146 + 1.0
+        assert pytest.approx(get_ion_mass(ion_0, masses_vector)) == 71.03718 - 1.0
+        assert pytest.approx(get_ion_mass(ion_1, masses_vector)) == 57.02146 + 1.0
 
     def test_branched_structure_fragmentation(self):
         """Verify that a branched tree-like structure generates expected single-cut fragments."""
