@@ -29,6 +29,8 @@ def sample_results() -> list[MatchResult]:
             experimental_peaks_count=15,
             monomer_count=7,
             matched_peaks=[],
+            modified_monomer_idx=None,
+            mass_mod=0.01,
         ),
         MatchResult(
             structure_id="NRP_002",
@@ -41,6 +43,8 @@ def sample_results() -> list[MatchResult]:
             experimental_peaks_count=20,
             monomer_count=8,
             matched_peaks=[],
+            modified_monomer_idx=3,
+            mass_mod=-0.02,
         ),
     ]
 
@@ -67,12 +71,16 @@ class TestWriterCsvFormatting:
         assert float(rows[0]["structure_mass"]) == 800.45
         assert int(rows[0]["matched_peaks_count"]) == 5
         assert int(rows[0]["experimental_peaks_count"]) == 15
+        assert rows[0]["modified_monomer_idx"] == ""
+        assert float(rows[0]["mass_mod"]) == 0.01
 
         assert rows[1]["structure_id"] == "NRP_002"
         assert rows[1]["spectrum_id"] == "spec_102"
         assert float(rows[1]["spectrum_mass"]) == 950.48
         assert int(rows[1]["experimental_peaks_count"]) == 20
         assert int(rows[1]["monomer_count"]) == 8
+        assert int(rows[1]["modified_monomer_idx"]) == 3
+        assert float(rows[1]["mass_mod"]) == -0.02
 
 
 class TestWriterTableFormatting:
@@ -95,6 +103,8 @@ class TestWriterTableFormatting:
         assert "Structure ID" in table_str
         assert "Experimental Peaks" in table_str
         assert "Monomer Count" in table_str
+        assert "Modified Monomer Index" in table_str
+        assert "Mass Mod" in table_str
 
 
 class TestWriterWriteResults:

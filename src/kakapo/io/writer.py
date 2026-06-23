@@ -42,6 +42,8 @@ def format_as_csv(results: list[MatchResult]) -> str:
         "theoretical_peaks_count",
         "experimental_peaks_count",
         "monomer_count",
+        "modified_monomer_idx",
+        "mass_mod",
     ]
     writer.writerow(headers)
 
@@ -57,6 +59,8 @@ def format_as_csv(results: list[MatchResult]) -> str:
                 result.theoretical_peaks_count,
                 result.experimental_peaks_count,
                 result.monomer_count,
+                result.modified_monomer_idx,
+                result.mass_mod,
             ]
         )
 
@@ -84,6 +88,8 @@ def format_as_table(results: list[MatchResult]) -> str:
         "Theoretical Peaks",
         "Experimental Peaks",
         "Monomer Count",
+        "Modified Monomer Index",
+        "Mass Mod",
     ]
 
     data = [
@@ -97,6 +103,8 @@ def format_as_table(results: list[MatchResult]) -> str:
             result.theoretical_peaks_count,
             result.experimental_peaks_count,
             result.monomer_count,
+            result.modified_monomer_idx,
+            result.mass_mod,
         ]
         for result in results
     ]

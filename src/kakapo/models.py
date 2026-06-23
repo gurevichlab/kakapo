@@ -395,6 +395,8 @@ class MatchResult:
         experimental_peaks_count: Number of experimental peaks in the spectrum.
         monomer_count: Number of monomers in the matched molecule.
         matched_peaks: List of matched peaks.
+        modified_monomer_idx: The 0-based index of the modified monomer in the best match.
+        mass_mod: The calculated mass difference (precursor - structure) for the match.
     """
 
     structure_id: str
@@ -407,6 +409,8 @@ class MatchResult:
     experimental_peaks_count: int
     monomer_count: int
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
+    modified_monomer_idx: int | None = None
+    mass_mod: float | None = None
 
     def __post_init__(self):
         if self.structure_mass < 0:

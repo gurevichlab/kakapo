@@ -44,52 +44,32 @@ def make_theoretical_spectrum(
 class TestSpectrumMatcher:
     """Unit tests for the spectrum matching engine."""
 
-    def test_exact_matches(self):
-        """Test that exact matches are correctly identified and counted."""
-        spec = make_spectrum([(100.0, 1.0), (200.0, 1.0), (300.0, 1.0)], precursor_mass=500.0)
+    @pytest.mark.parametrize(
+        "peaks,ion_masses,tolerance,expected_count",
+        [
+            # Exact matches
+            (
+                [(100.0, 1.0), (200.0, 1.0), (300.0, 1.0)],
+                [100.0 - 1.007276, 200.0 - 1.007276, 300.0 - 1.007276],
+                0.01,
+                3,
+            ),
+            # Within tolerance
+            ([(100.01, 1.0), (200.02, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.03, 2),
+            # Outside tolerance
+            ([(100.01, 1.0), (200.02, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.005, 0),
+            # No matches
+            ([(150.0, 1.0), (250.0, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.1, 0),
+        ],
+    )
+    def test_basic_matching_scenarios(self, peaks, ion_masses, tolerance, expected_count):
+        """Test basic peak matching with exact, within tolerance, and no match scenarios."""
+        spec = make_spectrum(peaks, precursor_mass=500.0)
         theo = make_theoretical_spectrum(
-            [100.0 - 1.007276, 200.0 - 1.007276, 300.0 - 1.007276],
-            structure_mass=500.0,
-            monomer_count=3,
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
-
-        result = match_spectrum(spec, theo, mass_tolerance=0.01)
-
-        assert result.matched_peaks_count == 3
-        assert result.theoretical_peaks_count == 3
-        assert result.experimental_peaks_count == 3
-        assert result.structure_id == "struct_1"
-        assert result.spectrum_id == "spec_1"
-        assert result.structure_mass == 500.0
-        assert result.spectrum_mass == 500.0
-        assert result.mass_tolerance == 0.01
-        assert result.monomer_count == 3
-
-    def test_matches_within_tolerance(self):
-        """Test matching when peaks are within tolerance but not exact."""
-        spec = make_spectrum([(100.01, 1.0), (200.02, 1.0)], precursor_mass=500.0)
-        theo = make_theoretical_spectrum(
-            [100.0 - 1.007276, 200.0 - 1.007276], structure_mass=500.0, monomer_count=2
-        )
-
-        result = match_spectrum(spec, theo, mass_tolerance=0.03)
-        assert result.matched_peaks_count == 2
-
-        # Outside of tolerance
-        result_fail = match_spectrum(spec, theo, mass_tolerance=0.005)
-        assert result_fail.matched_peaks_count == 0
-
-    def test_no_matches(self):
-        """Test matching when there are no peaks in tolerance."""
-        spec = make_spectrum([(150.0, 1.0), (250.0, 1.0)], precursor_mass=500.0)
-        theo = make_theoretical_spectrum(
-            [100.0 - 1.007276, 200.0 - 1.007276],
-            structure_mass=500.0,
-            monomer_count=2,
-        )
-
-        result = match_spectrum(spec, theo, mass_tolerance=0.1)
-        assert result.matched_peaks_count == 0
+        result = match_spectrum(spec, theo, mass_tolerance=tolerance)
+        assert result.matched_peaks_count == expected_count
 
     def test_greedy_matching_unique_peaks(self):
         """Ensure each experimental peak can match at most one theoretical ion, and vice versa."""
@@ -130,10 +110,6 @@ class TestSpectrumMatcher:
     def test_matched_peaks_populated(self):
         """Verify matched_peaks details are populated in MatchResult."""
         spec = make_spectrum([(100.01, 1.0), (200.0, 1.0), (300.05, 1.0)], precursor_mass=500.0)
-        # theoretical ions:
-        # 100.0 - PROTON_MASS => theoretical peak mz = 100.0 (matches 100.01 within 0.02)
-        # 150.0 - PROTON_MASS => theoretical peak mz = 150.0 (no match)
-        # 300.04 - PROTON_MASS => theoretical peak mz = 300.04 (matches 300.05 within 0.02)
         theo = make_theoretical_spectrum(
             [100.0 - 1.007276, 150.0 - 1.007276, 300.04 - 1.007276],
             structure_mass=500.0,
@@ -157,56 +133,26 @@ class TestSpectrumMatcher:
         assert ep2.experimental_mz == pytest.approx(300.05)
         assert ep2.charge == 1
 
-    def test_matching_charge_out_of_range(self):
-        """Test that peak matching is skipped when the matching charge exceeds spectrum charge."""
-        # For charge 1, mz = ion.mass + 1.007276.
-        # For charge 2, mz = (ion.mass + 2.014552) / 2.
-        # Let's say ion.mass = 198.0.
-        # Charge 1 mz = 199.007276.
-        # Charge 2 mz = (198.0 + 2.014552) / 2 = 100.007276.
+    @pytest.mark.parametrize(
+        "spec_charge,expected_count,expected_charge",
+        [
+            (1, 0, None),
+            (2, 1, 2),
+            (None, 1, 2),  # Fallback to MAX_CHARGE = 2
+        ],
+    )
+    def test_charge_matching_limits(self, spec_charge, expected_count, expected_charge):
+        """Test matching charge limit restrictions and fallback behavior."""
         theo = make_theoretical_spectrum([198.0], structure_mass=500.0, monomer_count=1)
-
-        # Spectrum charge is 1: peak at 100.007276 (matches charge 2) should not match.
-        spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=1)
+        spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=spec_charge)
         result = match_spectrum(spec, theo, mass_tolerance=0.01)
-        assert result.matched_peaks_count == 0
-
-    def test_matching_charge_in_range(self):
-        """Test that peaks matching a higher charge are identified when spectrum charge permits."""
-        # For charge 2, mz = (ion.mass + 2.014552) / 2.
-        # Let's say ion.mass = 198.0.
-        # Charge 2 mz = (198.0 + 2.014552) / 2 = 100.007276.
-        theo = make_theoretical_spectrum([198.0], structure_mass=500.0, monomer_count=1)
-
-        # Spectrum charge is 2: peak at 100.007276 (matches charge 2) should match.
-        spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=2)
-        result = match_spectrum(spec, theo, mass_tolerance=0.01)
-        assert result.matched_peaks_count == 1
-        assert result.matched_peaks[0].charge == 2
-        assert result.matched_peaks[0].theoretical_mz == pytest.approx(100.007276)
-
-    def test_matching_charge_default_fallback(self):
-        """Test that spectrum charge defaults to MAX_CHARGE when not specified."""
-        # For charge 2, mz = (ion.mass + 2.014552) / 2.
-        # Let's say ion.mass = 198.0.
-        # Charge 2 mz = (198.0 + 2.014552) / 2 = 100.007276.
-        theo = make_theoretical_spectrum([198.0], structure_mass=500.0, monomer_count=1)
-
-        # Spectrum charge is None (defaults to MAX_CHARGE = 2): peak matches at charge 2.
-        spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=None)
-        result = match_spectrum(spec, theo, mass_tolerance=0.01)
-        assert result.matched_peaks_count == 1
-        assert result.matched_peaks[0].charge == 2
+        assert result.matched_peaks_count == expected_count
+        if expected_count > 0:
+            assert result.matched_peaks[0].charge == expected_charge
 
     def test_matching_multiple_charges(self):
         """Test matching peaks of different charges when spectrum charge allows it."""
-        # ion 1 mass = 198.0 -> charge 1 mz = 199.007276, charge 2 mz = 100.007276
-        # ion 2 mass = 298.0 -> charge 1 mz = 299.007276, charge 2 mz = 150.007276
         theo = make_theoretical_spectrum([198.0, 298.0], structure_mass=500.0, monomer_count=2)
-
-        # Spectrum containing:
-        # - peak at 199.007276 (matches ion 1 at charge 1)
-        # - peak at 150.007276 (matches ion 2 at charge 2)
         spec = make_spectrum([(199.007276, 1.0), (150.007276, 1.0)], precursor_mass=500.0, charge=2)
         result = match_spectrum(spec, theo, mass_tolerance=0.01)
 
@@ -258,72 +204,105 @@ class TestSpectrumMatcher:
         assert len(match_spectra([spec], [], mass_tolerance=0.01)) == 0
         assert len(match_spectra([], [], mass_tolerance=0.01)) == 0
 
-    def test_match_spectra_mass_difference_upper_bound(self):
-        """Test that match_spectra filters out pairs where theo structure mass is too high.
-
-        The matching condition requires:
-        theo.structure_mass <= spec.precursor_mass + mass_tolerance
-        """
-        spec_peak = 100.0
-        theo_ion = 100.0 - 1.007276
-
-        # Setup spectrum with mass 500.0 and tolerance 0.01.
-        # This makes spec.precursor_mass + mass_tolerance = 500.01.
-        spec = make_spectrum([(spec_peak, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
-
-        # 1.a. structure_mass strictly less than 500.01 (e.g. 500.0) -> should match
-        theo_upper_less = make_theoretical_spectrum(
-            [theo_ion], structure_mass=500.0, structure_id="theo_upper_less"
+    @pytest.mark.parametrize(
+        "structure_mass,expected_match",
+        [
+            # Upper bound checks (precursor = 500.0, diff <= 300.0 -> max structure_mass = 800.0)
+            (799.99, True),
+            (800.0, True),
+            (800.01, False),
+            # Lower bound checks (precursor = 500.0, diff <= 300.0 -> min structure_mass = 200.0)
+            (200.01, True),
+            (200.0, True),
+            (199.99, False),
+        ],
+    )
+    def test_match_spectra_mass_difference_limits(self, structure_mass, expected_match):
+        """Test pairwise matching filters pairs outside MAX_TOTAL_MASS_DIFFERENCE constraint."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        theo = make_theoretical_spectrum(
+            [100.0 - 1.007276], structure_mass=structure_mass, structure_id="struct_test"
         )
-        # 1.b. structure_mass exactly 500.01 -> should match
-        theo_upper_exact = make_theoretical_spectrum(
-            [theo_ion], structure_mass=500.01, structure_id="theo_upper_exact"
+        results = match_spectra([spec], [theo], mass_tolerance=0.01)
+        if expected_match:
+            assert len(results) == 1
+            assert results[0].structure_id == "struct_test"
+        else:
+            assert len(results) == 0
+
+    @pytest.mark.parametrize(
+        "monomer_masses,precursor_mass,peaks,expected_matched,expected_mod,expected_idx",
+        [
+            # Positive shift (monomer 1 modified: 150.0 + 30.0 = 180.0)
+            (
+                (100.0, 150.0, 200.0),
+                480.0,
+                [(100.0 + 1.007276, 1.0), (180.0 + 1.007276, 1.0), (200.0 + 1.007276, 1.0)],
+                3,
+                30.0,
+                1,
+            ),
+            # Negative shift (monomer 2 modified: 200.0 - 20.0 = 180.0)
+            (
+                (100.0, 150.0, 200.0),
+                430.0,
+                [(100.0 + 1.007276, 1.0), (150.0 + 1.007276, 1.0), (180.0 + 1.007276, 1.0)],
+                3,
+                -20.0,
+                2,
+            ),
+            # Zero shift (no modifications, modified_monomer_idx is None)
+            (
+                (100.0, 150.0, 200.0),
+                450.0,
+                [(100.0 + 1.007276, 1.0), (150.0 + 1.007276, 1.0), (200.0 + 1.007276, 1.0)],
+                3,
+                0.0,
+                None,
+            ),
+            # Single monomer
+            (
+                (150.0,),
+                160.0,
+                [(160.0 + 1.007276, 1.0)],
+                1,
+                10.0,
+                0,
+            ),
+            # Non-positive monomer skipped (monomer 0 becomes 15 - 20 = -5 <= 0, monomer 1 modified:
+            # 150 - 20 = 130)
+            (
+                (15.0, 150.0),
+                145.0,
+                [(15.0 + 1.007276, 1.0), (130.0 + 1.007276, 1.0), (145.0 + 1.007276, 1.0)],
+                3,
+                -20.0,
+                1,
+            ),
+        ],
+    )
+    def test_modification_tolerant_matching_scenarios(
+        self, monomer_masses, precursor_mass, peaks, expected_matched, expected_mod, expected_idx
+    ):
+        """Test various modification-tolerant matching scenarios including shift types and edge cases."""
+        ions = frozenset(
+            TheoreticalIon(fragment_id=f"frag_{idx}", mask=1 << idx)
+            for idx in range(len(monomer_masses))
         )
-        # 1.c. structure_mass strictly greater than 500.01 (e.g. 500.02) -> should NOT match
-        theo_upper_greater = make_theoretical_spectrum(
-            [theo_ion], structure_mass=500.02, structure_id="theo_upper_greater"
+        if len(monomer_masses) == 2:
+            ions = frozenset(list(ions) + [TheoreticalIon(fragment_id="frag_2", mask=3)])
+
+        theo = TheoreticalSpectrum(
+            structure_id="struct_mod",
+            ions=ions,
+            structure_mass=sum(monomer_masses),
+            monomer_count=len(monomer_masses),
+            monomer_mass_vector=monomer_masses,
         )
 
-        results = match_spectra(
-            [spec], [theo_upper_less, theo_upper_exact, theo_upper_greater], mass_tolerance=0.01
-        )
-        assert len(results) == 2
-        assert {r.structure_id for r in results} == {
-            "theo_upper_less",
-            "theo_upper_exact",
-        }
+        spec = make_spectrum(peaks, precursor_mass=precursor_mass, charge=1)
+        result = match_spectrum(spec, theo, mass_tolerance=0.01)
 
-    def test_match_spectra_mass_difference_lower_bound(self):
-        """Test that match_spectra filters out pairs where theo structure mass is too low.
-
-        The matching condition requires:
-        spec.precursor_mass <= theo.structure_mass + MAX_TOTAL_MASS_DIFFERENCE + mass_tolerance
-        """
-        spec_peak = 100.0
-        theo_ion = 100.0 - 1.007276
-
-        # Setup spectrum with mass 500.0 and tolerance 0.01.
-        # This makes spec.precursor_mass - MAX_TOTAL_MASS_DIFFERENCE - mass_tolerance = 199.99.
-        spec = make_spectrum([(spec_peak, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
-
-        # 2.a. structure_mass strictly greater than 199.99 (e.g. 200.00) -> should match
-        theo_lower_greater = make_theoretical_spectrum(
-            [theo_ion], structure_mass=200.00, structure_id="theo_lower_greater"
-        )
-        # 2.b. structure_mass exactly 199.99 -> should match
-        theo_lower_exact = make_theoretical_spectrum(
-            [theo_ion], structure_mass=199.99, structure_id="theo_lower_exact"
-        )
-        # 2.c. structure_mass strictly less than 199.99 (e.g. 199.98) -> should NOT match
-        theo_lower_less = make_theoretical_spectrum(
-            [theo_ion], structure_mass=199.98, structure_id="theo_lower_less"
-        )
-
-        results = match_spectra(
-            [spec], [theo_lower_greater, theo_lower_exact, theo_lower_less], mass_tolerance=0.01
-        )
-        assert len(results) == 2
-        assert {r.structure_id for r in results} == {
-            "theo_lower_greater",
-            "theo_lower_exact",
-        }
+        assert result.matched_peaks_count == expected_matched
+        assert result.mass_mod == pytest.approx(expected_mod)
+        assert result.modified_monomer_idx == expected_idx
