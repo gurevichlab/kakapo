@@ -1,6 +1,14 @@
+from typing import cast
+
 import pytest
 
-from kakapo.core.matcher import match_spectra, match_spectrum
+from kakapo.constants import PROTON_MASS
+from kakapo.core.matcher import (
+    _build_structure_index,
+    _filter_candidates_with_index,
+    match_spectra,
+    match_spectrum,
+)
 from kakapo.models import Peak, RuleShift, Spectrum, TheoreticalIon, TheoreticalSpectrum
 
 
@@ -11,8 +19,6 @@ def make_spectrum(
     spectrum_id: str = "spec_1",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
-    from kakapo.constants import PROTON_MASS
-
     peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
     charge_val = charge if charge is not None else 1
     precursor_mz = (precursor_mass + PROTON_MASS * charge_val) / charge_val
@@ -26,13 +32,14 @@ def make_theoretical_spectrum(
     structure_mass: float = 500.0,
     monomer_count: int = 4,
     structure_id: str = "struct_1",
+    monomer_mass: float = 125.0,
 ) -> TheoreticalSpectrum:
     """Helper to create a TheoreticalSpectrum from list of masses."""
     ions = frozenset(
         TheoreticalIon(
             fragment_id=f"frag_{idx}",
             mask=(1 << idx),
-            rules_shifts=(RuleShift("TEST", mass - 125.0),),
+            rules_shifts=(RuleShift("TEST", mass - monomer_mass),),
         )
         for idx, mass in enumerate(ion_masses)
     )
@@ -41,7 +48,7 @@ def make_theoretical_spectrum(
         ions=ions,
         structure_mass=structure_mass,
         monomer_count=monomer_count,
-        monomer_mass_vector=(125.0,) * monomer_count,
+        monomer_mass_vector=(monomer_mass,) * monomer_count,
     )
 
 
@@ -187,16 +194,16 @@ class TestSpectrumMatcher:
             [200.0 - 1.007276], structure_mass=500.0, monomer_count=1, structure_id="struct_2"
         )
 
-        results = match_spectra([spec1, spec2], [theo1, theo2], mass_tolerance=0.01)
+        results = match_spectra(
+            [spec1, spec2], [theo1, theo2], mass_tolerance=0.01, min_shared_peaks=1
+        )
 
-        assert len(results) == 4
+        assert len(results) == 2
 
         # Key results by (spectrum_id, structure_id)
         results_map = {(r.spectrum_id, r.structure_id): r for r in results}
 
         assert results_map[("spec_1", "struct_1")].matched_peaks_count == 1
-        assert results_map[("spec_1", "struct_2")].matched_peaks_count == 0
-        assert results_map[("spec_2", "struct_1")].matched_peaks_count == 0
         assert results_map[("spec_2", "struct_2")].matched_peaks_count == 1
 
     def test_match_spectra_empty_inputs(self):
@@ -225,14 +232,189 @@ class TestSpectrumMatcher:
         """Test pairwise matching filters pairs outside MAX_TOTAL_MASS_DIFFERENCE constraint."""
         spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
         theo = make_theoretical_spectrum(
-            [100.0 - 1.007276], structure_mass=structure_mass, structure_id="struct_test"
+            [100.0 - 1.007276],
+            structure_mass=structure_mass,
+            structure_id="struct_test",
+            monomer_mass=500.0,
         )
-        results = match_spectra([spec], [theo], mass_tolerance=0.01)
+        results = match_spectra([spec], [theo], mass_tolerance=0.01, min_shared_peaks=1)
         if expected_match:
             assert len(results) == 1
             assert results[0].structure_id == "struct_test"
         else:
             assert len(results) == 0
+
+    def test_match_spectra_zero_peaks_skipped(self):
+        """Test that pairwise matching skips pairs with 0 matched peaks."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        # Structure mass = 800.0, meaning mass_mod = -300.0.
+        # Since monomer_mass is only 125.0, this modification is invalid (<=0),
+        # so match_spectrum will yield 0 matched peaks.
+        theo = make_theoretical_spectrum(
+            [100.0 - 1.007276],
+            structure_mass=800.0,
+            structure_id="struct_zero_peaks",
+            monomer_mass=125.0,
+        )
+        results = match_spectra([spec], [theo], mass_tolerance=0.01, min_shared_peaks=1)
+        assert len(results) == 0
+
+    def test_build_structure_index_and_filtering(self):
+        """Test building structure index and filtering candidate structures."""
+        theo1 = make_theoretical_spectrum(
+            [100.0, 110.0, 120.0, 130.0, 140.0, 150.0],
+            structure_id="struct_1",
+            monomer_count=6,
+        )
+        theo2 = make_theoretical_spectrum(
+            [200.0, 210.0, 220.0, 230.0, 240.0, 250.0],
+            structure_id="struct_2",
+            monomer_count=6,
+        )
+
+        index = _build_structure_index([theo1, theo2], bin_width=0.2)
+
+        # Verify index properties
+        assert index.bin_width == 0.2
+        assert len(index.sorted_peaks) == 12
+        masses = [p[0] for p in index.sorted_peaks]
+        assert masses == sorted(masses)
+        assert len(index.index_table) > 0
+
+        # Create spectrum with peaks matching struct_1
+        spec_matching_1 = make_spectrum(
+            [
+                (100.0 + PROTON_MASS, 1.0),
+                (110.0 + PROTON_MASS, 1.0),
+                (120.0 + PROTON_MASS, 1.0),
+                (130.0 + PROTON_MASS, 1.0),
+                (140.0 + PROTON_MASS, 1.0),
+            ],
+            precursor_mass=500.0,
+            charge=1,
+        )
+
+        # min_shared_peaks=5: Should only return struct_1
+        candidates = _filter_candidates_with_index(
+            spec_matching_1, index, mass_tolerance=0.01, min_shared_peaks=5
+        )
+        assert candidates == {"struct_1"}
+
+        # min_shared_peaks=6: spec only has 5 matching peaks, should return empty set
+        candidates_6 = _filter_candidates_with_index(
+            spec_matching_1, index, mass_tolerance=0.01, min_shared_peaks=6
+        )
+        assert candidates_6 == set()
+
+        # Empty spectrum validation using a mock object with empty peaks
+        class MockSpectrum:
+            def __init__(self):
+                self.peaks = frozenset()
+                self.precursor_mass = 500.0
+                self.charge = 1
+
+        mock_spec = cast(Spectrum, MockSpectrum())
+        assert _filter_candidates_with_index(mock_spec, index, mass_tolerance=0.01) == set()
+
+    def test_index_bin_border_handling(self):
+        """Test that peaks near and on bin borders are correctly indexed and queried."""
+        # bin_width = 0.2 Da. Boundaries are 0.0, 0.2, 0.4, ...
+        # Place peaks near and on the bin border (0.2)
+        theo = make_theoretical_spectrum(
+            [0.199, 0.2, 0.201],
+            structure_id="struct_borders",
+            monomer_count=3,
+        )
+        index = _build_structure_index([theo], bin_width=0.2)
+
+        # Query peak close to 0.2 (0.205) with charge 1 and tolerance 0.01
+        spec = make_spectrum(
+            [(0.205 + PROTON_MASS, 1.0)],
+            precursor_mass=500.0,
+            charge=1,
+        )
+
+        candidates = _filter_candidates_with_index(
+            spec, index, mass_tolerance=0.01, min_shared_peaks=1
+        )
+        assert candidates == {"struct_borders"}
+
+    def test_index_query_low_mass_boundaries(self):
+        """Test query handling when i_lower calculations result in negative values."""
+        theo = make_theoretical_spectrum(
+            [0.01],
+            structure_id="struct_near_zero",
+            monomer_count=1,
+        )
+        index = _build_structure_index([theo], bin_width=0.2)
+
+        # Query peak close to 0.015, tolerance = 0.02.
+        # neutral mass = 0.015, lower bound is -0.005 -> safeguarded to 0.
+        spec = make_spectrum(
+            [(0.015 + PROTON_MASS, 1.0)],
+            precursor_mass=500.0,
+            charge=1,
+        )
+
+        candidates = _filter_candidates_with_index(
+            spec, index, mass_tolerance=0.02, min_shared_peaks=1
+        )
+        assert candidates == {"struct_near_zero"}
+
+    def test_index_query_high_mass_boundaries(self):
+        """Test query handling when i_lower is larger than index table boundaries."""
+        theo = make_theoretical_spectrum(
+            [10.0],
+            structure_id="struct_small",
+            monomer_count=1,
+        )
+        index = _build_structure_index([theo], bin_width=0.2)
+
+        # Query peak with very high mass (e.g. 500.0)
+        spec = make_spectrum(
+            [(500.0 + PROTON_MASS, 1.0)],
+            precursor_mass=500.0,
+            charge=1,
+        )
+
+        candidates = _filter_candidates_with_index(
+            spec, index, mass_tolerance=0.02, min_shared_peaks=1
+        )
+        assert candidates == set()
+
+    def test_index_empty_scenarios(self):
+        """Test index building and querying with empty inputs or empty indices."""
+        # Build index from empty iterable
+        empty_index = _build_structure_index([], bin_width=0.2)
+        assert empty_index.bin_width == 0.2
+        assert len(empty_index.sorted_peaks) == 0
+        assert empty_index.index_table == [0]
+
+        # Query against empty index
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0)
+        assert _filter_candidates_with_index(spec, empty_index, mass_tolerance=0.01) == set()
+
+    def test_index_query_multiple_charges(self):
+        """Test that querying matches correctly under multiple charge states."""
+        theo = make_theoretical_spectrum(
+            [100.0],
+            structure_id="struct_multicharge",
+            monomer_count=1,
+        )
+        index = _build_structure_index([theo], bin_width=0.2)
+
+        # Experimental peak representing charge 2: mz = (100.0 + 2 * PROTON_MASS) / 2
+        mz = (100.0 + 2.0 * PROTON_MASS) / 2.0
+        spec = make_spectrum(
+            [(mz, 1.0)],
+            precursor_mass=500.0,
+            charge=2,
+        )
+
+        candidates = _filter_candidates_with_index(
+            spec, index, mass_tolerance=0.01, min_shared_peaks=1
+        )
+        assert candidates == {"struct_multicharge"}
 
     @pytest.mark.parametrize(
         "monomer_masses,precursor_mass,peaks,expected_matched,expected_mod,expected_idx",

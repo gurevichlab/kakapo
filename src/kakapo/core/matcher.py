@@ -1,8 +1,11 @@
 """Spectrum scoring engine for matching experimental against theoretical data."""
 
+import bisect
+from collections import Counter
 from collections.abc import Iterable
+from dataclasses import dataclass
 
-from kakapo.config import MAX_TOTAL_MASS_DIFFERENCE
+from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
 from kakapo.models import MatchedPeak, MatchResult, Peak, Spectrum, TheoreticalSpectrum
 from kakapo.utils.logger import get_logger
@@ -270,10 +273,136 @@ def match_spectrum(
     return _match_spectrum_with_mod(spectrum, theoretical_spectrum, mass_tolerance, mass_mod)
 
 
+@dataclass
+class _StructureIndex:
+    """Index structure for fast theoretical spectrum peak lookup.
+
+    Attributes:
+        bin_width: Bin width in Daltons.
+        sorted_peaks: List of sorted tuples (theoretical_ion_mass, structure_id).
+        index_table: Mapping from bin index to offset in sorted_peaks.
+    """
+
+    bin_width: float
+    sorted_peaks: list[tuple[float, str]]
+    index_table: list[int]
+
+
+def _build_structure_index(
+    theoretical_spectra: Iterable[TheoreticalSpectrum],
+    bin_width: float = 0.2,
+) -> _StructureIndex:
+    """Build a search index over theoretical spectra peaks.
+
+    Args:
+        theoretical_spectra: Theoretical spectrum objects to index.
+        bin_width: Bin width in Daltons (defaults to 0.2 Da).
+
+    Returns:
+        A _StructureIndex container holding the index state.
+    """
+    flat_peaks: list[tuple[float, str]] = []
+    for theo in theoretical_spectra:
+        ions = _calculate_theory_ions_with_mass(theo, theo.monomer_mass_vector)
+        for _, mass in ions:
+            flat_peaks.append((mass, theo.structure_id))
+
+    flat_peaks.sort(key=lambda item: item[0])
+
+    if not flat_peaks:
+        return _StructureIndex(bin_width=bin_width, sorted_peaks=[], index_table=[0])
+
+    max_mass = flat_peaks[-1][0]
+    num_bins = int(max_mass // bin_width) + 3
+
+    index_table: list[int] = []
+    for i in range(num_bins):
+        target = i * bin_width
+        idx = bisect.bisect_left(flat_peaks, (target, ""))
+        index_table.append(idx)
+
+    return _StructureIndex(bin_width=bin_width, sorted_peaks=flat_peaks, index_table=index_table)
+
+
+def _filter_candidates_with_index(
+    spectrum: Spectrum,
+    index: _StructureIndex,
+    mass_tolerance: float,
+    min_shared_peaks: int = DEFAULT_MIN_PEAKS,
+) -> set[str]:
+    """Query experimental spectrum against the index to filter candidate structures.
+
+    The filtering algorithm proceeds as follows:
+    1. For each experimental peak, iterate through all possible precursor charge states `c` from 1
+       to `max_charge` to compute the candidate neutral theoretical mass and mass tolerance.
+    2. Map the candidate lower mass bound (neutral_mass - tolerance) to its corresponding index
+       table bin using floor division by `bin_width` to locate the starting point of the search
+       space.
+    3. Define a localized search window within `index.sorted_peaks` bounded by
+       `index_table[i_lower]` and `index_table[i_lower + 2]` to handle potential bin spillovers.
+    4. Run `bisect_left` and `bisect_right` on the sorted theoretical peaks list within these
+       bounds using tuple comparison (checking mass tolerance) to find matching theoretical peaks.
+    5. Aggregate hits per structure in a shared peak counter, and return the set of structure IDs
+       with total shared peak counts >= `min_shared_peaks`.
+
+    Args:
+        spectrum: The experimental Spectrum instance.
+        index: The _StructureIndex compile of database spectra.
+        mass_tolerance: Mass tolerance in Daltons for peaks matching.
+        min_shared_peaks: Minimum Shared Peak Count score to keep a candidate
+            structure (defaults to DEFAULT_MIN_PEAKS).
+
+    Returns:
+        A set of structure_ids matching the threshold.
+    """
+    if not spectrum.peaks or not index.sorted_peaks:
+        return set()
+
+    max_charge = spectrum.charge if spectrum.charge is not None else MAX_CHARGE
+    hits: Counter[str] = Counter()
+
+    for peak in spectrum.peaks:
+        for c in range(1, max_charge + 1):
+            # Convert experimental peak m/z to neutral mass at charge c
+            neutral_mass = peak.mass * c - PROTON_MASS * c
+            neutral_tolerance = c * mass_tolerance
+
+            # Calculate the lower bin boundary using a direct floor division
+            i_lower = int((neutral_mass - neutral_tolerance) // index.bin_width)
+            if i_lower < 0:
+                i_lower = 0
+            if i_lower >= len(index.index_table):
+                continue
+
+            # Bounded Binary Search Slice
+            start_idx = index.index_table[i_lower]
+            end_idx = index.index_table[min(i_lower + 2, len(index.index_table) - 1)]
+
+            left_idx = bisect.bisect_left(
+                index.sorted_peaks,
+                (neutral_mass - neutral_tolerance, ""),
+                lo=start_idx,
+                hi=end_idx,
+            )
+            right_idx = bisect.bisect_right(
+                index.sorted_peaks,
+                (neutral_mass + neutral_tolerance, "z" * 100),
+                lo=start_idx,
+                hi=end_idx,
+            )
+
+            for idx in range(left_idx, right_idx):
+                _, struct_id = index.sorted_peaks[idx]
+                hits[struct_id] += 1
+
+    return {struct_id for struct_id, count in hits.items() if count >= min_shared_peaks}
+
+
 def match_spectra(
     spectra: Iterable[Spectrum],
     theoretical_spectra: Iterable[TheoreticalSpectrum],
     mass_tolerance: float,
+    min_shared_peaks: int = DEFAULT_MIN_PEAKS,
 ) -> list[MatchResult]:
     """Match each experimental spectrum to each theoretical spectrum pairwise.
 
@@ -281,6 +410,8 @@ def match_spectra(
         spectra: An iterable of experimental Spectrum instances.
         theoretical_spectra: An iterable of TheoreticalSpectrum instances.
         mass_tolerance: The maximum absolute mass difference (in Da) allowed for a match.
+        min_shared_peaks: Minimum shared peak count for candidate filtering
+            (defaults to DEFAULT_MIN_PEAKS).
 
     Returns:
         A list of MatchResult instances for all pairwise matches.
@@ -294,15 +425,26 @@ def match_spectra(
         len(theo_list),
     )
 
-    # build theor spectra index
+    index = _build_structure_index(theo_list)
+    theo_map = {theo.structure_id: theo for theo in theo_list}
 
     results: list[MatchResult] = []
     for spec in spectra_list:
-        # get theo structures that have >= 5 common peaks with this spectra using index.
-        for theo in theo_list:
+        feasible_ids = _filter_candidates_with_index(
+            spec, index, mass_tolerance, min_shared_peaks=min_shared_peaks
+        )
+        logger.debug(
+            "Found %d feasible structures for spectrum '%s' (min shared peaks: %d)",
+            len(feasible_ids),
+            spec.spectrum_id,
+            min_shared_peaks,
+        )
+        for struct_id in feasible_ids:
+            theo = theo_map[struct_id]
             if abs(theo.structure_mass - spec.get_neutral_mass()) <= MAX_TOTAL_MASS_DIFFERENCE:
                 result = match_spectrum(spec, theo, mass_tolerance)
-                results.append(result)
+                if result.matched_peaks_count > 0:
+                    results.append(result)
 
     logger.info(
         "Completed batch matching. Generated %d total MatchResult(s).",
