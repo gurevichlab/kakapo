@@ -335,14 +335,11 @@ def _filter_candidates_with_index(
     The filtering algorithm proceeds as follows:
     1. For each experimental peak, iterate through all possible precursor charge states `c` from 1
        to `max_charge` to compute the candidate neutral theoretical mass and mass tolerance.
-    2. Map the candidate lower mass bound (neutral_mass - tolerance) to its corresponding index
-       table bin using floor division by `bin_width` to locate the starting point of the search
-       space.
-    3. Define a localized search window within `index.sorted_peaks` bounded by
-       `index_table[i_lower]` and `index_table[i_lower + 2]` to handle potential bin spillovers.
-    4. Run `bisect_left` and `bisect_right` on the sorted theoretical peaks list within these
-       bounds using tuple comparison (checking mass tolerance) to find matching theoretical peaks.
-    5. Aggregate hits per structure in a shared peak counter, and return the set of structure IDs
+    2. Query the search index for two potential candidate neutral masses:
+       - The unmodified neutral mass (for unmodified fragments)
+       - The complement neutral mass (for modified fragments, by matching their unmodified
+         complements)
+    3. Aggregate hits per structure in a shared peak counter, and return the set of structure IDs
        with total shared peak counts >= `min_shared_peaks`.
 
     Args:
@@ -360,6 +357,48 @@ def _filter_candidates_with_index(
 
     max_charge = spectrum.charge if spectrum.charge is not None else MAX_CHARGE
     hits: Counter[str] = Counter()
+    precursor_neutral_mass = spectrum.get_neutral_mass()
+
+    def query_index(target_mass: float, tolerance: float) -> None:
+        """Query the search index for a target mass and increment hits for matching structures.
+
+        Uses binary search over the indexed theoretical peaks within a bounded slice to find all
+        structures which theoretical peaks fall within the mass tolerance window.
+
+        Args:
+            target_mass: The candidate neutral mass to search for.
+            tolerance: The absolute mass tolerance window in Daltons.
+        """
+        # Calculate the lower bin boundary using a direct floor division
+        i_lower = int((target_mass - tolerance) // index.bin_width)
+        if i_lower < 0:
+            i_lower = 0
+        if i_lower >= len(index.index_table):
+            return
+
+        # Calculate the upper bin boundary to dynamically size the search slice
+        i_upper = int((target_mass + tolerance) // index.bin_width)
+
+        # Bounded Binary Search Slice
+        start_idx = index.index_table[i_lower]
+        end_idx = index.index_table[min(i_upper + 1, len(index.index_table) - 1)]
+
+        left_idx = bisect.bisect_left(
+            index.sorted_peaks,
+            (target_mass - tolerance, ""),
+            lo=start_idx,
+            hi=end_idx,
+        )
+        right_idx = bisect.bisect_right(
+            index.sorted_peaks,
+            (target_mass + tolerance, "z" * 100),
+            lo=start_idx,
+            hi=end_idx,
+        )
+
+        for idx in range(left_idx, right_idx):
+            _, struct_id = index.sorted_peaks[idx]
+            hits[struct_id] += 1
 
     for peak in spectrum.peaks:
         for c in range(1, max_charge + 1):
@@ -367,33 +406,13 @@ def _filter_candidates_with_index(
             neutral_mass = peak.mass * c - PROTON_MASS * c
             neutral_tolerance = c * mass_tolerance
 
-            # Calculate the lower bin boundary using a direct floor division
-            i_lower = int((neutral_mass - neutral_tolerance) // index.bin_width)
-            if i_lower < 0:
-                i_lower = 0
-            if i_lower >= len(index.index_table):
-                continue
+            # 1. Unmodified peak match
+            query_index(neutral_mass, neutral_tolerance)
 
-            # Bounded Binary Search Slice
-            start_idx = index.index_table[i_lower]
-            end_idx = index.index_table[min(i_lower + 2, len(index.index_table) - 1)]
-
-            left_idx = bisect.bisect_left(
-                index.sorted_peaks,
-                (neutral_mass - neutral_tolerance, ""),
-                lo=start_idx,
-                hi=end_idx,
-            )
-            right_idx = bisect.bisect_right(
-                index.sorted_peaks,
-                (neutral_mass + neutral_tolerance, "z" * 100),
-                lo=start_idx,
-                hi=end_idx,
-            )
-
-            for idx in range(left_idx, right_idx):
-                _, struct_id = index.sorted_peaks[idx]
-                hits[struct_id] += 1
+            # 2. Modified peak match (via its unmodified complement fragment)
+            complement_mass = precursor_neutral_mass - neutral_mass
+            if complement_mass > neutral_tolerance:
+                query_index(complement_mass, neutral_tolerance)
 
     return {struct_id for struct_id, count in hits.items() if count >= min_shared_peaks}
 
@@ -433,6 +452,15 @@ def match_spectra(
         feasible_ids = _filter_candidates_with_index(
             spec, index, mass_tolerance, min_shared_peaks=min_shared_peaks
         )
+        if min_shared_peaks <= 1:
+            for struct_id, theo in theo_map.items():
+                if theo.monomer_count == 1:
+                    if (
+                        abs(theo.structure_mass - spec.get_neutral_mass())
+                        <= MAX_TOTAL_MASS_DIFFERENCE
+                    ):
+                        feasible_ids.add(struct_id)
+
         logger.debug(
             "Found %d feasible structures for spectrum '%s' (min shared peaks: %d)",
             len(feasible_ids),

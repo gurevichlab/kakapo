@@ -151,6 +151,7 @@ def run_pipeline(
         spectra=spectra,
         theoretical_spectra=theoretical_spectra,
         mass_tolerance=mass_tolerance,
+        min_shared_peaks=min_peaks,
     )
     duration_match = time.perf_counter() - start_match
     logger.info(

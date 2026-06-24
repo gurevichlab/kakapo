@@ -148,8 +148,9 @@ class TestPipelineOrchestration:
             cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
-        # 2 spectra * 2 structures = 4 results
-        assert len(results) == 4
+        # 2 spectra * 2 structures = 4 combinations, but only 2 (with Ala_structure) have
+        # matching peaks > 0
+        assert len(results) == 2
 
     def test_run_pipeline_sorting_order(self, temp_files):
         """Test sorting of results: descending matched peaks, then ascending IDs."""
@@ -178,9 +179,23 @@ class TestPipelineOrchestration:
 
     def test_run_pipeline_custom_rules(self, temp_files):
         """Test passing custom fragmentation rules."""
+        # 1. Create a custom MGF file containing peaks matching AMINO cleavage fragments of the dimer
+        # Dimer structure mass is ~147.0405. Cleaved N-side: 75.0242 (m/z 76.0315), C-side: 72.0163 (m/z 73.0236)
+        custom_mgf_content = """BEGIN IONS
+TITLE=custom_spec
+PEPMASS=148.0478
+76.0315 100.0
+73.0236 100.0
+END IONS
+"""
+        custom_mgf_file = temp_files["tmp_path"] / "custom_spectra.mgf"
+        custom_mgf_file.write_text(custom_mgf_content, encoding="utf-8")
+
         custom_rules = (FragmentationRule("AMINO", 1.0, -1.0),)
+
+        # Match with custom rules (AMINO is breakable)
         results = run_pipeline(
-            spectra_files=temp_files["mgf"],
+            spectra_files=custom_mgf_file,
             structure_files=temp_files["dimer_yaml"],
             mass_tolerance=0.5,
             apply_filters=False,
@@ -190,10 +205,22 @@ class TestPipelineOrchestration:
             cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
-        assert len(results) == 2
-        # Check that we got matches and rules took effect (it didn't error out)
-        for r in results:
-            assert r.structure_id == "Ala_Dimer_structure"
+        assert len(results) == 1
+        assert results[0].matched_peaks_count == 2
+        assert results[0].structure_id == "Ala_Dimer_structure"
+
+        # Match with default rules (AMINO is NOT breakable, yields 0 matches and gets excluded)
+        default_results = run_pipeline(
+            spectra_files=custom_mgf_file,
+            structure_files=temp_files["dimer_yaml"],
+            mass_tolerance=0.5,
+            apply_filters=False,
+            min_peaks=1,
+            rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
+        )
+        assert len(default_results) == 0
 
     def test_run_pipeline_missing_inputs(self, tmp_path):
         """Test raising ValueError for empty spectra/structure file lists."""
