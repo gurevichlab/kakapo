@@ -254,13 +254,14 @@ def match_spectrum(
         mass_tolerance,
     )
 
-    mass_mod = spectrum.precursor_mass - theoretical_spectrum.structure_mass - PROTON_MASS
+    precursor_neutral_mass = spectrum.get_neutral_mass()
+    mass_mod = precursor_neutral_mass - theoretical_spectrum.structure_mass
 
     if abs(mass_mod) <= mass_tolerance:
         logger.debug(
-            "Precursor mass (%f) matches structure mass (%f) within tolerance (%f). "
+            "Precursor neutral mass (%f) matches structure mass (%f) within tolerance (%f). "
             "Running unmodified matching.",
-            spectrum.precursor_mass,
+            precursor_neutral_mass,
             theoretical_spectrum.structure_mass,
             mass_tolerance,
         )
@@ -293,10 +294,13 @@ def match_spectra(
         len(theo_list),
     )
 
+    # build theor spectra index
+
     results: list[MatchResult] = []
     for spec in spectra_list:
+        # get theo structures that have >= 5 common peaks with this spectra using index.
         for theo in theo_list:
-            if abs(theo.structure_mass - spec.precursor_mass) <= MAX_TOTAL_MASS_DIFFERENCE:
+            if abs(theo.structure_mass - spec.get_neutral_mass()) <= MAX_TOTAL_MASS_DIFFERENCE:
                 result = match_spectrum(spec, theo, mass_tolerance)
                 results.append(result)
 

@@ -68,6 +68,17 @@ class Spectrum:
         """Return peaks sorted by mass."""
         return sorted(self.peaks, key=lambda p: p.mass)
 
+    def get_neutral_mass(self) -> float:
+        """Calculate the neutral precursor mass of the spectrum.
+
+        Returns:
+            The neutral precursor mass in Daltons.
+        """
+        from kakapo.constants import PROTON_MASS
+
+        charge = self.charge if self.charge is not None else 1
+        return self.precursor_mass * charge - PROTON_MASS * charge
+
 
 @dataclass(frozen=True)
 class RuleShift:
