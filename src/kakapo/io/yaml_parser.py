@@ -8,6 +8,11 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
+
+try:
+    from yaml import CSafeLoader as SafeLoader
+except ImportError:
+    from yaml import SafeLoader
 from rban_parsing.rban_parser import AtomInfo, MonomerInfo, Parsed_rBAN_Record
 
 from kakapo.constants import ATOMIC_MASSES
@@ -218,7 +223,7 @@ def parse_rban_yaml(
     # Load YAML file
     try:
         with open(yaml_path) as f:
-            yaml_data = yaml.safe_load(f)
+            yaml_data = yaml.load(f, Loader=SafeLoader)
     except FileNotFoundError as e:
         logger.error("YAML file not found: %s", yaml_path)
         raise FileNotFoundError(f"YAML file not found: {yaml_path}") from e

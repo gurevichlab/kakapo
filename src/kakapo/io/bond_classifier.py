@@ -111,6 +111,11 @@ def load_rules(rule_dir_path: str | Path) -> list[BondRule]:
             ):
                 mol_graph.add_edge(u, v)
 
+        # Pre-tag rule breakable edge nodes with anchors
+        u, v = mol_breakable_edge
+        mol_graph.nodes[u]["anchor"] = "u"
+        mol_graph.nodes[v]["anchor"] = "v"
+
         rules.append(
             BondRule(
                 name=name,
@@ -185,6 +190,27 @@ def _build_local_graph(
     return local_graph
 
 
+class NodeAnchorMatcher:
+    """Matcher class to restrict GraphMatcher searches by anchor nodes."""
+
+    def __init__(self, atom_a: int, atom_b: int):
+        """Initialize the anchor matcher with the connecting atom IDs."""
+        self.atom_a = atom_a
+        self.atom_b = atom_b
+        self.anchors = ("atom_a", "atom_b")
+
+    def __call__(self, n1: dict, n2: dict) -> bool:
+        """Check if two nodes are compatible under element and anchor constraints."""
+        a1 = n1.get("anchor")
+        a2 = n2.get("anchor")
+        if a2 in ("u", "v"):
+            if a1 not in self.anchors:
+                return False
+        elif a1 in self.anchors:
+            return False
+        return n1.get("element") == n2.get("element")
+
+
 def _match_rule(
     local_graph: nx.Graph,
     rule: BondRule,
@@ -203,17 +229,36 @@ def _match_rule(
     Returns:
         A tuple of (is_matched, is_reversed). If is_matched is False, is_reversed is False.
     """
-
-    def node_match(n1, n2):
-        return n1.get("element") == n2.get("element")
-
     atom_a, atom_b = edge.atom1, edge.atom2
+
+    # 1. Quick element check (avoid running isomorphism if elements do not match)
+    u, v = rule.mol_breakable_edge
+    rule_u_el = rule.mol_graph.nodes[u]["element"]
+    rule_v_el = rule.mol_graph.nodes[v]["element"]
+
+    atom_a_el = local_graph.nodes[atom_a]["element"]
+    atom_b_el = local_graph.nodes[atom_b]["element"]
+
+    forward_match = atom_a_el == rule_u_el and atom_b_el == rule_v_el
+    reverse_match = atom_a_el == rule_v_el and atom_b_el == rule_u_el
+    if not (forward_match or reverse_match):
+        return False, False
+
+    # 2. Tag rule breakable edge nodes with anchors (lazy-init for manually-constructed rules)
+    if "anchor" not in rule.mol_graph.nodes[u]:
+        rule.mol_graph.nodes[u]["anchor"] = "u"
+    if "anchor" not in rule.mol_graph.nodes[v]:
+        rule.mol_graph.nodes[v]["anchor"] = "v"
+
+    # 3. Tag local connecting atoms to anchor the isomorphism search
+    local_graph.nodes[atom_a]["anchor"] = "atom_a"
+    local_graph.nodes[atom_b]["anchor"] = "atom_b"
+
+    node_match = NodeAnchorMatcher(atom_a, atom_b)
     GM = isomorphism.GraphMatcher(local_graph, rule.mol_graph, node_match=node_match)
 
     for sub in GM.subgraph_isomorphisms_iter():
-        inv_sub = {v: k for k, v in sub.items()}
-        u, v = rule.mol_breakable_edge
-
+        inv_sub = {val: key for key, val in sub.items()}
         mapped_u = inv_sub.get(u)
         mapped_v = inv_sub.get(v)
 
