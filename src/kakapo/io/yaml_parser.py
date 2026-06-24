@@ -108,7 +108,9 @@ def _map_and_classify_bonds(
     return bonds
 
 
-def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
+def _build_molecule_from_parsed_record(
+    record: Parsed_rBAN_Record, structure_id: str | None = None
+) -> Molecule:
     """Convert a Parsed_rBAN_Record into a kakapo Molecule instance.
 
     Maps the parsed record's atoms, monomers, and atomic bonds to Molecule components,
@@ -117,6 +119,7 @@ def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
 
     Args:
         record: The source Parsed_rBAN_Record parsed from YAML.
+        structure_id: Optional string to override the record's default compound_id.
 
     Returns:
         A fully constructed Molecule instance with enriched properties and classified bonds.
@@ -177,7 +180,7 @@ def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
 
     # 5. Return the final Molecule
     return Molecule(
-        structure_id=record.compound_id,
+        structure_id=structure_id if structure_id is not None else record.compound_id,
         monomers=monomers,
         bonds=tuple(bonds),
         smiles=record.metadata.smiles if record.metadata else None,
@@ -188,11 +191,15 @@ def _build_molecule_from_parsed_record(record: Parsed_rBAN_Record) -> Molecule:
     )
 
 
-def parse_rban_yaml(yaml_path: str | Path) -> Molecule | dict[str, Molecule]:
+def parse_rban_yaml(
+    yaml_path: str | Path, id_counts: dict[str, int] | None = None
+) -> Molecule | dict[str, Molecule]:
     """Parse a Parsed_rBAN_Record YAML file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
         yaml_path: Path to a YAML file containing one Parsed_rBAN_Record dict or a list of them.
+        id_counts: Optional tracker dictionary mapping compound IDs to their occurrence count
+            for suffix-based deduplication.
 
     Returns:
         A kakapo Molecule instance representing the structure with
@@ -206,6 +213,8 @@ def parse_rban_yaml(yaml_path: str | Path) -> Molecule | dict[str, Molecule]:
     """
     yaml_path = Path(yaml_path)
     logger.info("Parsing rBAN YAML from %s", yaml_path)
+    if id_counts is None:
+        id_counts = {}
     # Load YAML file
     try:
         with open(yaml_path) as f:
@@ -221,43 +230,54 @@ def parse_rban_yaml(yaml_path: str | Path) -> Molecule | dict[str, Molecule]:
         logger.warning("YAML file %s is empty", yaml_path)
         raise ValueError(f"YAML file {yaml_path} is empty")
 
-    if isinstance(yaml_data, list):
-        if not yaml_data:
-            logger.warning("YAML file %s contains an empty list", yaml_path)
-            raise ValueError(f"YAML file {yaml_path} contains an empty list")
+    is_list = isinstance(yaml_data, list)
+    if is_list and not yaml_data:
+        logger.warning("YAML file %s contains an empty list", yaml_path)
+        raise ValueError(f"YAML file {yaml_path} contains an empty list")
 
-        molecules = {}
-        errors = []
-        for i, item in enumerate(yaml_data):
-            try:
-                parsed_record = Parsed_rBAN_Record.from_dict(item)
-                molecule = _build_molecule_from_parsed_record(parsed_record)
-                molecules[molecule.structure_id] = molecule
-            except (KeyError, ValueError, TypeError) as e:
+    records = yaml_data if is_list else [yaml_data]
+    molecules = {}
+    errors = []
+
+    for i, item in enumerate(records):
+        try:
+            parsed_record = Parsed_rBAN_Record.from_dict(item)
+            base_id = parsed_record.compound_id
+            count = id_counts.get(base_id, 0)
+            if count > 0:
+                unique_id = f"{base_id}_{count + 1}"
+            else:
+                unique_id = base_id
+            id_counts[base_id] = count + 1
+
+            molecule = _build_molecule_from_parsed_record(parsed_record, structure_id=unique_id)
+            molecules[unique_id] = molecule
+        except (KeyError, ValueError, TypeError) as e:
+            if is_list:
                 logger.warning("Index %d failed to parse in list from %s: %s", i, yaml_path, e)
                 errors.append(f"Index {i}: {e}")
+            else:
+                logger.error("Failed to parse Parsed_rBAN_Record from %s: %s", yaml_path, e)
+                raise ValueError(
+                    f"Failed to parse Parsed_rBAN_Record from {yaml_path}. Error: {e}"
+                ) from e
 
-        if errors:
-            logger.error(
-                "Failed to parse some Parsed_rBAN_Records from %s: %s",
-                yaml_path,
-                errors,
-            )
-            raise ValueError(
-                f"Failed to parse Parsed_rBAN_Record list from {yaml_path}. Errors:\n"
-                + "\n".join(errors)
-            )
+    if errors:
+        logger.error(
+            "Failed to parse some Parsed_rBAN_Records from %s: %s",
+            yaml_path,
+            errors,
+        )
+        raise ValueError(
+            f"Failed to parse Parsed_rBAN_Record list from {yaml_path}. Errors:\n"
+            + "\n".join(errors)
+        )
 
+    if is_list:
         logger.info("Successfully parsed %d molecules from %s", len(molecules), yaml_path)
         return molecules
 
-    try:
-        parsed_record = Parsed_rBAN_Record.from_dict(yaml_data)
-    except (KeyError, ValueError, TypeError) as e:
-        logger.error("Failed to parse Parsed_rBAN_Record from %s: %s", yaml_path, e)
-        raise ValueError(f"Failed to parse Parsed_rBAN_Record from {yaml_path}. Error: {e}") from e
-
-    molecule = _build_molecule_from_parsed_record(parsed_record)
+    molecule = list(molecules.values())[0]
     logger.info("Successfully parsed molecule %s from %s", molecule.structure_id, yaml_path)
     return molecule
 
@@ -275,13 +295,14 @@ def parse_rban_yaml_batch(yaml_paths: Iterable[str | Path]) -> dict[str, Molecul
         ValueError: If any file fails to parse (includes filename in error message).
     """
     molecules = {}
+    id_counts = {}
     errors = []
     logger.info("Parsing batch of YAML file(s)...")
 
     for path in yaml_paths:
         yaml_path = Path(path)
         try:
-            result = parse_rban_yaml(yaml_path)
+            result = parse_rban_yaml(yaml_path, id_counts=id_counts)
             if isinstance(result, dict):
                 molecules.update(result)
             else:

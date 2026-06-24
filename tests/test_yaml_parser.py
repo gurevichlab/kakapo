@@ -457,6 +457,94 @@ atomic_bonds: []
         finally:
             os.unlink(yaml_path)
 
+    def test_parse_rban_yaml_deduplicates_duplicate_compound_ids_in_list(self):
+        """Verify that duplicate compound IDs in a list are deduplicated with suffixes."""
+        yaml_data = """
+- compound_id: "DUP_ID"
+  metadata: {name: null, smiles: null}
+  atoms:
+    0: {name: "N", hydrogens: 1}
+  monomers:
+    0: {name: "Ala", atoms: [0], chirality: "L", is_pks_hybrid: false}
+  monomer_bonds: []
+  atomic_bonds: []
+- compound_id: "DUP_ID"
+  metadata: {name: null, smiles: null}
+  atoms:
+    0: {name: "N", hydrogens: 1}
+  monomers:
+    0: {name: "Ala", atoms: [0], chirality: "L", is_pks_hybrid: false}
+  monomer_bonds: []
+  atomic_bonds: []
+- compound_id: "DUP_ID"
+  metadata: {name: null, smiles: null}
+  atoms:
+    0: {name: "N", hydrogens: 1}
+  monomers:
+    0: {name: "Ala", atoms: [0], chirality: "L", is_pks_hybrid: false}
+  monomer_bonds: []
+  atomic_bonds: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_data)
+            yaml_path = f.name
+
+        try:
+            molecules = parse_rban_yaml(yaml_path)
+            assert isinstance(molecules, dict)
+            assert len(molecules) == 3
+            assert "DUP_ID" in molecules
+            assert "DUP_ID_2" in molecules
+            assert "DUP_ID_3" in molecules
+
+            assert molecules["DUP_ID"].structure_id == "DUP_ID"
+            assert molecules["DUP_ID_2"].structure_id == "DUP_ID_2"
+            assert molecules["DUP_ID_3"].structure_id == "DUP_ID_3"
+        finally:
+            os.unlink(yaml_path)
+
+    def test_parse_rban_yaml_batch_deduplicates_duplicate_compound_ids_across_files(self):
+        """Verify duplicate compound IDs across batch files are globally deduplicated."""
+        yaml_data_1 = """
+- compound_id: "BATCH_DUP"
+  metadata: {name: null, smiles: null}
+  atoms:
+    0: {name: "N", hydrogens: 1}
+  monomers:
+    0: {name: "Ala", atoms: [0], chirality: "L", is_pks_hybrid: false}
+  monomer_bonds: []
+  atomic_bonds: []
+"""
+        yaml_data_2 = """
+- compound_id: "BATCH_DUP"
+  metadata: {name: null, smiles: null}
+  atoms:
+    0: {name: "N", hydrogens: 1}
+  monomers:
+    0: {name: "Ala", atoms: [0], chirality: "L", is_pks_hybrid: false}
+  monomer_bonds: []
+  atomic_bonds: []
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f1:
+            f1.write(yaml_data_1)
+            path_1 = f1.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f2:
+            f2.write(yaml_data_2)
+            path_2 = f2.name
+
+        try:
+            molecules = parse_rban_yaml_batch([path_1, path_2])
+            assert isinstance(molecules, dict)
+            assert len(molecules) == 2
+            assert "BATCH_DUP" in molecules
+            assert "BATCH_DUP_2" in molecules
+
+            assert molecules["BATCH_DUP"].structure_id == "BATCH_DUP"
+            assert molecules["BATCH_DUP_2"].structure_id == "BATCH_DUP_2"
+        finally:
+            os.unlink(path_1)
+            os.unlink(path_2)
+
 
 class TestYamlParserBondClassificationIntegration:
     """Test bond classification integration with mocked rules."""

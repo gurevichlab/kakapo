@@ -10,6 +10,7 @@ This module handles:
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 
 from matchms import Spectrum as MatchmsSpectrum
@@ -18,6 +19,9 @@ from matchms.importing import load_from_mgf
 
 from kakapo.models import Peak, Spectrum
 from kakapo.utils.logger import get_logger
+
+# Suppress verbose warnings from matchms
+logging.getLogger("matchms").setLevel(logging.ERROR)
 
 logger = get_logger(__name__)
 
