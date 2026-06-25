@@ -11,6 +11,8 @@ This module handles:
 import hashlib
 import json
 import logging
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from matchms import Spectrum as MatchmsSpectrum
@@ -105,6 +107,53 @@ def _save_to_cache(spectra: list[Spectrum], cache_path: Path) -> None:
         json.dump(data, f, indent=2)
 
 
+def _process_and_convert_chunk(
+    spectra_chunk: list[MatchmsSpectrum],
+    apply_filters: bool,
+    min_peaks: int,
+) -> list[Spectrum]:
+    """Process a chunk of matchms spectra and convert them to kakapo Spectrum models.
+
+    Args:
+        spectra_chunk: A list of matchms Spectrum objects.
+        apply_filters: Whether to apply matchms CLEAN_PEAKS and DEFAULT_FILTERS.
+        min_peaks: Minimum number of peaks required for a spectrum to be included.
+
+    Returns:
+        A list of kakapo Spectrum models.
+    """
+    from matchms import SpectrumProcessor
+
+    if apply_filters:
+        processor = SpectrumProcessor(CLEAN_PEAKS + DEFAULT_FILTERS)
+        processed_result = processor.process_spectra(spectra_chunk, progress_bar=False)
+        if isinstance(processed_result, tuple):
+            spectra_chunk = processed_result[0]
+        else:
+            spectra_chunk = processed_result
+
+    kakapo_spectra = []
+    for matchms_spec in spectra_chunk:
+        spec_id = _get_spectrum_id(matchms_spec.metadata)
+        try:
+            if len(matchms_spec.peaks) < min_peaks:
+                logger.debug(
+                    "Skipping spectrum %s (peaks: %d < min_peaks: %d)",
+                    spec_id,
+                    len(matchms_spec.peaks),
+                    min_peaks,
+                )
+                continue
+
+            spectrum = _matchms_to_kakapo(matchms_spec)
+            kakapo_spectra.append(spectrum)
+        except (ValueError, KeyError, RuntimeError) as e:
+            logger.error("Failed to convert spectrum %s: %s", spec_id, e)
+            raise RuntimeError(f"Failed to convert spectrum {spec_id}: {e}") from e
+
+    return kakapo_spectra
+
+
 def load_mgf(  # noqa: C901
     file_path: str | Path,
     cache_dir: Path,
@@ -172,39 +221,46 @@ def load_mgf(  # noqa: C901
         logger.warning("No spectra found in %s", file_path)
         raise ValueError(f"No spectra found in {file_path}")
 
-    # Apply filters if requested
-    if apply_filters:
-        logger.debug("Applying matchms CLEAN_PEAKS and DEFAULT_FILTERS to %s", file_path)
-        from matchms import SpectrumProcessor
+    # Convert and process matchms spectra to kakapo models
+    num_spectra = len(matchms_spectra)
+    if num_spectra > 100:
+        num_workers = min(4, os.cpu_count() or 1)
+        chunk_size = max(100, num_spectra // (num_workers * 4))
+        chunks = [
+            matchms_spectra[i : i + chunk_size]
+            for i in range(0, num_spectra, chunk_size)
+        ]
 
-        processor = SpectrumProcessor(CLEAN_PEAKS + DEFAULT_FILTERS)
-        processed_result = processor.process_spectra(matchms_spectra)
+        logger.info(
+            "Processing %d spectra in parallel using %d workers (chunk size: %d)...",
+            num_spectra,
+            num_workers,
+            chunk_size,
+        )
 
-        # SpectrumProcessor returns a tuple (spectra, None)
-        if isinstance(processed_result, tuple):
-            matchms_spectra = processed_result[0]
-        else:
-            matchms_spectra = processed_result
-
-    # Convert matchms spectra to kakapo models
-    kakapo_spectra = []
-    for matchms_spec in matchms_spectra:
-        spec_id = _get_spectrum_id(matchms_spec.metadata)
+        kakapo_spectra = []
         try:
-            if len(matchms_spec.peaks) < min_peaks:
-                logger.debug(
-                    "Skipping spectrum %s (peaks: %d < min_peaks: %d)",
-                    spec_id,
-                    len(matchms_spec.peaks),
-                    min_peaks,
-                )
-                continue
-
-            spectrum = _matchms_to_kakapo(matchms_spec)
-            kakapo_spectra.append(spectrum)
-        except (ValueError, KeyError, RuntimeError) as e:
-            logger.error("Failed to convert spectrum %s: %s", spec_id, e)
-            raise RuntimeError(f"Failed to convert spectrum {spec_id}: {e}") from e
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                futures = [
+                    executor.submit(
+                        _process_and_convert_chunk,
+                        chunk,
+                        apply_filters,
+                        min_peaks,
+                    )
+                    for chunk in chunks
+                ]
+                for future in futures:
+                    kakapo_spectra.extend(future.result())
+        except Exception as e:
+            logger.error("Failed parallel processing of MGF spectra: %s", e)
+            raise
+    else:
+        kakapo_spectra = _process_and_convert_chunk(
+            matchms_spectra,
+            apply_filters,
+            min_peaks,
+        )
 
     if not kakapo_spectra:
         logger.warning(
