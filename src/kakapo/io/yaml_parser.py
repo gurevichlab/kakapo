@@ -4,16 +4,16 @@ This module loads atom-level rBAN records serialized by nerpa-ms and converts
 them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
 """
 
+import hashlib
+import json
+import os
 from collections.abc import Iterable
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import yaml
-
-try:
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader
-from rban_parsing.rban_parser import AtomInfo, MonomerInfo, Parsed_rBAN_Record
+from rban_parsing.rban_parser import AtomInfo, MonomerInfo, NRP_metadata, Parsed_rBAN_Record
+from yaml import CSafeLoader as SafeLoader
 
 from kakapo.constants import ATOMIC_MASSES
 from kakapo.io.bond_classifier import classify_single_bond
@@ -22,6 +22,7 @@ from kakapo.models import (
     AtomicBond,
     AtomicEdge,
     Bond,
+    BondSubtype,
     Chirality,
     Molecule,
     Monomer,
@@ -29,6 +30,121 @@ from kakapo.models import (
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _parse_single_yaml_block(yaml_str: str) -> list | dict:
+    """Parse a single YAML block string (for parallel parsing)."""
+    return yaml.load(yaml_str, Loader=SafeLoader)
+
+
+def _serialize_molecule(mol: Molecule) -> dict:
+    """Serialize a Molecule object into a JSON-serializable dictionary."""
+    return {
+        "structure_id": mol.structure_id,
+        "compound_id": mol.source_parsed_record.compound_id
+        if mol.source_parsed_record
+        else mol.structure_id,
+        "monomers": {
+            str(k): {
+                "norine_name": v.norine_name,
+                "residue": v.residue,
+                "is_methylated": v.is_methylated,
+                "chirality": v.chirality.name,
+                "atoms": list(v.atoms),
+                "mass": v.mass,
+            }
+            for k, v in mol.monomers.items()
+        },
+        "bonds": [
+            {
+                "source_idx": b.source_idx,
+                "target_idx": b.target_idx,
+                "bond_type": b.bond_type,
+                "subtypes": [{"name": s.name, "reversed": s.reversed} for s in b.subtypes],
+            }
+            for b in mol.bonds
+        ],
+        "smiles": mol.smiles,
+        "atoms": {
+            str(k): {
+                "name": v.name,
+                "hydrogens": v.hydrogens,
+            }
+            for k, v in mol.atoms.items()
+        },
+        "atomic_bonds": [
+            [
+                [edge.atom1, edge.atom2],
+                {
+                    "arity": ab.arity,
+                    "bond_type": ab.bond_type,
+                },
+            ]
+            for edge, ab in mol.atomic_bonds.items()
+        ],
+        "metadata": {
+            "name": mol.metadata.name if mol.metadata else None,
+            "smiles": mol.metadata.smiles if mol.metadata else None,
+            "origin": mol.metadata.origin if mol.metadata else None,
+            "inchikey": mol.metadata.inchikey if mol.metadata else None,
+            "source": mol.metadata.source if mol.metadata else None,
+        }
+        if mol.metadata
+        else None,
+    }
+
+
+def _deserialize_molecule(data: dict) -> Molecule:
+    """Deserialize a JSON-serializable dictionary back into a Molecule object."""
+    monomers = {
+        int(k): Monomer(
+            norine_name=v["norine_name"],
+            residue=v["residue"],
+            is_methylated=v["is_methylated"],
+            chirality=Chirality[v["chirality"]],
+            atoms=tuple(v["atoms"]),
+            mass=v["mass"],
+        )
+        for k, v in data["monomers"].items()
+    }
+    bonds = tuple(
+        Bond(
+            source_idx=b["source_idx"],
+            target_idx=b["target_idx"],
+            bond_type=b["bond_type"],
+            subtypes=tuple(
+                BondSubtype(name=s["name"], reversed=s["reversed"]) for s in b.get("subtypes", [])
+            ),
+        )
+        for b in data.get("bonds", [])
+    )
+    atoms = {
+        int(k): Atom(name=v["name"], hydrogens=v["hydrogens"])
+        for k, v in data.get("atoms", {}).items()
+    }
+    atomic_bonds = {
+        AtomicEdge(edge[0], edge[1]): AtomicBond(arity=ab["arity"], bond_type=ab["bond_type"])
+        for edge, ab in data.get("atomic_bonds", [])
+    }
+    metadata = None
+    if mdata := data.get("metadata"):
+        metadata = NRP_metadata(
+            name=mdata.get("name"),
+            smiles=mdata.get("smiles"),
+            origin=mdata.get("origin"),
+            inchikey=mdata.get("inchikey"),
+            source=mdata.get("source"),
+        )
+    return Molecule(
+        structure_id=data["structure_id"],
+        monomers=monomers,
+        bonds=bonds,
+        smiles=data.get("smiles"),
+        atoms=atoms,
+        atomic_bonds=atomic_bonds,
+        metadata=metadata,
+        source_parsed_record=None,
+    )
 
 
 def _calculate_monomer_exact_mass(
@@ -196,7 +312,35 @@ def _build_molecule_from_parsed_record(
     )
 
 
-def parse_rban_yaml(
+def _parse_yaml_content_parallel(content: str) -> list[dict]:
+    """Parse YAML list content in parallel by splitting it into single record blocks."""
+    # Split content by list item pattern "\n- "
+    raw_blocks = content.split("\n- ")
+    if raw_blocks[0].startswith("- "):
+        raw_blocks[0] = raw_blocks[0][2:]
+
+    blocks = []
+    for b in raw_blocks:
+        if not b.strip():
+            continue
+        blocks.append("- " + b)
+
+    num_workers = min(4, os.cpu_count() or 1)
+    logger.info("Parsing YAML blocks in parallel using %d workers", num_workers)
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        results = list(executor.map(_parse_single_yaml_block, blocks))
+
+    parsed_dicts = []
+    for res in results:
+        if isinstance(res, list) and len(res) > 0:
+            parsed_dicts.append(res[0])
+        elif isinstance(res, dict):
+            parsed_dicts.append(res)
+    return parsed_dicts
+
+
+def parse_rban_yaml(  # noqa: C901
     yaml_path: str | Path, id_counts: dict[str, int] | None = None
 ) -> Molecule | dict[str, Molecule]:
     """Parse a Parsed_rBAN_Record YAML file and return a kakapo Molecule or a dict of Molecules.
@@ -220,22 +364,41 @@ def parse_rban_yaml(
     logger.info("Parsing rBAN YAML from %s", yaml_path)
     if id_counts is None:
         id_counts = {}
-    # Load YAML file
+
     try:
-        with open(yaml_path) as f:
-            yaml_data = yaml.load(f, Loader=SafeLoader)
+        with open(yaml_path, encoding="utf-8") as f:
+            content = f.read()
     except FileNotFoundError as e:
         logger.error("YAML file not found: %s", yaml_path)
         raise FileNotFoundError(f"YAML file not found: {yaml_path}") from e
-    except yaml.YAMLError as e:
-        logger.error("Invalid YAML in %s: %s", yaml_path, e)
-        raise ValueError(f"Invalid YAML in {yaml_path}: {e}") from e
 
-    if yaml_data is None:
+    if not content.strip():
         logger.warning("YAML file %s is empty", yaml_path)
         raise ValueError(f"YAML file {yaml_path} is empty")
 
-    is_list = isinstance(yaml_data, list)
+    is_list = content.strip().startswith("-")
+
+    try:
+        if is_list:
+            # Check how many blocks there are by counting "\n- "
+            block_count = content.count("\n- ") + (1 if content.strip().startswith("- ") else 0)
+            if block_count > 5:
+                yaml_data = _parse_yaml_content_parallel(content)
+            else:
+                yaml_data = yaml.load(content, Loader=SafeLoader)
+        else:
+            yaml_data = yaml.load(content, Loader=SafeLoader)
+    except yaml.YAMLError as e:
+        logger.error("Invalid YAML in %s: %s", yaml_path, e)
+        raise ValueError(f"Invalid YAML in {yaml_path}: {e}") from e
+    except Exception as e:
+        logger.error("Error parsing YAML file %s: %s", yaml_path, e)
+        raise ValueError(f"Error parsing YAML file {yaml_path}: {e}") from e
+
+    if yaml_data is None:
+        logger.warning("YAML file %s is empty after load", yaml_path)
+        raise ValueError(f"YAML file {yaml_path} is empty")
+
     if is_list and not yaml_data:
         logger.warning("YAML file %s contains an empty list", yaml_path)
         raise ValueError(f"YAML file {yaml_path} contains an empty list")
@@ -246,7 +409,7 @@ def parse_rban_yaml(
 
     for i, item in enumerate(records):
         try:
-            parsed_record = Parsed_rBAN_Record.from_dict(item)
+            parsed_record = Parsed_rBAN_Record.from_dict(item)  # pyright: ignore[reportArgumentType]
             base_id = parsed_record.compound_id
             count = id_counts.get(base_id, 0)
             if count > 0:
@@ -287,11 +450,17 @@ def parse_rban_yaml(
     return molecule
 
 
-def parse_rban_yaml_batch(yaml_paths: Iterable[str | Path]) -> dict[str, Molecule]:
+def parse_rban_yaml_batch(  # noqa: C901
+    yaml_paths: Iterable[str | Path],
+    cache_dir: Path | None = None,
+    use_cache: bool = True,
+) -> dict[str, Molecule]:
     """Parse multiple rBAN YAML files.
 
     Args:
         yaml_paths: Iterable of paths to YAML files.
+        cache_dir: Optional path to the cache directory.
+        use_cache: If True, check and use the JSON cache for parsed molecules.
 
     Returns:
         Dictionary mapping structure IDs to Molecule instances.
@@ -306,12 +475,58 @@ def parse_rban_yaml_batch(yaml_paths: Iterable[str | Path]) -> dict[str, Molecul
 
     for path in yaml_paths:
         yaml_path = Path(path)
+
+        # 1. Check Cache
+        cached_mols = None
+        cache_path = None
+        if use_cache and cache_dir:
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                stat_info = yaml_path.stat()
+                mtime = stat_info.st_mtime
+                size = stat_info.st_size
+                hash_input = f"{yaml_path.resolve()}_{mtime}_{size}"
+                file_hash = hashlib.md5(hash_input.encode("utf-8")).hexdigest()
+                cache_path = cache_dir / f"{yaml_path.name}_{file_hash}.json"
+
+                if cache_path.exists():
+                    logger.info("Cache hit. Loading structures from cache %s", cache_path)
+                    with open(cache_path, encoding="utf-8") as f:
+                        cached_data = json.load(f)
+
+                    cached_mols = {k: _deserialize_molecule(v) for k, v in cached_data.items()}
+                    molecules.update(cached_mols)
+
+                    # Update id_counts with base compound_ids
+                    for mol_data in cached_data.values():
+                        bid = mol_data.get("compound_id", mol_data["structure_id"])
+                        id_counts[bid] = id_counts.get(bid, 0) + 1
+                    continue
+            except Exception as e:
+                logger.warning("Failed to load structures from cache: %s", e)
+
+        # 2. Parse YAML from scratch
         try:
             result = parse_rban_yaml(yaml_path, id_counts=id_counts)
             if isinstance(result, dict):
+                parsed_dict = result
                 molecules.update(result)
             else:
+                parsed_dict = {result.structure_id: result}
                 molecules[result.structure_id] = result
+
+            # 3. Save to Cache
+            if use_cache and cache_path:
+                try:
+                    logger.debug("Saving parsed structures to cache file: %s", cache_path)
+                    serialized_data = {k: _serialize_molecule(v) for k, v in parsed_dict.items()}
+                    temp_path = cache_path.with_suffix(".tmp")
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(serialized_data, f, indent=2)
+                    temp_path.replace(cache_path)
+                except Exception as e:
+                    logger.warning("Failed to save structures to cache: %s", e)
+
         except Exception as e:
             logger.warning("Failed to parse YAML file %s in batch: %s", yaml_path, e)
             errors.append(f"{yaml_path}: {e}")

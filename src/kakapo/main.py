@@ -117,7 +117,9 @@ def run_pipeline(
     # 2. Load and parse structures
     logger.info("Loading structures from %d file(s)", len(struct_paths))
     start_load_structures = time.perf_counter()
-    molecules = parse_rban_yaml_batch(struct_paths)
+    molecules = parse_rban_yaml_batch(
+        struct_paths, cache_dir=cache_dir, use_cache=use_cache
+    )
     duration_load_structures = time.perf_counter() - start_load_structures
     logger.info(
         "Loaded %d structures in %.4f seconds",

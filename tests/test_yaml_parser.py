@@ -2,13 +2,13 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
-import networkx as nx
 import pytest
 from rban_parsing.rban_parser import AtomId, AtomInfo, Chirality, MonomerInfo, NorineMonomerName
 
-from kakapo.io.bond_classifier import BondRule
+from kakapo.io.bond_classifier import make_rule
 from kakapo.io.yaml_parser import (
     _calculate_monomer_exact_mass,
     parse_rban_yaml,
@@ -585,21 +585,11 @@ atomic_bonds:
             yaml_path = f.name
 
         try:
-            # Create a simple N-C mock rule graph
-            mock_graph = nx.Graph()
-            mock_graph.add_node(0, element="N")
-            mock_graph.add_node(1, element="C")
-            mock_graph.add_edge(0, 1)
+            # Setup a mock rule using SMARTS
+            mock_rule = make_rule("amide_mock", "[N:1]-[C:2]")
 
-            mock_rule = BondRule(
-                name="amide_mock",
-                mol_path="mock_path",
-                mol_graph=mock_graph,
-                mol_breakable_edge=(0, 1),
-            )
-
-            # Patch ALL_RULES in bond_classifier to use our mock rules
-            with patch("kakapo.io.bond_classifier.ALL_RULES", [mock_rule]):
+            # Patch _RULES in bond_classifier to use our mock rules
+            with patch("kakapo.io.bond_classifier._RULES", [mock_rule]):
                 molecule = parse_rban_yaml(yaml_path)
                 assert isinstance(molecule, Molecule)
                 assert len(molecule.bonds) == 1
@@ -610,3 +600,60 @@ atomic_bonds:
                 assert bond.subtypes[0].reversed is False
         finally:
             os.unlink(yaml_path)
+
+
+def test_parse_rban_yaml_parallel_and_cached():
+    """Verify that parallel YAML parsing and structure caching work correctly."""
+    # Create a YAML data list with 6 structures (to exceed parallel threshold of 5)
+    structure_template = """- compound_id: "NRP_PARSED_LIST_{idx}"
+  metadata:
+    name: "ParsedRecord{idx}"
+    smiles: "NCC(=O)O"
+    origin: null
+    inchikey: null
+    source: null
+  atoms:
+    0:
+      name: "N"
+      hydrogens: 2
+  monomers:
+    0:
+      name: "Ala"
+      atoms: [0]
+      chirality: "L"
+      is_pks_hybrid: false
+  monomer_bonds: []
+  atomic_bonds: []
+"""
+    yaml_data = "".join(structure_template.format(idx=i) for i in range(1, 7))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_file = Path(tmpdir) / "structures.yaml"
+        with open(yaml_file, "w", encoding="utf-8") as f:
+            f.write(yaml_data)
+
+        # Parse parallelly (since block count 6 > 5)
+        mols_parallel = parse_rban_yaml(yaml_file)
+        assert len(mols_parallel) == 6  # pyright: ignore[reportArgumentType]
+
+        # 2. Test parse_rban_yaml_batch caching behavior
+        cache_dir = Path(tmpdir) / ".cache"
+
+        # First call (cache miss, saves to cache)
+        mols1 = parse_rban_yaml_batch([yaml_file], cache_dir=cache_dir, use_cache=True)
+        assert len(mols1) == 6
+
+        # Verify cache file exists
+        cache_files = list(cache_dir.glob("*.json"))
+        assert len(cache_files) == 1
+
+        # Second call (cache hit)
+        mols2 = parse_rban_yaml_batch([yaml_file], cache_dir=cache_dir, use_cache=True)
+        assert len(mols2) == 6
+
+        # Verify contents are identical (except source_parsed_record which is not cached)
+        for k in mols1:
+            assert mols1[k].structure_id == mols2[k].structure_id
+            assert mols1[k].monomers == mols2[k].monomers
+            assert mols1[k].bonds == mols2[k].bonds
+            assert mols2[k].source_parsed_record is None
