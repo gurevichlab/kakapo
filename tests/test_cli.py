@@ -610,3 +610,92 @@ class TestCliMainFunction:
             tolerance=0.05,
             format_type="table",
         )
+
+    @patch("kakapo.cli.run_pipeline")
+    @patch("kakapo.cli.write_results")
+    def test_main_top_n_success(
+        self,
+        mock_write_results: MagicMock,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test successful execution with --top-n slicing the results."""
+        results = [
+            MatchResult(
+                structure_id="struct1",
+                spectrum_id="spec_1",
+                structure_mass=100.0,
+                spectrum_mass=100.0,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=5,
+                experimental_peaks_count=10,
+                monomer_count=1,
+                matched_peaks=[],
+            ),
+            MatchResult(
+                structure_id="struct2",
+                spectrum_id="spec_2",
+                structure_mass=100.0,
+                spectrum_mass=100.0,
+                mass_tolerance=0.01,
+                matched_peaks_count=3,
+                theoretical_peaks_count=5,
+                experimental_peaks_count=10,
+                monomer_count=1,
+                matched_peaks=[],
+            ),
+        ]
+        mock_run_pipeline.return_value = results
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.01",
+            "--top-n",
+            "1",
+            "--stdout",
+        ]
+
+        exit_code = main(args)
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once()
+        # Should be sliced to top 1 result
+        mock_write_results.assert_called_once_with(
+            [results[0]],
+            output_path=None,
+            format_type="table",
+        )
+
+    def test_main_top_n_invalid(self, temp_io_structure) -> None:
+        """Test that invalid values for --top-n raise SystemExit."""
+        # Case 1: Zero
+        args_zero = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--top-n",
+            "0",
+        ]
+        with pytest.raises(SystemExit):
+            main(args_zero)
+
+        # Case 2: Negative
+        args_neg = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--top-n",
+            "-5",
+        ]
+        with pytest.raises(SystemExit):
+            main(args_neg)

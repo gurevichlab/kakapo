@@ -166,6 +166,11 @@ def create_parser() -> argparse.ArgumentParser:
         type=float,
         help="Mass tolerance in Daltons for matching structure mass to spectrum mass.",
     )
+    parser.add_argument(
+        "--top-n",
+        type=int,
+        help="Output only top N match results by number of matched peaks.",
+    )
 
     # Logging options
     parser.add_argument(
@@ -286,6 +291,8 @@ def main(args: Optional[list[str]] = None) -> int:
         parser.error("--mass-match-tolerance is required when --mass-match is specified.")
     if parsed_args.mass_match_tolerance is not None and parsed_args.mass_match_tolerance < 0:
         parser.error("--mass-match-tolerance must be non-negative.")
+    if parsed_args.top_n is not None and parsed_args.top_n <= 0:
+        parser.error("--top-n must be positive.")
 
     # 1. Configure logging
     configure_logging(parsed_args)
@@ -327,6 +334,8 @@ def main(args: Optional[list[str]] = None) -> int:
         )
 
         # 5. Write results
+        if parsed_args.top_n is not None:
+            results = results[: parsed_args.top_n]
         write_results(results, output_path=output_path, format_type=parsed_args.format)
 
         # 6. Write mass-matched results if requested
