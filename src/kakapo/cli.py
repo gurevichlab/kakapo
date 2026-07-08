@@ -19,7 +19,7 @@ from kakapo.config import (
     DEFAULT_OUTPUT_DIR,
     DEFAULT_USE_CACHE,
 )
-from kakapo.io.writer import write_mass_matched_results, write_results
+from kakapo.io.writer import write_results
 from kakapo.main import run_pipeline
 from kakapo.utils.logger import get_logger, setup_logging
 
@@ -152,19 +152,10 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         "-f",
-        choices=["table", "txt", "csv"],
-        default="table",
-        help="Format of the output results (default: table).",
-    )
-    parser.add_argument(
-        "--mass-match",
-        action="store_true",
-        help="Output an additional results file where structure mass matches spectrum mass.",
-    )
-    parser.add_argument(
-        "--mass-match-tolerance",
-        type=float,
-        help="Mass tolerance in Daltons for matching structure mass to spectrum mass.",
+        choices=["table", "txt", "csv", "json"],
+        nargs="+",
+        default=["table"],
+        help="One or more output formats (default: table). Choices: table, txt, csv, json.",
     )
     parser.add_argument(
         "--top-n",
@@ -222,11 +213,15 @@ def configure_logging(parsed_args: argparse.Namespace) -> None:
     setup_logging(verbosity=verbosity, log_file=log_path)
 
 
-def determine_output_path(parsed_args: argparse.Namespace) -> Optional[Path | str]:
-    """Determine the output file path or stdout option from arguments.
+def determine_output_path(
+    parsed_args: argparse.Namespace,
+    format_type: str,
+) -> Optional[Path | str]:
+    """Determine the output file path or stdout option from arguments for a single format.
 
     Args:
         parsed_args: Parsed command-line arguments.
+        format_type: The output format for which to determine the path.
 
     Returns:
         The output path as a Path, a string (e.g. "-"), or None.
@@ -238,35 +233,27 @@ def determine_output_path(parsed_args: argparse.Namespace) -> Optional[Path | st
 
     base_out = Path(parsed_args.output) if parsed_args.output else DEFAULT_OUTPUT_DIR
     if base_out.is_dir() or not base_out.suffix:
-        ext = "csv" if parsed_args.format == "csv" else "txt"
+        fmt = format_type.lower()
+        ext = fmt if fmt in ("csv", "json") else "txt"
         return base_out / f"results.{ext}"
+    # If a specific file path was provided and there are multiple formats, use it for the
+    # first format only; subsequent formats fall back to the same directory with auto names.
     return base_out
 
 
-def determine_matched_mass_output_path(
-    output_path: Optional[Path | str],
-    format_type: str,
-) -> Optional[Path | str]:
-    """Determine the output file path for mass-matched results.
+def _write_all_formats(
+    results: list,
+    parsed_args: argparse.Namespace,
+) -> None:
+    """Write results for every requested output format.
 
     Args:
-        output_path: The main output path (Path, "-", or None).
-        format_type: Output format ("table", "txt", or "csv").
-
-    Returns:
-        The Path to write the mass-matched results, or None / "-" for stdout.
+        results: Matched results to write.
+        parsed_args: Parsed command-line arguments (provides format list, output path, etc.).
     """
-    if output_path is None:
-        return None
-    if output_path == "-":
-        return "-"
-
-    ext = "csv" if format_type.lower() == "csv" else "txt"
-    main_path = Path(output_path)
-    if main_path.is_dir() or not main_path.suffix:
-        return main_path / f"results_mass_matched.{ext}"
-
-    return main_path.with_name(f"{main_path.stem}_mass_matched{main_path.suffix}")
+    for fmt in parsed_args.format:
+        output_path = determine_output_path(parsed_args, fmt)
+        write_results(results, output_path=output_path, format_type=fmt)
 
 
 def main(args: Optional[list[str]] = None) -> int:
@@ -287,10 +274,6 @@ def main(args: Optional[list[str]] = None) -> int:
     parsed_args = parser.parse_args(args)
 
     # Validate arguments
-    if parsed_args.mass_match and parsed_args.mass_match_tolerance is None:
-        parser.error("--mass-match-tolerance is required when --mass-match is specified.")
-    if parsed_args.mass_match_tolerance is not None and parsed_args.mass_match_tolerance < 0:
-        parser.error("--mass-match-tolerance must be non-negative.")
     if parsed_args.top_n is not None and parsed_args.top_n <= 0:
         parser.error("--top-n must be positive.")
 
@@ -317,10 +300,7 @@ def main(args: Optional[list[str]] = None) -> int:
         print("Error: No structure files (.yaml, .yml) resolved from inputs.", file=sys.stderr)
         return 1
 
-    # 3. Determine output path
-    output_path = determine_output_path(parsed_args)
-
-    # 4. Run pipeline
+    # 3. Run pipeline
     try:
         results = run_pipeline(
             spectra_files=spectra_files,
@@ -333,22 +313,10 @@ def main(args: Optional[list[str]] = None) -> int:
             cache_dir=Path(parsed_args.cache_dir),
         )
 
-        # 5. Write results
+        # 5. Write results (one file per requested format)
         if parsed_args.top_n is not None:
             results = results[: parsed_args.top_n]
-        write_results(results, output_path=output_path, format_type=parsed_args.format)
-
-        # 6. Write mass-matched results if requested
-        if parsed_args.mass_match:
-            matched_output_path = determine_matched_mass_output_path(
-                output_path, parsed_args.format
-            )
-            write_mass_matched_results(
-                results,
-                output_path=matched_output_path,
-                tolerance=parsed_args.mass_match_tolerance,
-                format_type=parsed_args.format,
-            )
+        _write_all_formats(results, parsed_args)
 
     except Exception as e:
         logger.exception("Pipeline execution failed")

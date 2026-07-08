@@ -7,8 +7,8 @@ import pytest
 
 from kakapo.io.writer import (
     format_as_csv,
+    format_as_json,
     format_as_table,
-    write_mass_matched_results,
     write_results,
 )
 from kakapo.models import MatchResult, Peak, Spectrum
@@ -124,6 +124,59 @@ class TestWriterTableFormatting:
         assert "120" in table_str
 
 
+class TestWriterJsonFormatting:
+    """Test suite for JSON formatting function."""
+
+    def test_format_as_json_empty(self) -> None:
+        """Test formatting an empty list of results."""
+        json_str = format_as_json([])
+        assert json_str.strip() == "[]"
+
+    def test_format_as_json_values(self, sample_results: list[MatchResult]) -> None:
+        """Test formatting a list of results and parsing back the values."""
+        import json
+
+        from kakapo.models import MatchedPeak
+        # Let's add some peaks to NRP_001 matched_peaks for mask testing
+        sample_results[0] = MatchResult(
+            structure_id=sample_results[0].structure_id,
+            spectrum_id=sample_results[0].spectrum_id,
+            cleaned_spectrum=sample_results[0].cleaned_spectrum,
+            structure_mass=sample_results[0].structure_mass,
+            spectrum_mass=sample_results[0].spectrum_mass,
+            mass_tolerance=sample_results[0].mass_tolerance,
+            matched_peaks_count=sample_results[0].matched_peaks_count,
+            theoretical_peaks_count=sample_results[0].theoretical_peaks_count,
+            experimental_peaks_count=sample_results[0].experimental_peaks_count,
+            monomer_count=sample_results[0].monomer_count,
+            unmodified_monomer_mass_vector=sample_results[0].unmodified_monomer_mass_vector,
+            matched_peaks=[
+                MatchedPeak(theoretical_mz=100.0, experimental_mz=100.1, charge=1, theoretical_fragment_mask=5)
+            ],
+            modified_monomer_idx=sample_results[0].modified_monomer_idx,
+            mass_mod=sample_results[0].mass_mod,
+            initial_modified_monomer_mass=sample_results[0].initial_modified_monomer_mass,
+        )
+
+        json_str = format_as_json(sample_results)
+        data = json.loads(json_str)
+
+        assert len(data) == 2
+        assert data[0]["structure_id"] == "NRP_001"
+        assert data[0]["spectrum_id"] == "spec_101"
+        assert data[0]["cleaned_spectrum"]["spectrum_id"] == "spec_1"
+        assert len(data[0]["cleaned_spectrum"]["peaks"]) == 1
+        assert data[0]["cleaned_spectrum"]["peaks"][0]["mass"] == 100.0
+        assert data[0]["cleaned_spectrum"]["peaks"][0]["intensity"] == 1.0
+
+        # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
+        assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
+
+        assert data[1]["structure_id"] == "NRP_002"
+        assert data[1]["monomer_count"] == 8
+        assert data[1]["unmodified_monomer_mass_vector"] == [110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0]
+
+
 class TestWriterWriteResults:
     """Test suite for the main write_results dispatch function."""
 
@@ -170,7 +223,7 @@ class TestWriterWriteResults:
     def test_write_results_unsupported_format(self, sample_results: list[MatchResult]) -> None:
         """Test that unsupported formats raise ValueError."""
         with pytest.raises(ValueError, match="Unsupported format type"):
-            write_results(sample_results, output_path=None, format_type="json")
+            write_results(sample_results, output_path=None, format_type="xml")
 
     def test_write_results_os_error(
         self, sample_results: list[MatchResult], tmp_path: Path
@@ -183,57 +236,3 @@ class TestWriterWriteResults:
         with pytest.raises(OSError):
             write_results(sample_results, output_path=invalid_path, format_type="csv")
 
-
-class TestWriterWriteMassMatchedResults:
-    """Test suite for write_mass_matched_results function."""
-
-    def test_write_mass_matched_results_some_match(
-        self, sample_results: list[MatchResult], tmp_path: Path
-    ) -> None:
-        """Test that only a subset of matches within the mass tolerance are written."""
-        out_file = tmp_path / "matched_some.csv"
-        write_mass_matched_results(
-            sample_results, output_path=out_file, tolerance=0.015, format_type="csv"
-        )
-        assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
-        assert "NRP_001" in content
-        assert "NRP_002" not in content
-
-    def test_write_mass_matched_results_none_match(
-        self, sample_results: list[MatchResult], tmp_path: Path
-    ) -> None:
-        """Test that no matches are written when tolerance is too small."""
-        out_file = tmp_path / "matched_none.csv"
-        write_mass_matched_results(
-            sample_results, output_path=out_file, tolerance=0.005, format_type="csv"
-        )
-        assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
-        assert "NRP_001" not in content
-        assert "NRP_002" not in content
-
-    def test_write_mass_matched_results_all_match(
-        self, sample_results: list[MatchResult], tmp_path: Path
-    ) -> None:
-        """Test that all matches are written when tolerance is sufficiently large."""
-        out_file = tmp_path / "matched_all.csv"
-        write_mass_matched_results(
-            sample_results, output_path=out_file, tolerance=0.03, format_type="csv"
-        )
-        assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
-        assert "NRP_001" in content
-        assert "NRP_002" in content
-
-    def test_write_mass_matched_results_stdout(
-        self, sample_results: list[MatchResult], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Test writing mass-matched results to stdout when output_path is None."""
-        write_mass_matched_results(
-            sample_results, output_path=None, tolerance=0.015, format_type="csv"
-        )
-        captured = capsys.readouterr()
-        assert "structure_id" in captured.out
-        assert "NRP_001" in captured.out
-        assert "NRP_002" not in captured.out

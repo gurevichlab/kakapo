@@ -6,6 +6,7 @@ to files or standard output.
 
 import csv
 import io
+import json
 import sys
 from pathlib import Path
 from typing import Optional, Union
@@ -116,6 +117,79 @@ def format_as_table(results: list[MatchResult]) -> str:
     return tabulate(data, headers=headers, tablefmt="simple")
 
 
+def mask_to_reversed_binary_string(mask: int, length: int) -> str:
+    """Convert a bitmask to a reversed binary string matching the mass vector order.
+
+    Example: mask = 5 (binary 101, monomers 0 and 2 active), length = 4
+    returns: "1010"
+    """
+    chars = []
+    for i in range(length):
+        if mask & (1 << i):
+            chars.append("1")
+        else:
+            chars.append("0")
+    return "".join(chars)
+
+
+def format_as_json(results: list[MatchResult]) -> str:
+    """Format a list of MatchResult objects into a standard JSON string.
+
+    Args:
+        results: A list of MatchResult instances to format.
+
+    Returns:
+        A standard JSON string representation with 2-space indentation.
+    """
+    logger.debug("Formatting %d match results as JSON", len(results))
+    serialized = []
+    for r in results:
+        cleaned_spec_data = {
+            "spectrum_id": r.cleaned_spectrum.spectrum_id,
+            "source_file_path": r.cleaned_spectrum.source_file_path,
+            "peaks": [
+                {"mass": p.mass, "intensity": p.intensity}
+                for p in r.cleaned_spectrum.get_sorted_peaks()
+            ],
+            "precursor_mass": r.cleaned_spectrum.precursor_mass,
+            "charge": r.cleaned_spectrum.charge,
+        }
+
+        matched_peaks_data = []
+        for mp in r.matched_peaks:
+            mask_str = mask_to_reversed_binary_string(mp.theoretical_fragment_mask, r.monomer_count)
+            matched_peaks_data.append(
+                {
+                    "theoretical_mz": mp.theoretical_mz,
+                    "experimental_mz": mp.experimental_mz,
+                    "charge": mp.charge,
+                    "theoretical_fragment_mask": mask_str,
+                }
+            )
+
+        serialized.append(
+            {
+                "structure_id": r.structure_id,
+                "spectrum_id": r.spectrum_id,
+                "cleaned_spectrum": cleaned_spec_data,
+                "structure_mass": r.structure_mass,
+                "spectrum_mass": r.spectrum_mass,
+                "mass_tolerance": r.mass_tolerance,
+                "matched_peaks_count": r.matched_peaks_count,
+                "theoretical_peaks_count": r.theoretical_peaks_count,
+                "experimental_peaks_count": r.experimental_peaks_count,
+                "monomer_count": r.monomer_count,
+                "unmodified_monomer_mass_vector": list(r.unmodified_monomer_mass_vector),
+                "matched_peaks": matched_peaks_data,
+                "modified_monomer_idx": r.modified_monomer_idx,
+                "mass_mod": r.mass_mod,
+                "initial_modified_monomer_mass": r.initial_modified_monomer_mass,
+            }
+        )
+
+    return json.dumps(serialized, indent=2)
+
+
 def write_results(
     results: list[MatchResult],
     output_path: Optional[Union[str, Path]] = None,
@@ -129,7 +203,7 @@ def write_results(
     Args:
         results: A list of MatchResult instances.
         output_path: Path to write results. If None or "-", prints to standard output.
-        format_type: Output format ("table", "txt", or "csv"). Case-insensitive.
+        format_type: Output format ("table", "txt", "csv", or "json"). Case-insensitive.
 
     Raises:
         ValueError: If an unsupported format_type is provided.
@@ -147,10 +221,13 @@ def write_results(
         formatted_content = format_as_table(results)
     elif fmt == "csv":
         formatted_content = format_as_csv(results)
+    elif fmt == "json":
+        formatted_content = format_as_json(results)
     else:
         logger.error("Unsupported output format type: %s", format_type)
         raise ValueError(
-            f"Unsupported format type: {format_type}. Supported formats are: 'table', 'txt', 'csv'."
+            f"Unsupported format type: {format_type}. Supported formats are: 'table', 'txt', 'csv',"
+            " 'json'."
         )
 
     if output_path is None or str(output_path) == "-":
@@ -168,34 +245,3 @@ def write_results(
         except OSError as e:
             logger.error("Failed to write results to %s: %s", file_path, e)
             raise
-
-
-def write_mass_matched_results(
-    results: list[MatchResult],
-    tolerance: float,
-    output_path: Optional[Union[str, Path]] = None,
-    format_type: str = "table",
-) -> None:
-    """Filter match results by mass tolerance and write them to a separate file or stdout.
-
-    Keep only the results where the absolute difference between structure mass and
-    spectrum precursor mass is within the given tolerance.
-
-    Args:
-        results: List of MatchResult objects.
-        tolerance: The mass tolerance window in Daltons.
-        output_path: Target file path to write results, or None/"-" for stdout.
-        format_type: Output format ("table", "txt", or "csv"). Case-insensitive.
-
-    Raises:
-        ValueError: If an unsupported format_type is provided.
-        OSError: If writing to the file fails.
-    """
-    logger.info(
-        "Filtering mass-matched results with tolerance %f Da (output: %s)",
-        tolerance,
-        output_path if output_path is not None else "stdout",
-    )
-    matched = [r for r in results if abs(r.structure_mass - r.spectrum_mass) <= tolerance]
-    logger.info("Writing %d mass-matched results out of %d total", len(matched), len(results))
-    write_results(matched, output_path=output_path, format_type=format_type)

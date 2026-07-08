@@ -418,209 +418,6 @@ class TestCliMainFunction:
         )
 
     @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_mass_matched_results")
-    @patch("kakapo.cli.write_results")
-    def test_main_mass_match_options(
-        self,
-        mock_write_results: MagicMock,
-        mock_write_mass_matched: MagicMock,
-        mock_run_pipeline: MagicMock,
-        temp_io_structure,
-    ) -> None:
-        """Test successful execution with --mass-match and tolerance options."""
-        mock_run_pipeline.return_value = []
-        args = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "--mass-match",
-            "--mass-match-tolerance",
-            "0.02",
-        ]
-        exit_code = main(args)
-        assert exit_code == 0
-        mock_write_mass_matched.assert_called_once_with(
-            [],
-            output_path=DEFAULT_OUTPUT_DIR / "results_mass_matched.txt",
-            tolerance=0.02,
-            format_type="table",
-        )
-
-    @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_mass_matched_results")
-    @patch("kakapo.cli.write_results")
-    def test_main_mass_match_stdout(
-        self,
-        mock_write_results: MagicMock,
-        mock_write_mass_matched: MagicMock,
-        mock_run_pipeline: MagicMock,
-        temp_io_structure,
-    ) -> None:
-        """Test that --mass-match outputs to stdout (None path) when --stdout is set."""
-        mock_run_pipeline.return_value = []
-        args = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "--stdout",
-            "--mass-match",
-            "--mass-match-tolerance",
-            "0.02",
-        ]
-        exit_code = main(args)
-        assert exit_code == 0
-        mock_write_mass_matched.assert_called_once_with(
-            [],
-            output_path=None,
-            tolerance=0.02,
-            format_type="table",
-        )
-
-    @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_mass_matched_results")
-    @patch("kakapo.cli.write_results")
-    def test_main_mass_match_dash_stdout(
-        self,
-        mock_write_results: MagicMock,
-        mock_write_mass_matched: MagicMock,
-        mock_run_pipeline: MagicMock,
-        temp_io_structure,
-    ) -> None:
-        """Test that --mass-match outputs to stdout ("-" path) when -o - is set."""
-        mock_run_pipeline.return_value = []
-        args = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "-o",
-            "-",
-            "--mass-match",
-            "--mass-match-tolerance",
-            "0.02",
-        ]
-        exit_code = main(args)
-        assert exit_code == 0
-        mock_write_mass_matched.assert_called_once_with(
-            [],
-            output_path="-",
-            tolerance=0.02,
-            format_type="table",
-        )
-
-    def test_main_mass_match_missing_tolerance(self, temp_io_structure) -> None:
-        """Test that missing tolerance when --mass-match is present raises SystemExit."""
-        args = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "--mass-match",
-        ]
-        with pytest.raises(SystemExit):
-            main(args)
-
-    def test_main_mass_match_negative_tolerance(self, temp_io_structure) -> None:
-        """Test that negative tolerance raises SystemExit."""
-        args = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "--mass-match",
-            "--mass-match-tolerance",
-            "-0.01",
-        ]
-        with pytest.raises(SystemExit):
-            main(args)
-
-    @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_mass_matched_results")
-    @patch("kakapo.cli.write_results")
-    def test_main_mass_match_output_path_generation_dir(
-        self,
-        mock_write_results: MagicMock,
-        mock_write_mass_matched: MagicMock,
-        mock_run_pipeline: MagicMock,
-        temp_io_structure,
-    ) -> None:
-        """Test output paths for mass-matched results when output is a directory path."""
-        mock_run_pipeline.return_value = []
-        out_path = temp_io_structure["root"] / "output_test"
-
-        args_dir = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "-o",
-            str(out_path),
-            "-f",
-            "csv",
-            "--mass-match",
-            "--mass-match-tolerance",
-            "0.02",
-        ]
-        exit_code = main(args_dir)
-        assert exit_code == 0
-        mock_write_mass_matched.assert_called_with(
-            [],
-            output_path=out_path / "results_mass_matched.csv",
-            tolerance=0.02,
-            format_type="csv",
-        )
-
-    @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_mass_matched_results")
-    @patch("kakapo.cli.write_results")
-    def test_main_mass_match_output_path_generation_file(
-        self,
-        mock_write_results: MagicMock,
-        mock_write_mass_matched: MagicMock,
-        mock_run_pipeline: MagicMock,
-        temp_io_structure,
-    ) -> None:
-        """Test output paths for mass-matched results when output is a specific file path."""
-        mock_run_pipeline.return_value = []
-        out_path = temp_io_structure["root"] / "output_test"
-
-        args_file = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "-o",
-            str(out_path / "custom.txt"),
-            "--mass-match",
-            "--mass-match-tolerance",
-            "0.05",
-        ]
-        exit_code = main(args_file)
-        assert exit_code == 0
-        mock_write_mass_matched.assert_called_with(
-            [],
-            output_path=out_path / "custom_mass_matched.txt",
-            tolerance=0.05,
-            format_type="table",
-        )
-
-    @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     def test_main_top_n_success(
         self,
@@ -682,6 +479,41 @@ class TestCliMainFunction:
             output_path=None,
             format_type="table",
         )
+
+    @patch("kakapo.cli.run_pipeline")
+    @patch("kakapo.cli.write_results")
+    def test_main_multiple_formats(
+        self,
+        mock_write_results: MagicMock,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test that specifying multiple formats writes one file per format."""
+        mock_run_pipeline.return_value = []
+        out_path = temp_io_structure["root"] / "multi_out"
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "-o",
+            str(out_path),
+            "-f",
+            "csv",
+            "json",
+        ]
+        exit_code = main(args)
+        assert exit_code == 0
+        assert mock_write_results.call_count == 2
+        calls = {
+            call.kwargs["format_type"]: call.kwargs["output_path"]
+            for call in mock_write_results.call_args_list
+        }
+        assert calls["csv"] == out_path / "results.csv"
+        assert calls["json"] == out_path / "results.json"
 
     def test_main_top_n_invalid(self, temp_io_structure) -> None:
         """Test that invalid values for --top-n raise SystemExit."""
