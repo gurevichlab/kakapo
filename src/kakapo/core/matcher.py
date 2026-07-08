@@ -7,7 +7,14 @@ from dataclasses import dataclass
 
 from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
-from kakapo.models import MatchedPeak, MatchResult, Peak, Spectrum, TheoreticalSpectrum
+from kakapo.models import (
+    MatchedPeak,
+    MatchResult,
+    Peak,
+    Spectrum,
+    TheoreticalIonWithMass,
+    TheoreticalSpectrum,
+)
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +42,7 @@ def _fast_dot_product(vector: Iterable[float], mask: int) -> float:
 
 def _match_peaks(
     exp_peaks: list[Peak],
-    theory_ions_with_mass: list[tuple[str, float]],
+    theory_ions_with_mass: list[TheoreticalIonWithMass],
     max_charge: int,
     mass_tolerance: float,
 ) -> tuple[int, list[MatchedPeak]]:
@@ -57,8 +64,8 @@ def _match_peaks(
     for charge in range(1, max_charge + 1):
         # Two pointers technique to find matches
         last_idx = 0
-        for frag_id, ion_mass in theory_ions_with_mass:
-            mz = (ion_mass + PROTON_MASS * charge) / charge
+        for ion in theory_ions_with_mass:
+            mz = (ion.mass + PROTON_MASS * charge) / charge
             for idx in range(last_idx, len(exp_peaks)):
                 peak = exp_peaks[idx]
                 if abs(peak.mass - mz) <= mass_tolerance:
@@ -69,11 +76,12 @@ def _match_peaks(
                             theoretical_mz=mz,
                             experimental_mz=peak.mass,
                             charge=charge,
+                            theoretical_fragment_mask=ion.mask,
                         )
                     )
                     logger.debug(
                         "Matched ion '%s' (m/z: %f, charge: %d) to peak (m/z: %f)",
-                        frag_id,
+                        ion.fragment_id,
                         mz,
                         charge,
                         peak.mass,
@@ -90,17 +98,18 @@ def _match_peaks(
 def _calculate_theory_ions_with_mass(
     theoretical_spectrum: TheoreticalSpectrum,
     monomer_masses: Iterable[float],
-) -> list[tuple[str, float]]:
+) -> list[TheoreticalIonWithMass]:
     """Calculate and sort theoretical ion masses based on monomer masses."""
     return sorted(
         [
-            (
-                ion.fragment_id,
-                _fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass,
+            TheoreticalIonWithMass(
+                fragment_id=ion.fragment_id,
+                mass=_fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass,
+                mask=ion.mask,
             )
             for ion in theoretical_spectrum.ions
         ],
-        key=lambda item: item[1],
+        key=lambda item: item.mass,
     )
 
 
@@ -153,6 +162,7 @@ def _match_spectrum_unmodified(
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         experimental_peaks_count=len(spectrum.peaks),
         monomer_count=theoretical_spectrum.monomer_count,
+        unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
         matched_peaks=matched_peaks,
         modified_monomer_idx=None,
         mass_mod=mass_mod,
@@ -229,6 +239,7 @@ def _match_spectrum_with_mod(
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         experimental_peaks_count=len(spectrum.peaks),
         monomer_count=theoretical_spectrum.monomer_count,
+        unmodified_monomer_mass_vector=monomer_masses,
         matched_peaks=best_matched_peaks,
         modified_monomer_idx=best_i,
         mass_mod=mass_mod,
@@ -310,8 +321,8 @@ def _build_structure_index(
     flat_peaks: list[tuple[float, str]] = []
     for theo in theoretical_spectra:
         ions = _calculate_theory_ions_with_mass(theo, theo.monomer_mass_vector)
-        for _, mass in ions:
-            flat_peaks.append((mass, theo.structure_id))
+        for ion in ions:
+            flat_peaks.append((ion.mass, theo.structure_id))
 
     flat_peaks.sort(key=lambda item: item[0])
 

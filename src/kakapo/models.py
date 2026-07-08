@@ -124,6 +124,27 @@ class TheoreticalIon:
 
 
 @dataclass(frozen=True)
+class TheoreticalIonWithMass:
+    """A theoretical ion with its mass calculated for a specific monomer mass vector.
+
+    Attributes:
+        fragment_id: Unique identifier for the fragment.
+        mass: Calculated exact mass of this ion.
+        mask: Bitmask representing the monomers in this fragment.
+    """
+
+    fragment_id: str
+    mass: float
+    mask: int
+
+    def __post_init__(self):
+        if not self.fragment_id:
+            raise ValueError("Fragment ID cannot be empty")
+        if self.mask <= 0:
+            raise ValueError("Mask must be positive")
+
+
+@dataclass(frozen=True)
 class TheoreticalSpectrum:
     """A generated theoretical mass spectrum for a molecule.
 
@@ -379,11 +400,13 @@ class MatchedPeak:
         theoretical_mz: The m/z value of the theoretical peak.
         experimental_mz: The m/z value of the experimental peak.
         charge: The charge of the matched peak.
+        theoretical_fragment_mask: Bitmask representing the monomers in this fragment.
     """
 
     theoretical_mz: float
     experimental_mz: float
     charge: int
+    theoretical_fragment_mask: int
 
     def __post_init__(self):
         if self.theoretical_mz < 0:
@@ -392,6 +415,10 @@ class MatchedPeak:
             raise ValueError("Experimental m/z must be non-negative")
         if self.charge <= 0:
             raise ValueError("Charge must be positive")
+        if not isinstance(self.theoretical_fragment_mask, int):
+            raise TypeError("Theoretical fragment mask must be an integer")
+        if self.theoretical_fragment_mask <= 0:
+            raise ValueError("Theoretical fragment mask must be positive")
 
 
 @dataclass(frozen=True)
@@ -409,6 +436,7 @@ class MatchResult:
         theoretical_peaks_count: Number of theoretical peaks generated.
         experimental_peaks_count: Number of experimental peaks in the spectrum.
         monomer_count: Number of monomers in the matched molecule.
+        unmodified_monomer_mass_vector: Precalculated unmodified vector of monomer masses.
         matched_peaks: List of matched peaks.
         modified_monomer_idx: The 0-based index of the modified monomer in the best match.
         mass_mod: The calculated mass difference (precursor - structure) for the match.
@@ -426,12 +454,13 @@ class MatchResult:
     theoretical_peaks_count: int
     experimental_peaks_count: int
     monomer_count: int
+    unmodified_monomer_mass_vector: tuple[float, ...]
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modified_monomer_idx: int | None = None
     mass_mod: float | None = None
     initial_modified_monomer_mass: float | None = None
 
-    def __post_init__(self):
+    def __post_init__(self):  # noqa: C901
         if self.structure_mass < 0:
             raise ValueError("Structure mass must be non-negative")
         if self.spectrum_mass < 0:
@@ -446,6 +475,12 @@ class MatchResult:
             raise ValueError("Experimental peaks count must be non-negative")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
+        if not isinstance(self.unmodified_monomer_mass_vector, tuple):
+            raise TypeError("Unmodified monomer mass vector must be a tuple")
+        if any(not isinstance(m, (int, float)) or m < 0 for m in self.unmodified_monomer_mass_vector):
+            raise ValueError("All monomer masses in vector must be non-negative numbers")
+        if len(self.unmodified_monomer_mass_vector) != self.monomer_count:
+            raise ValueError("Unmodified monomer mass vector length must match monomer count")
         if (
             self.initial_modified_monomer_mass is not None
             and self.initial_modified_monomer_mass < 0

@@ -120,6 +120,7 @@ class TestCliMainFunction:
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
                 monomer_count=1,
+                unmodified_monomer_mass_vector=(100.0,),
                 matched_peaks=[],
             )
         ]
@@ -640,6 +641,7 @@ class TestCliMainFunction:
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
                 monomer_count=1,
+                unmodified_monomer_mass_vector=(100.0,),
                 matched_peaks=[],
             ),
             MatchResult(
@@ -653,6 +655,7 @@ class TestCliMainFunction:
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
                 monomer_count=1,
+                unmodified_monomer_mass_vector=(100.0,),
                 matched_peaks=[],
             ),
         ]
