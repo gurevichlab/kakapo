@@ -155,6 +155,7 @@ def _match_spectrum_unmodified(
         matched_peaks=matched_peaks,
         modified_monomer_idx=None,
         mass_mod=mass_mod,
+        initial_modified_monomer_mass=None,
     )
 
 
@@ -214,6 +215,8 @@ def _match_spectrum_with_mod(
         str(best_i),
     )
 
+    initial_modified_monomer_mass = monomer_masses[best_i] if best_i is not None else None
+
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
         spectrum_id=spectrum.spectrum_id,
@@ -227,6 +230,7 @@ def _match_spectrum_with_mod(
         matched_peaks=best_matched_peaks,
         modified_monomer_idx=best_i,
         mass_mod=mass_mod,
+        initial_modified_monomer_mass=initial_modified_monomer_mass,
     )
 
 

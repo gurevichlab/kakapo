@@ -154,7 +154,6 @@ class TheoreticalSpectrum:
             raise ValueError("Monomer mass vector length must match monomer count")
 
 
-
 @dataclass(frozen=True)
 class Atom:
     """A chemical atom represented at the atomic detail level.
@@ -408,6 +407,8 @@ class MatchResult:
         matched_peaks: List of matched peaks.
         modified_monomer_idx: The 0-based index of the modified monomer in the best match.
         mass_mod: The calculated mass difference (precursor - structure) for the match.
+        initial_modified_monomer_mass: The mass of the modified monomer before the mass
+            modification was applied.
     """
 
     structure_id: str
@@ -422,6 +423,7 @@ class MatchResult:
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modified_monomer_idx: int | None = None
     mass_mod: float | None = None
+    initial_modified_monomer_mass: float | None = None
 
     def __post_init__(self):
         if self.structure_mass < 0:
@@ -438,3 +440,8 @@ class MatchResult:
             raise ValueError("Experimental peaks count must be non-negative")
         if self.monomer_count <= 0:
             raise ValueError("Monomer count must be positive")
+        if (
+            self.initial_modified_monomer_mass is not None
+            and self.initial_modified_monomer_mass < 0
+        ):
+            raise ValueError("Initial modified monomer mass must be non-negative")

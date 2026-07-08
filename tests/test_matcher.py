@@ -488,7 +488,10 @@ class TestSpectrumMatcher:
 
         spec = make_spectrum(peaks, precursor_mass=precursor_mass, charge=1)
         result = match_spectrum(spec, theo, mass_tolerance=0.01)
-
         assert result.matched_peaks_count == expected_matched
         assert result.mass_mod == pytest.approx(expected_mod)
         assert result.modified_monomer_idx == expected_idx
+        if expected_idx is None:
+            assert result.initial_modified_monomer_mass is None
+        else:
+            assert result.initial_modified_monomer_mass == monomer_masses[expected_idx]

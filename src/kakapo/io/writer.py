@@ -44,6 +44,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
         "monomer_count",
         "modified_monomer_idx",
         "mass_mod",
+        "initial_modified_monomer_mass",
     ]
     writer.writerow(headers)
 
@@ -61,6 +62,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
                 result.monomer_count,
                 result.modified_monomer_idx,
                 result.mass_mod,
+                result.initial_modified_monomer_mass,
             ]
         )
 
@@ -90,6 +92,7 @@ def format_as_table(results: list[MatchResult]) -> str:
         "Monomer Count",
         "Modified Monomer Index",
         "Mass Mod",
+        "Initial Modified Monomer Mass",
     ]
 
     data = [
@@ -105,6 +108,7 @@ def format_as_table(results: list[MatchResult]) -> str:
             result.monomer_count,
             result.modified_monomer_idx,
             result.mass_mod,
+            result.initial_modified_monomer_mass,
         ]
         for result in results
     ]

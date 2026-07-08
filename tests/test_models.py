@@ -168,3 +168,19 @@ class TestModelsValidation:
                 experimental_peaks_count=-1,
                 monomer_count=3,
             )
+
+    def test_match_result_negative_initial_modified_monomer_mass(self):
+        """MatchResult validates that initial modified monomer mass is non-negative."""
+        with pytest.raises(ValueError, match="Initial modified monomer mass must be non-negative"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                structure_mass=100.0,
+                spectrum_mass=100.5,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
+                experimental_peaks_count=15,
+                monomer_count=3,
+                initial_modified_monomer_mass=-1.0,
+            )
