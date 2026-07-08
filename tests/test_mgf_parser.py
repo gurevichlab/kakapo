@@ -121,7 +121,7 @@ class TestMgfParserConversion:
         }
 
         matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
-        kakapo_spec = _matchms_to_kakapo(matchms_spec)
+        kakapo_spec = _matchms_to_kakapo(matchms_spec, "test_file.mgf")
 
         assert isinstance(kakapo_spec, Spectrum)
         assert kakapo_spec.spectrum_id == "spec_001"
@@ -139,7 +139,7 @@ class TestMgfParserConversion:
             intensities=peaks[:, 1],
             metadata={"spectrum_id": "spec_1", "precursor_mz": 400.0, "charge": "2+"},
         )
-        assert _matchms_to_kakapo(matchms_spec).charge == 2
+        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge == 2
 
     def test_matchms_to_kakapo_with_negative_charge(self):
         """Convert matchms spectrum with negative charge value."""
@@ -151,7 +151,7 @@ class TestMgfParserConversion:
             intensities=peaks[:, 1],
             metadata={"spectrum_id": "spec_2", "precursor_mz": 400.0, "charge": "1-"},
         )
-        assert _matchms_to_kakapo(matchms_spec).charge == -1
+        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge == -1
 
     def test_matchms_to_kakapo_with_invalid_charge(self):
         """Convert matchms spectrum with invalid charge, falling back to None."""
@@ -163,7 +163,7 @@ class TestMgfParserConversion:
             intensities=peaks[:, 1],
             metadata={"spectrum_id": "spec_3", "precursor_mz": 400.0, "charge": "invalid"},
         )
-        assert _matchms_to_kakapo(matchms_spec).charge is None
+        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge is None
 
     def test_matchms_to_kakapo_with_pepmass(self):
         """Convert spectrum using pepmass field."""
@@ -176,7 +176,7 @@ class TestMgfParserConversion:
         }
 
         matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
-        kakapo_spec = _matchms_to_kakapo(matchms_spec)
+        kakapo_spec = _matchms_to_kakapo(matchms_spec, "test_file.mgf")
 
         assert kakapo_spec.spectrum_id == "42"
         assert kakapo_spec.precursor_mass == 250.5
@@ -190,7 +190,7 @@ class TestMgfParserConversion:
         matchms_spec = MatchmsSpectrum(mz=np.array([]), intensities=np.array([]), metadata=metadata)
 
         with pytest.raises(ValueError, match="has no peaks"):
-            _matchms_to_kakapo(matchms_spec)
+            _matchms_to_kakapo(matchms_spec, "test_file.mgf")
 
     def test_matchms_to_kakapo_invalid_peaks(self):
         """Should raise ValueError for invalid peak data."""
@@ -202,7 +202,19 @@ class TestMgfParserConversion:
         matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
 
         with pytest.raises(ValueError, match="Invalid peak mass"):
-            _matchms_to_kakapo(matchms_spec)
+            _matchms_to_kakapo(matchms_spec, "test_file.mgf")
+
+    def test_matchms_to_kakapo_invalid_source_file_path_type(self):
+        """Should raise TypeError if source_file_path is not a string."""
+        from matchms import Spectrum as MatchmsSpectrum
+        peaks = np.array([[100.0, 10.0]])
+        matchms_spec = MatchmsSpectrum(
+            mz=peaks[:, 0],
+            intensities=peaks[:, 1],
+            metadata={"spectrum_id": "spec_1", "precursor_mz": 400.0},
+        )
+        with pytest.raises(TypeError, match="Source file path must be a string"):
+            _matchms_to_kakapo(matchms_spec, source_file_path=123)  # type: ignore
 
 
 class TestMgfParserLoadFile:
@@ -662,3 +674,28 @@ END IONS
         finally:
             if os.path.exists(mgf_path):
                 os.unlink(mgf_path)
+
+    def test_source_file_path_propagation(self, tmp_path):
+        """Test that the source_file_path is populated on parsed spectra."""
+        mgf_content = """BEGIN IONS
+TITLE=spec_source_path_test
+PEPMASS=500.0
+100 10
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+        try:
+            # 1. Test raw loading
+            spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
+            assert len(spectra) == 1
+            assert spectra[0].source_file_path == str(Path(mgf_path).resolve())
+
+            # 2. Test loading from cache
+            spectra_cached = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
+            assert len(spectra_cached) == 1
+            assert spectra_cached[0].source_file_path == str(Path(mgf_path).resolve())
+
+        finally:
+            if os.path.exists(mgf_path):
+                os.unlink(mgf_path)
+

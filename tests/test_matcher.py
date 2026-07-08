@@ -17,13 +17,18 @@ def make_spectrum(
     precursor_mass: float = 500.0,
     charge: int | None = None,
     spectrum_id: str = "spec_1",
+    source_file_path: str = "test.mgf",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
     peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
     charge_val = charge if charge is not None else 1
     precursor_mz = (precursor_mass + PROTON_MASS * charge_val) / charge_val
     return Spectrum(
-        spectrum_id=spectrum_id, peaks=peaks, precursor_mass=precursor_mz, charge=charge
+        spectrum_id=spectrum_id,
+        peaks=peaks,
+        precursor_mass=precursor_mz,
+        charge=charge,
+        source_file_path=source_file_path,
     )
 
 
@@ -495,3 +500,23 @@ class TestSpectrumMatcher:
             assert result.initial_modified_monomer_mass is None
         else:
             assert result.initial_modified_monomer_mass == monomer_masses[expected_idx]
+
+    def test_match_result_includes_cleaned_spectrum(self):
+        """Test that the MatchResult returned contains the cleaned experimental spectrum."""
+        monomer_masses = (100.0, 150.0)
+        ions = frozenset([
+            TheoreticalIon(fragment_id="frag_0", mask=1),
+            TheoreticalIon(fragment_id="frag_1", mask=2),
+        ])
+        theo = TheoreticalSpectrum(
+            structure_id="struct_test",
+            ions=ions,
+            structure_mass=250.0,
+            monomer_count=2,
+            monomer_mass_vector=monomer_masses,
+        )
+        spec = make_spectrum([(101.0, 10.0)], precursor_mass=250.0, charge=1)
+        result = match_spectrum(spec, theo, mass_tolerance=1.5)
+
+        assert result.cleaned_spectrum is spec
+

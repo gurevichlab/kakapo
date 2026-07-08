@@ -44,12 +44,14 @@ class Spectrum:
 
     Attributes:
         spectrum_id: Unique identifier for this spectrum.
+        source_file_path: The path of the source MGF file from which this spectrum was loaded.
         peaks: List of detected peaks.
         precursor_mass: The m/z of the precursor ion (parent mass).
         charge: The charge of the precursor ion.
     """
 
     spectrum_id: str
+    source_file_path: str
     peaks: frozenset[Peak]
     precursor_mass: float
     charge: int | None = None
@@ -61,6 +63,8 @@ class Spectrum:
             raise ValueError("Spectrum ID cannot be empty")
         if len(self.peaks) == 0:
             raise ValueError("Spectrum must contain at least one peak")
+        if not isinstance(self.source_file_path, str):
+            raise TypeError("Source file path must be a string")
         if self.charge is not None and not isinstance(self.charge, int):
             raise TypeError("Charge must be an integer or None")
 
@@ -397,6 +401,7 @@ class MatchResult:
     Attributes:
         structure_id: ID of the matched molecule.
         spectrum_id: ID of the matched spectrum.
+        cleaned_spectrum: Cleaned experimental spectrum used for matching.
         structure_mass: Exact mass of the matched molecule.
         spectrum_mass: Precursor mass of the matched spectrum.
         mass_tolerance: Mass tolerance used for matching.
@@ -413,6 +418,7 @@ class MatchResult:
 
     structure_id: str
     spectrum_id: str
+    cleaned_spectrum: Spectrum
     structure_mass: float
     spectrum_mass: float
     mass_tolerance: float
@@ -445,3 +451,5 @@ class MatchResult:
             and self.initial_modified_monomer_mass < 0
         ):
             raise ValueError("Initial modified monomer mass must be non-negative")
+        if not isinstance(self.cleaned_spectrum, Spectrum):
+            raise TypeError("Cleaned spectrum must be a Spectrum instance")

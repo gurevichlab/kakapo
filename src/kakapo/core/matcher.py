@@ -145,6 +145,7 @@ def _match_spectrum_unmodified(
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
         spectrum_id=spectrum.spectrum_id,
+        cleaned_spectrum=spectrum,
         structure_mass=theoretical_spectrum.structure_mass,
         spectrum_mass=spectrum.precursor_mass,
         mass_tolerance=mass_tolerance,
@@ -220,6 +221,7 @@ def _match_spectrum_with_mod(
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
         spectrum_id=spectrum.spectrum_id,
+        cleaned_spectrum=spectrum,
         structure_mass=theoretical_spectrum.structure_mass,
         spectrum_mass=spectrum.precursor_mass,
         mass_tolerance=mass_tolerance,

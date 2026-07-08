@@ -7,7 +7,14 @@ import pytest
 
 from kakapo.cli import main, resolve_paths
 from kakapo.config import DEFAULT_OUTPUT_DIR
-from kakapo.models import MatchResult
+from kakapo.models import MatchResult, Peak, Spectrum
+
+DUMMY_SPEC = Spectrum(
+    spectrum_id="spec_1",
+    source_file_path="test_file.mgf",
+    peaks=frozenset([Peak(100.0, 1.0)]),
+    precursor_mass=500.0,
+)
 
 
 @pytest.fixture
@@ -105,6 +112,7 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,
@@ -624,6 +632,7 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,
@@ -636,6 +645,7 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct2",
                 spectrum_id="spec_2",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,

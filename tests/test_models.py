@@ -4,6 +4,13 @@ import pytest
 
 from kakapo.models import MatchedPeak, MatchResult, Molecule, Peak, Spectrum
 
+DUMMY_SPEC = Spectrum(
+    spectrum_id="spec_1",
+    source_file_path="test_file.mgf",
+    peaks=frozenset([Peak(100.0, 1.0)]),
+    precursor_mass=500.0,
+)
+
 
 class TestModelsValidation:
     """Test validation in kakapo models."""
@@ -13,6 +20,7 @@ class TestModelsValidation:
         with pytest.raises(ValueError, match="at least one peak"):
             Spectrum(
                 spectrum_id="spec_1",
+                source_file_path="test_file.mgf",
                 peaks=frozenset(),
                 precursor_mass=500.0,
             )
@@ -22,6 +30,7 @@ class TestModelsValidation:
         with pytest.raises(ValueError, match="non-negative"):
             Spectrum(
                 spectrum_id="spec_1",
+                source_file_path="test_file.mgf",
                 peaks=frozenset([Peak(100.0, 1.0)]),
                 precursor_mass=-1.0,
             )
@@ -30,6 +39,7 @@ class TestModelsValidation:
         """Spectrum stores and validates charge."""
         spec = Spectrum(
             spectrum_id="spec_1",
+            source_file_path="test_file.mgf",
             peaks=frozenset([Peak(100.0, 1.0)]),
             precursor_mass=500.0,
             charge=2,
@@ -39,9 +49,20 @@ class TestModelsValidation:
         with pytest.raises(TypeError, match="Charge must be an integer or None"):
             Spectrum(
                 spectrum_id="spec_1",
+                source_file_path="test_file.mgf",
                 peaks=frozenset([Peak(100.0, 1.0)]),
                 precursor_mass=500.0,
                 charge="2",  # type: ignore
+            )
+
+    def test_spectrum_source_file_path_validation(self):
+        """Spectrum validates that source_file_path is a string."""
+        with pytest.raises(TypeError, match="Source file path must be a string"):
+            Spectrum(
+                spectrum_id="spec_1",
+                source_file_path=123,  # type: ignore
+                peaks=frozenset([Peak(100.0, 1.0)]),
+                precursor_mass=500.0,
             )
 
     def test_molecule_requires_monomers(self):
@@ -58,6 +79,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -73,6 +95,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=-1.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -88,6 +111,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=-100.5,
                 mass_tolerance=0.01,
@@ -103,6 +127,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=-0.01,
@@ -144,6 +169,7 @@ class TestModelsValidation:
         mr = MatchResult(
             structure_id="mol_1",
             spectrum_id="spec_1",
+            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=100.0,
             spectrum_mass=100.5,
             mass_tolerance=0.01,
@@ -160,6 +186,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -175,6 +202,7 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
+                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -183,4 +211,20 @@ class TestModelsValidation:
                 experimental_peaks_count=15,
                 monomer_count=3,
                 initial_modified_monomer_mass=-1.0,
+            )
+
+    def test_match_result_invalid_cleaned_spectrum_type(self):
+        """MatchResult raises TypeError if cleaned_spectrum is not a Spectrum."""
+        with pytest.raises(TypeError, match="Cleaned spectrum must be a Spectrum instance"):
+            MatchResult(
+                structure_id="mol_1",
+                spectrum_id="spec_1",
+                cleaned_spectrum="not a spectrum",  # type: ignore
+                structure_mass=100.0,
+                spectrum_mass=100.5,
+                mass_tolerance=0.01,
+                matched_peaks_count=5,
+                theoretical_peaks_count=10,
+                experimental_peaks_count=15,
+                monomer_count=3,
             )

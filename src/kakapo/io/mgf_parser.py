@@ -78,6 +78,7 @@ def _load_from_cache(cache_path: Path) -> list[Spectrum]:
         spectra.append(
             Spectrum(
                 spectrum_id=item["spectrum_id"],
+                source_file_path=item["source_file_path"],
                 peaks=peaks,
                 precursor_mass=item["precursor_mass"],
                 charge=item["charge"],
@@ -100,6 +101,7 @@ def _save_to_cache(spectra: list[Spectrum], cache_path: Path) -> None:
             "precursor_mass": spec.precursor_mass,
             "charge": spec.charge,
             "peaks": [[p.mass, p.intensity] for p in spec.get_sorted_peaks()],
+            "source_file_path": spec.source_file_path,
         }
         for spec in spectra
     ]
@@ -111,6 +113,7 @@ def _process_and_convert_chunk(
     spectra_chunk: list[MatchmsSpectrum],
     apply_filters: bool,
     min_peaks: int,
+    source_file_path: str,
 ) -> list[Spectrum]:
     """Process a chunk of matchms spectra and convert them to kakapo Spectrum models.
 
@@ -118,6 +121,7 @@ def _process_and_convert_chunk(
         spectra_chunk: A list of matchms Spectrum objects.
         apply_filters: Whether to apply matchms CLEAN_PEAKS and DEFAULT_FILTERS.
         min_peaks: Minimum number of peaks required for a spectrum to be included.
+        source_file_path: Path to the original MGF file.
 
     Returns:
         A list of kakapo Spectrum models.
@@ -145,7 +149,7 @@ def _process_and_convert_chunk(
                 )
                 continue
 
-            spectrum = _matchms_to_kakapo(matchms_spec)
+            spectrum = _matchms_to_kakapo(matchms_spec, source_file_path=source_file_path)
             kakapo_spectra.append(spectrum)
         except (ValueError, KeyError, RuntimeError) as e:
             logger.error("Failed to convert spectrum %s: %s", spec_id, e)
@@ -199,6 +203,8 @@ def load_mgf(  # noqa: C901
         logger.error("Expected .mgf file, got: %s", file_path.suffix)
         raise ValueError(f"Expected .mgf file, got: {file_path.suffix}")
 
+    source_file_str = str(file_path.resolve())
+
     if use_cache:
         try:
             cache_path = _get_cache_path(file_path, apply_filters, min_peaks, cache_dir)
@@ -247,6 +253,7 @@ def load_mgf(  # noqa: C901
                         chunk,
                         apply_filters,
                         min_peaks,
+                        source_file_str,
                     )
                     for chunk in chunks
                 ]
@@ -260,6 +267,7 @@ def load_mgf(  # noqa: C901
             matchms_spectra,
             apply_filters,
             min_peaks,
+            source_file_str,
         )
 
     if not kakapo_spectra:
@@ -412,7 +420,9 @@ def _get_spectrum_id(metadata: dict) -> str:
     return "unknown"
 
 
-def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:  # noqa: C901
+def _matchms_to_kakapo(  # noqa: C901
+    matchms_spec: MatchmsSpectrum, source_file_path: str
+) -> Spectrum:
     """Convert a matchms Spectrum to a kakapo Spectrum.
 
     Extracts peak data and metadata from matchms format and constructs
@@ -420,6 +430,7 @@ def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:  # noqa: C901
 
     Args:
         matchms_spec: A spectrum from matchms.
+        source_file_path: Path to the original MGF file.
 
     Returns:
         A kakapo Spectrum instance.
@@ -485,4 +496,5 @@ def _matchms_to_kakapo(matchms_spec: MatchmsSpectrum) -> Spectrum:  # noqa: C901
         peaks=frozenset(peak_objects),
         precursor_mass=precursor_mass,
         charge=charge,
+        source_file_path=source_file_path,
     )

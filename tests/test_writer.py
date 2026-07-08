@@ -11,7 +11,14 @@ from kakapo.io.writer import (
     write_mass_matched_results,
     write_results,
 )
-from kakapo.models import MatchResult
+from kakapo.models import MatchResult, Peak, Spectrum
+
+DUMMY_SPEC = Spectrum(
+    spectrum_id="spec_1",
+    source_file_path="test_file.mgf",
+    peaks=frozenset([Peak(100.0, 1.0)]),
+    precursor_mass=500.0,
+)
 
 
 @pytest.fixture
@@ -21,6 +28,7 @@ def sample_results() -> list[MatchResult]:
         MatchResult(
             structure_id="NRP_001",
             spectrum_id="spec_101",
+            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=800.45,
             spectrum_mass=800.46,
             mass_tolerance=0.02,
@@ -36,6 +44,7 @@ def sample_results() -> list[MatchResult]:
         MatchResult(
             structure_id="NRP_002",
             spectrum_id="spec_102",
+            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=950.50,
             spectrum_mass=950.48,
             mass_tolerance=0.05,
