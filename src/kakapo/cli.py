@@ -96,7 +96,7 @@ def create_parser() -> argparse.ArgumentParser:
         "-str",
         nargs="+",
         required=True,
-        help="Path(s) to rBAN YAML structure files or directories containing YAML files.",
+        help="Path(s) to rBAN YAML/JSON structure files or directories containing them.",
     )
 
     # Parameters
@@ -285,7 +285,7 @@ def main(args: Optional[list[str]] = None) -> int:
     # 2. Resolve input paths
     try:
         spectra_files = resolve_paths(parsed_args.spectra, [".mgf"])
-        structure_files = resolve_paths(parsed_args.structures, [".yaml", ".yml"])
+        structure_files = resolve_paths(parsed_args.structures, [".yaml", ".yml", ".json"])
     except FileNotFoundError as e:
         logger.error("Path validation failed: %s", e)
         print(f"Error: {e}", file=sys.stderr)
@@ -296,8 +296,11 @@ def main(args: Optional[list[str]] = None) -> int:
         print("Error: No spectra files (.mgf) resolved from inputs.", file=sys.stderr)
         return 1
     if not structure_files:
-        logger.error("No valid structure files (.yaml, .yml) resolved from inputs.")
-        print("Error: No structure files (.yaml, .yml) resolved from inputs.", file=sys.stderr)
+        logger.error("No valid structure files (.yaml, .yml, .json) resolved from inputs.")
+        print(
+            "Error: No structure files (.yaml, .yml, .json) resolved from inputs.",
+            file=sys.stderr,
+        )
         return 1
 
     # 3. Run pipeline

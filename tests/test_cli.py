@@ -84,6 +84,19 @@ def test_resolve_paths_directory(temp_io_structure) -> None:
     assert temp_io_structure["struct_file2"] in resolved_struct
 
 
+def test_resolve_paths_json(temp_io_structure) -> None:
+    """Test resolving directories with JSON extensions."""
+    json_file = temp_io_structure["struct_dir"] / "struct3.json"
+    json_file.write_text("{}", encoding="utf-8")
+
+    resolved_struct = resolve_paths(
+        [str(temp_io_structure["struct_dir"])],
+        [".yaml", ".yml", ".json"],
+    )
+    assert len(resolved_struct) == 3
+    assert json_file in resolved_struct
+
+
 def test_resolve_paths_nonexistent() -> None:
     """Test resolving nonexistent paths raises FileNotFoundError."""
     with pytest.raises(FileNotFoundError, match="Input path does not exist"):
