@@ -18,6 +18,7 @@ from kakapo.config import (
     DEFAULT_MIN_PEAKS,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_USE_CACHE,
+    DEFAULT_X_MODE,
 )
 from kakapo.io.writer import write_results, write_spectra, write_structures
 from kakapo.main import run_pipeline
@@ -132,6 +133,12 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=str(DEFAULT_CACHE_DIR),
         help="Directory where parsed/cleaned experimental spectra are cached.",
+    )
+    parser.add_argument(
+        "--x-mode",
+        action="store_true",
+        default=DEFAULT_X_MODE,
+        help="Only apply modifications to monomers whose NORINE name starts with 'X'.",
     )
 
     # Output options
@@ -334,6 +341,7 @@ def main(args: Optional[list[str]] = None) -> int:
             rules=DEFAULT_FRAGMENTATION_RULES,
             use_cache=parsed_args.use_cache,
             cache_dir=Path(parsed_args.cache_dir),
+            x_mode=parsed_args.x_mode,
         )
 
         # 5. Write results (one file per requested format)

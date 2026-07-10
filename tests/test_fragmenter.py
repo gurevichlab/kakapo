@@ -630,6 +630,7 @@ class TestIntegration:
     def test_theoretical_spectrum_empty_id(self):
         """TheoreticalSpectrum should raise ValueError if structure_id is empty."""
         ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(ValueError, match="Structure ID cannot be empty"):
             TheoreticalSpectrum(
                 structure_id="",
@@ -637,10 +638,12 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=1,
                 monomer_mass_vector=(100.0,),
+                monomers={0: dummy},
             )
 
     def test_theoretical_spectrum_empty_ions(self):
         """TheoreticalSpectrum should raise ValueError if ions set is empty."""
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(ValueError, match="must contain at least one ion"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -648,11 +651,13 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=1,
                 monomer_mass_vector=(100.0,),
+                monomers={0: dummy},
             )
 
     def test_theoretical_spectrum_negative_mass(self):
         """TheoreticalSpectrum should raise ValueError if structure_mass is negative."""
         ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(ValueError, match="Structure mass must be non-negative"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -660,6 +665,7 @@ class TestIntegration:
                 structure_mass=-1.0,
                 monomer_count=1,
                 monomer_mass_vector=(100.0,),
+                monomers={0: dummy},
             )
 
     def test_theoretical_spectrum_invalid_monomer_count(self):
@@ -672,11 +678,13 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=0,
                 monomer_mass_vector=(),
+                monomers={},
             )
 
     def test_theoretical_spectrum_vector_type(self):
         """TheoreticalSpectrum should raise TypeError if monomer_mass_vector is not a tuple."""
         ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(TypeError, match="Monomer mass vector must be a tuple"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -684,11 +692,13 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=1,
                 monomer_mass_vector=[100.0],  # type: ignore
+                monomers={0: dummy},
             )
 
     def test_theoretical_spectrum_vector_values(self):
         """TheoreticalSpectrum should raise ValueError if vector has negative values."""
         ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(ValueError, match="All monomer masses.*must be non-negative"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -696,11 +706,13 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=1,
                 monomer_mass_vector=(-5.0,),
+                monomers={0: dummy},
             )
 
     def test_theoretical_spectrum_vector_length_mismatch(self):
         """TheoreticalSpectrum should raise ValueError if vector length mismatches count."""
         ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
         with pytest.raises(ValueError, match="length must match monomer count"):
             TheoreticalSpectrum(
                 structure_id="spec_1",
@@ -708,6 +720,49 @@ class TestIntegration:
                 structure_mass=100.0,
                 monomer_count=2,
                 monomer_mass_vector=(100.0,),
+                monomers={0: dummy},
+            )
+
+    def test_theoretical_spectrum_invalid_monomers_type(self):
+        """TheoreticalSpectrum should raise TypeError if monomers is not a dict."""
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        with pytest.raises(TypeError, match="Monomers must be a dictionary"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=1,
+                monomer_mass_vector=(100.0,),
+                monomers=[123],  # type: ignore
+            )
+
+    def test_theoretical_spectrum_invalid_monomers_keys_values(self):
+        """TheoreticalSpectrum should raise TypeError if keys are not ints or values not Monomer."""
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        with pytest.raises(
+            TypeError, match="Monomer keys must be integers and values must be Monomer"
+        ):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=1,
+                monomer_mass_vector=(100.0,),
+                monomers={0: 123},  # type: ignore
+            )
+
+    def test_theoretical_spectrum_monomers_length_mismatch(self):
+        """TheoreticalSpectrum should raise ValueError if monomers count mismatches count."""
+        ion = TheoreticalIon(fragment_id="frag_0", mask=1)
+        dummy = Monomer("Ala", "A", False, Chirality.L, mass=100.0)
+        with pytest.raises(ValueError, match="Monomers dictionary length must match monomer count"):
+            TheoreticalSpectrum(
+                structure_id="spec_1",
+                ions=frozenset({ion}),
+                structure_mass=100.0,
+                monomer_count=2,
+                monomer_mass_vector=(100.0, 100.0),
+                monomers={0: dummy},
             )
 
     def test_rule_based_bond_filtering_with_subtypes(self):

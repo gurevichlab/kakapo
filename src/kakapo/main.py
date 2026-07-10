@@ -26,6 +26,7 @@ def run_pipeline(  # noqa: C901
     rules: Optional[tuple[FragmentationRule, ...]],
     use_cache: bool,
     cache_dir: Path,
+    x_mode: bool = False,
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -169,6 +170,7 @@ def run_pipeline(  # noqa: C901
         theoretical_spectra=theoretical_spectra,
         mass_tolerance=mass_tolerance,
         min_shared_peaks=min_peaks,
+        x_mode=x_mode,
     )
     duration_match = time.perf_counter() - start_match
     logger.info(

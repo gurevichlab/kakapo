@@ -475,4 +475,5 @@ def generate_theoretical_spectrum(
         structure_mass=structure_mass,
         monomer_count=molecule.monomer_count,
         monomer_mass_vector=tuple(masses_vector),
+        monomers=molecule.monomers,
     )

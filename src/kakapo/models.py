@@ -161,8 +161,9 @@ class TheoreticalSpectrum:
     structure_mass: float
     monomer_count: int
     monomer_mass_vector: tuple[float, ...]
+    monomers: dict[int, "Monomer"]
 
-    def __post_init__(self):
+    def __post_init__(self): # noqa: C901
         if not self.structure_id:
             raise ValueError("Structure ID cannot be empty")
         if len(self.ions) == 0:
@@ -177,6 +178,16 @@ class TheoreticalSpectrum:
             raise ValueError("All monomer masses in vector must be non-negative numbers")
         if len(self.monomer_mass_vector) != self.monomer_count:
             raise ValueError("Monomer mass vector length must match monomer count")
+        if not isinstance(self.monomers, dict):
+            raise TypeError("Monomers must be a dictionary")
+        if any(
+            not isinstance(k, int) or not isinstance(v, Monomer)
+            for k, v in self.monomers.items()
+        ):
+            raise TypeError("Monomer keys must be integers and values must be Monomer instances")
+        if len(self.monomers) != self.monomer_count:
+            raise ValueError("Monomers dictionary length must match monomer count")
+
 
 
 @dataclass(frozen=True)

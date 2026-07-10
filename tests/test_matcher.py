@@ -9,7 +9,15 @@ from kakapo.core.matcher import (
     match_spectra,
     match_spectrum,
 )
-from kakapo.models import Peak, RuleShift, Spectrum, TheoreticalIon, TheoreticalSpectrum
+from kakapo.models import (
+    Chirality,
+    Monomer,
+    Peak,
+    RuleShift,
+    Spectrum,
+    TheoreticalIon,
+    TheoreticalSpectrum,
+)
 
 
 def make_spectrum(
@@ -48,12 +56,23 @@ def make_theoretical_spectrum(
         )
         for idx, mass in enumerate(ion_masses)
     )
+    monomers = {
+        idx: Monomer(
+            norine_name=f"Mon_{idx}",
+            residue="X",
+            is_methylated=False,
+            chirality=Chirality.L,
+            mass=monomer_mass,
+        )
+        for idx in range(monomer_count)
+    }
     return TheoreticalSpectrum(
         structure_id=structure_id,
         ions=ions,
         structure_mass=structure_mass,
         monomer_count=monomer_count,
         monomer_mass_vector=(monomer_mass,) * monomer_count,
+        monomers=monomers,
     )
 
 
@@ -483,12 +502,23 @@ class TestSpectrumMatcher:
         if len(monomer_masses) == 2:
             ions = frozenset(list(ions) + [TheoreticalIon(fragment_id="frag_2", mask=3)])
 
+        monomers = {
+            idx: Monomer(
+                norine_name=f"Mon_{idx}",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=mass,
+            )
+            for idx, mass in enumerate(monomer_masses)
+        }
         theo = TheoreticalSpectrum(
             structure_id="struct_mod",
             ions=ions,
             structure_mass=sum(monomer_masses),
             monomer_count=len(monomer_masses),
             monomer_mass_vector=monomer_masses,
+            monomers=monomers,
         )
 
         spec = make_spectrum(peaks, precursor_mass=precursor_mass, charge=1)
@@ -500,3 +530,73 @@ class TestSpectrumMatcher:
             assert result.initial_modified_monomer_mass is None
         else:
             assert result.initial_modified_monomer_mass == monomer_masses[expected_idx]
+
+    def test_x_mode_matching_unambiguous(self) -> None:
+        """Verify that x_mode=True only permits modifications on monomers starting with 'X'."""
+        monomers = {
+            0: Monomer(
+                norine_name="X0",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+            1: Monomer(
+                norine_name="Ala",
+                residue="A",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+        }
+
+        # frag_0 has a shift of +5.0 (mass 105.0 unmodified)
+        # frag_1 has a shift of 0.0 (mass 100.0 unmodified)
+        ions = frozenset(
+            [
+                TheoreticalIon(
+                    fragment_id="frag_0", mask=1, rules_shifts=(RuleShift("PEPTIDE", 5.0),)
+                ),
+                TheoreticalIon(fragment_id="frag_1", mask=2),
+            ]
+        )
+
+        theo = TheoreticalSpectrum(
+            structure_id="struct_x",
+            ions=ions,
+            structure_mass=205.0,  # sum of unmodified monomers (200.0) + shift (5.0)
+            monomer_count=2,
+            monomer_mass_vector=(100.0, 100.0),
+            monomers=monomers,
+        )
+
+        # Precursor neutral mass = 215.0 (+10.0 mod)
+        # If we modify X0 (idx 0), we expect:
+        # frag_0 -> 115.0
+        # frag_1 -> 100.0
+        #
+        # If we modify Ala (idx 1), we expect:
+        # frag_0 -> 105.0
+        # frag_1 -> 110.0
+
+        # Let's test experimental spectrum that has modified Ala (110.0)
+        # This requires modifying Ala (idx 1) to match.
+        spec_ala = Spectrum(
+            spectrum_id="spec_ala",
+            source_file_path="test.mgf",
+            peaks=frozenset([Peak(110.0 + 1.0078, 1.0)]),
+            precursor_mass=215.0 + 1.0078,
+            charge=1,
+        )
+
+        # In x_mode=False, it should successfully match (modifying Ala, idx 1, to get peak 110.0)
+        res_normal = match_spectrum(spec_ala, theo, mass_tolerance=0.02, x_mode=False)
+        assert res_normal.matched_peaks_count == 1
+        assert res_normal.modified_monomer_idx == 1
+
+        # In x_mode=True, it should NOT match since Ala doesn't start with X,
+        # and modifying X0 (idx 0) doesn't produce peak 110.0 (it produces 115.0 and 100.0)
+        res_x = match_spectrum(spec_ala, theo, mass_tolerance=0.02, x_mode=True)
+        assert res_x.matched_peaks_count == 0
+        assert res_x.modified_monomer_idx is None
+

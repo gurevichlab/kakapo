@@ -703,3 +703,15 @@ class TestCliMainFunction:
         ]
         with pytest.raises(SystemExit):
             main(args_neg)
+
+    def test_cli_parser_x_mode(self) -> None:
+        """Verify that --x-mode CLI flag is parsed correctly."""
+        from kakapo.cli import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json", "--x-mode"])
+        assert args.x_mode is True
+
+        args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
+        assert args_default.x_mode is False
+

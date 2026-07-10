@@ -174,6 +174,7 @@ def _match_spectrum_with_mod(
     theoretical_spectrum: TheoreticalSpectrum,
     mass_tolerance: float,
     mass_mod: float,
+    x_mode: bool = False,
 ) -> MatchResult:
     """Helper to match spectrum using modification-tolerant monomer mass updates."""
     # Sort to ensure reproducible greedy matching
@@ -199,6 +200,11 @@ def _match_spectrum_with_mod(
     best_i = None
 
     for i in range(len(monomer_masses)):
+        if x_mode:
+            monomer = theoretical_spectrum.monomers.get(i)
+            if monomer is None or not monomer.norine_name.startswith("X"):
+                continue
+
         updated_monomer_masses = list(monomer_masses)
         updated_monomer_masses[i] += mass_mod
         if updated_monomer_masses[i] <= 0:
@@ -249,6 +255,7 @@ def match_spectrum(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
     mass_tolerance: float,
+    x_mode: bool = False,
 ) -> MatchResult:
     """Match an experimental spectrum to a theoretical spectrum.
 
@@ -285,7 +292,9 @@ def match_spectrum(
         )
         return _match_spectrum_unmodified(spectrum, theoretical_spectrum, mass_tolerance, mass_mod)
 
-    return _match_spectrum_with_mod(spectrum, theoretical_spectrum, mass_tolerance, mass_mod)
+    return _match_spectrum_with_mod(
+        spectrum, theoretical_spectrum, mass_tolerance, mass_mod, x_mode=x_mode
+    )
 
 
 @dataclass
@@ -437,6 +446,7 @@ def match_spectra(
     theoretical_spectra: Iterable[TheoreticalSpectrum],
     mass_tolerance: float,
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
+    x_mode: bool = False,
 ) -> list[MatchResult]:
     """Match each experimental spectrum to each theoretical spectrum pairwise.
 
@@ -485,7 +495,7 @@ def match_spectra(
         for struct_id in feasible_ids:
             theo = theo_map[struct_id]
             if abs(theo.structure_mass - spec.get_neutral_mass()) <= MAX_TOTAL_MASS_DIFFERENCE:
-                result = match_spectrum(spec, theo, mass_tolerance)
+                result = match_spectrum(spec, theo, mass_tolerance, x_mode=x_mode)
                 if result.matched_peaks_count > 0:
                     results.append(result)
 
