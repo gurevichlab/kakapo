@@ -11,7 +11,7 @@ from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_rban_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
 from kakapo.io.yaml_parser import parse_rban_yaml_batch
-from kakapo.models import MatchResult
+from kakapo.models import MatchResult, Molecule
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +26,7 @@ def run_pipeline(  # noqa: C901
     rules: Optional[tuple[FragmentationRule, ...]],
     use_cache: bool,
     cache_dir: Path,
-) -> list[MatchResult]:
+) -> tuple[list[MatchResult], list[Molecule]]:
     """Run the main kakapo analysis pipeline.
 
     Coordinates input loading, theoretical spectrum generation (fragmentation), spectrum matching,
@@ -41,9 +41,11 @@ def run_pipeline(  # noqa: C901
         rules: Fragmentation rules to apply.
 
     Returns:
-        A sorted list of MatchResult objects. Results are sorted primarily by matched_peaks_count in
-        descending order, then secondarily by spectrum_id (ascending), and thirdly by structure_id
-        (ascending).
+        A tuple of:
+            - A sorted list of MatchResult objects. Results are sorted primarily by
+              matched_peaks_count in descending order, then secondarily by spectrum_id
+              (ascending), and thirdly by structure_id (ascending).
+            - A list of loaded Molecule objects.
 
     Raises:
         ValueError: If inputs are invalid or no structures/spectra are found.
@@ -187,4 +189,4 @@ def run_pipeline(  # noqa: C901
     )
 
     logger.info("Pipeline execution complete")
-    return results
+    return results, list(molecules.values())

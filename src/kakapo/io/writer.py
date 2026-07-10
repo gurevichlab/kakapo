@@ -13,7 +13,8 @@ from typing import Optional, Union
 
 from tabulate import tabulate
 
-from kakapo.models import MatchResult
+from kakapo.io.yaml_parser import _serialize_molecule
+from kakapo.models import MatchResult, Molecule
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -245,3 +246,42 @@ def write_results(
         except OSError as e:
             logger.error("Failed to write results to %s: %s", file_path, e)
             raise
+
+
+def write_structures(
+    molecules: list[Molecule],
+    output_path: Optional[Union[str, Path]] = None,
+) -> None:
+    """Write serialized molecules to a file in JSON format.
+
+    If output_path is None, or stdout/stderr/'-', this does not write anything
+    to avoid polluting the results stream. If it points to a file, writes to that file.
+    If it points to a directory (or has no suffix), writes to 'structures.json' in
+    that directory. If output_path is a specific file, writes to 'structures.json' in
+    the same parent directory.
+
+    Args:
+        molecules: A list of Molecule instances to serialize.
+        output_path: Target file path or directory.
+    """
+    if output_path is None or str(output_path) == "-":
+        logger.debug("Stdout output requested, skipping writing structures JSON")
+        return
+
+    path = Path(output_path)
+    if path.is_dir() or not path.suffix:
+        structures_path = path / "structures.json"
+    else:
+        structures_path = path.parent / "structures.json"
+
+    logger.info("Writing %d structures to %s", len(molecules), structures_path)
+
+    serialized_data = {mol.structure_id: _serialize_molecule(mol) for mol in molecules}
+
+    try:
+        structures_path.parent.mkdir(parents=True, exist_ok=True)
+        structures_path.write_text(json.dumps(serialized_data, indent=2), encoding="utf-8")
+        logger.info("Successfully wrote structures to %s", structures_path)
+    except OSError as e:
+        logger.error("Failed to write structures to %s: %s", structures_path, e)
+        raise

@@ -10,6 +10,7 @@ from kakapo.io.writer import (
     format_as_json,
     format_as_table,
     write_results,
+    write_structures,
 )
 from kakapo.models import MatchResult, Peak, Spectrum
 
@@ -137,6 +138,7 @@ class TestWriterJsonFormatting:
         import json
 
         from kakapo.models import MatchedPeak
+
         # Let's add some peaks to NRP_001 matched_peaks for mask testing
         sample_results[0] = MatchResult(
             structure_id=sample_results[0].structure_id,
@@ -151,7 +153,12 @@ class TestWriterJsonFormatting:
             monomer_count=sample_results[0].monomer_count,
             unmodified_monomer_mass_vector=sample_results[0].unmodified_monomer_mass_vector,
             matched_peaks=[
-                MatchedPeak(theoretical_mz=100.0, experimental_mz=100.1, charge=1, theoretical_fragment_mask=5)
+                MatchedPeak(
+                    theoretical_mz=100.0,
+                    experimental_mz=100.1,
+                    charge=1,
+                    theoretical_fragment_mask=5,
+                )
             ],
             modified_monomer_idx=sample_results[0].modified_monomer_idx,
             mass_mod=sample_results[0].mass_mod,
@@ -174,7 +181,16 @@ class TestWriterJsonFormatting:
 
         assert data[1]["structure_id"] == "NRP_002"
         assert data[1]["monomer_count"] == 8
-        assert data[1]["unmodified_monomer_mass_vector"] == [110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0]
+        assert data[1]["unmodified_monomer_mass_vector"] == [
+            110.0,
+            120.0,
+            130.0,
+            140.0,
+            150.0,
+            160.0,
+            170.0,
+            180.0,
+        ]
 
 
 class TestWriterWriteResults:
@@ -236,3 +252,80 @@ class TestWriterWriteResults:
         with pytest.raises(OSError):
             write_results(sample_results, output_path=invalid_path, format_type="csv")
 
+
+class TestWriterWriteStructures:
+    """Test suite for the write_structures function."""
+
+    def test_write_structures_stdout_or_none(self) -> None:
+        """Test write_structures returns early with no files written for stdout/None."""
+        from kakapo.models import Chirality, Molecule, Monomer
+
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        dummy_mol = Molecule(
+            structure_id="Ala_structure",
+            monomers={0: monomer},
+            bonds=(),
+        )
+
+        # Should do nothing and not raise any error
+        write_structures([dummy_mol], output_path=None)
+        write_structures([dummy_mol], output_path="-")
+
+    def test_write_structures_to_directory(self, tmp_path: Path) -> None:
+        """Test writing structures when output_path is a directory."""
+        import json
+
+        from kakapo.models import Chirality, Molecule, Monomer
+
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        dummy_mol = Molecule(
+            structure_id="Ala_structure",
+            monomers={0: monomer},
+            bonds=(),
+        )
+
+        # Case 1: output_path is a directory
+        write_structures([dummy_mol], output_path=tmp_path)
+        expected_file = tmp_path / "structures.json"
+        assert expected_file.exists()
+
+        data = json.loads(expected_file.read_text(encoding="utf-8"))
+        assert "Ala_structure" in data
+        assert data["Ala_structure"]["structure_id"] == "Ala_structure"
+
+    def test_write_structures_to_file_path(self, tmp_path: Path) -> None:
+        """Test writing structures when output_path is a specific file path."""
+        import json
+
+        from kakapo.models import Chirality, Molecule, Monomer
+
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        dummy_mol = Molecule(
+            structure_id="Ala_structure",
+            monomers={0: monomer},
+            bonds=(),
+        )
+
+        out_file = tmp_path / "subdir" / "results.csv"
+        write_structures([dummy_mol], output_path=out_file)
+        expected_file = tmp_path / "subdir" / "structures.json"
+        assert expected_file.exists()
+
+        data = json.loads(expected_file.read_text(encoding="utf-8"))
+        assert "Ala_structure" in data
+        assert data["Ala_structure"]["structure_id"] == "Ala_structure"

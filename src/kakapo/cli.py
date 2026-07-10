@@ -19,7 +19,7 @@ from kakapo.config import (
     DEFAULT_OUTPUT_DIR,
     DEFAULT_USE_CACHE,
 )
-from kakapo.io.writer import write_results
+from kakapo.io.writer import write_results, write_structures
 from kakapo.main import run_pipeline
 from kakapo.utils.logger import get_logger, setup_logging
 
@@ -243,17 +243,27 @@ def determine_output_path(
 
 def _write_all_formats(
     results: list,
+    molecules: list,
     parsed_args: argparse.Namespace,
 ) -> None:
     """Write results for every requested output format.
 
     Args:
         results: Matched results to write.
+        molecules: Loaded structures to filter and write.
         parsed_args: Parsed command-line arguments (provides format list, output path, etc.).
     """
+    # Filter only used molecules by ids in results
+    matched_ids = {r.structure_id for r in results}
+    used_molecules = [mol for mol in molecules if mol.structure_id in matched_ids]
+
+    structures_written = False
     for fmt in parsed_args.format:
         output_path = determine_output_path(parsed_args, fmt)
         write_results(results, output_path=output_path, format_type=fmt)
+        if not structures_written and output_path is not None and str(output_path) != "-":
+            write_structures(used_molecules, output_path=output_path)
+            structures_written = True
 
 
 def main(args: Optional[list[str]] = None) -> int:
@@ -305,7 +315,7 @@ def main(args: Optional[list[str]] = None) -> int:
 
     # 3. Run pipeline
     try:
-        results = run_pipeline(
+        results, molecules = run_pipeline(
             spectra_files=spectra_files,
             structure_files=structure_files,
             mass_tolerance=parsed_args.tolerance,
@@ -319,7 +329,7 @@ def main(args: Optional[list[str]] = None) -> int:
         # 5. Write results (one file per requested format)
         if parsed_args.top_n is not None:
             results = results[: parsed_args.top_n]
-        _write_all_formats(results, parsed_args)
+        _write_all_formats(results, molecules, parsed_args)
 
     except Exception as e:
         logger.exception("Pipeline execution failed")
