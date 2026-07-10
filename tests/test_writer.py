@@ -10,6 +10,7 @@ from kakapo.io.writer import (
     format_as_json,
     format_as_table,
     write_results,
+    write_spectra,
     write_structures,
 )
 from kakapo.models import MatchResult, Peak, Spectrum
@@ -29,7 +30,6 @@ def sample_results() -> list[MatchResult]:
         MatchResult(
             structure_id="NRP_001",
             spectrum_id="spec_101",
-            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=800.45,
             spectrum_mass=800.46,
             mass_tolerance=0.02,
@@ -46,7 +46,6 @@ def sample_results() -> list[MatchResult]:
         MatchResult(
             structure_id="NRP_002",
             spectrum_id="spec_102",
-            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=950.50,
             spectrum_mass=950.48,
             mass_tolerance=0.05,
@@ -143,7 +142,6 @@ class TestWriterJsonFormatting:
         sample_results[0] = MatchResult(
             structure_id=sample_results[0].structure_id,
             spectrum_id=sample_results[0].spectrum_id,
-            cleaned_spectrum=sample_results[0].cleaned_spectrum,
             structure_mass=sample_results[0].structure_mass,
             spectrum_mass=sample_results[0].spectrum_mass,
             mass_tolerance=sample_results[0].mass_tolerance,
@@ -171,10 +169,6 @@ class TestWriterJsonFormatting:
         assert len(data) == 2
         assert data[0]["structure_id"] == "NRP_001"
         assert data[0]["spectrum_id"] == "spec_101"
-        assert data[0]["cleaned_spectrum"]["spectrum_id"] == "spec_1"
-        assert len(data[0]["cleaned_spectrum"]["peaks"]) == 1
-        assert data[0]["cleaned_spectrum"]["peaks"][0]["mass"] == 100.0
-        assert data[0]["cleaned_spectrum"]["peaks"][0]["intensity"] == 1.0
 
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
@@ -329,3 +323,39 @@ class TestWriterWriteStructures:
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "Ala_structure" in data
         assert data["Ala_structure"]["structure_id"] == "Ala_structure"
+
+
+class TestWriterWriteSpectra:
+    """Test suite for write_spectra function in writer.py."""
+
+    def test_write_spectra_stdout_skips(self) -> None:
+        """Test that write_spectra does not write files when stdout is specified."""
+        # This shouldn't raise any errors or write files
+        write_spectra([DUMMY_SPEC], output_path=None)
+        write_spectra([DUMMY_SPEC], output_path="-")
+
+    def test_write_spectra_to_directory(self, tmp_path: Path) -> None:
+        """Test writing spectra when output_path is a directory."""
+        import json
+
+        write_spectra([DUMMY_SPEC], output_path=tmp_path)
+        expected_file = tmp_path / "spectra.json"
+        assert expected_file.exists()
+
+        data = json.loads(expected_file.read_text(encoding="utf-8"))
+        assert "spec_1" in data
+        assert data["spec_1"]["spectrum_id"] == "spec_1"
+        assert data["spec_1"]["peaks"][0]["mass"] == 100.0
+
+    def test_write_spectra_to_file_path(self, tmp_path: Path) -> None:
+        """Test writing spectra when output_path is a specific file path."""
+        import json
+
+        out_file = tmp_path / "subdir" / "results.csv"
+        write_spectra([DUMMY_SPEC], output_path=out_file)
+        expected_file = tmp_path / "subdir" / "spectra.json"
+        assert expected_file.exists()
+
+        data = json.loads(expected_file.read_text(encoding="utf-8"))
+        assert "spec_1" in data
+        assert data["spec_1"]["spectrum_id"] == "spec_1"

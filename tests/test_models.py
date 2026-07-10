@@ -86,7 +86,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -103,7 +102,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=-1.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -120,7 +118,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=-100.5,
                 mass_tolerance=0.01,
@@ -137,7 +134,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=-0.01,
@@ -208,7 +204,6 @@ class TestModelsValidation:
         mr = MatchResult(
             structure_id="mol_1",
             spectrum_id="spec_1",
-            cleaned_spectrum=DUMMY_SPEC,
             structure_mass=100.0,
             spectrum_mass=100.5,
             mass_tolerance=0.01,
@@ -226,7 +221,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -243,7 +237,6 @@ class TestModelsValidation:
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,
@@ -255,30 +248,12 @@ class TestModelsValidation:
                 initial_modified_monomer_mass=-1.0,
             )
 
-    def test_match_result_invalid_cleaned_spectrum_type(self):
-        """MatchResult raises TypeError if cleaned_spectrum is not a Spectrum."""
-        with pytest.raises(TypeError, match="Cleaned spectrum must be a Spectrum instance"):
-            MatchResult(
-                structure_id="mol_1",
-                spectrum_id="spec_1",
-                cleaned_spectrum="not a spectrum",  # type: ignore
-                structure_mass=100.0,
-                spectrum_mass=100.5,
-                mass_tolerance=0.01,
-                matched_peaks_count=5,
-                theoretical_peaks_count=10,
-                experimental_peaks_count=15,
-                monomer_count=3,
-                unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-            )
-
     def test_match_result_invalid_monomer_mass_vector_type(self):
         """MatchResult raises TypeError if unmodified_monomer_mass_vector is not a tuple."""
         with pytest.raises(TypeError, match="Unmodified monomer mass vector must be a tuple"):
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.5,
                 mass_tolerance=0.01,

@@ -446,7 +446,6 @@ class MatchResult:
 
     structure_id: str
     spectrum_id: str
-    cleaned_spectrum: Spectrum
     structure_mass: float
     spectrum_mass: float
     mass_tolerance: float
@@ -488,5 +487,3 @@ class MatchResult:
             and self.initial_modified_monomer_mass < 0
         ):
             raise ValueError("Initial modified monomer mass must be non-negative")
-        if not isinstance(self.cleaned_spectrum, Spectrum):
-            raise TypeError("Cleaned spectrum must be a Spectrum instance")

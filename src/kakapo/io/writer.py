@@ -14,7 +14,7 @@ from typing import Optional, Union
 from tabulate import tabulate
 
 from kakapo.io.yaml_parser import _serialize_molecule
-from kakapo.models import MatchResult, Molecule
+from kakapo.models import MatchResult, Molecule, Spectrum
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -145,17 +145,6 @@ def format_as_json(results: list[MatchResult]) -> str:
     logger.debug("Formatting %d match results as JSON", len(results))
     serialized = []
     for r in results:
-        cleaned_spec_data = {
-            "spectrum_id": r.cleaned_spectrum.spectrum_id,
-            "source_file_path": r.cleaned_spectrum.source_file_path,
-            "peaks": [
-                {"mass": p.mass, "intensity": p.intensity}
-                for p in r.cleaned_spectrum.get_sorted_peaks()
-            ],
-            "precursor_mass": r.cleaned_spectrum.precursor_mass,
-            "charge": r.cleaned_spectrum.charge,
-        }
-
         matched_peaks_data = []
         for mp in r.matched_peaks:
             mask_str = mask_to_reversed_binary_string(mp.theoretical_fragment_mask, r.monomer_count)
@@ -172,7 +161,6 @@ def format_as_json(results: list[MatchResult]) -> str:
             {
                 "structure_id": r.structure_id,
                 "spectrum_id": r.spectrum_id,
-                "cleaned_spectrum": cleaned_spec_data,
                 "structure_mass": r.structure_mass,
                 "spectrum_mass": r.spectrum_mass,
                 "mass_tolerance": r.mass_tolerance,
@@ -284,4 +272,53 @@ def write_structures(
         logger.info("Successfully wrote structures to %s", structures_path)
     except OSError as e:
         logger.error("Failed to write structures to %s: %s", structures_path, e)
+        raise
+
+
+def serialize_spectrum(spec: Spectrum) -> dict:
+    """Serialize a Spectrum object into a JSON-serializable dictionary."""
+    return {
+        "spectrum_id": spec.spectrum_id,
+        "source_file_path": spec.source_file_path,
+        "peaks": [{"mass": p.mass, "intensity": p.intensity} for p in spec.get_sorted_peaks()],
+        "precursor_mass": spec.precursor_mass,
+        "charge": spec.charge,
+    }
+
+
+def write_spectra(
+    spectra: list[Spectrum],
+    output_path: Optional[Union[str, Path]] = None,
+) -> None:
+    """Write serialized spectra to a file in JSON format.
+
+    If output_path is None, or stdout/stderr/'-', this does not write anything.
+    If it points to a file, writes to 'spectra.json' in the same parent directory.
+    If it points to a directory (or has no suffix), writes to 'spectra.json' in
+    that directory.
+
+    Args:
+        spectra: A list of Spectrum instances to serialize.
+        output_path: Target file path or directory.
+    """
+    if output_path is None or str(output_path) == "-":
+        logger.debug("Stdout output requested, skipping writing spectra JSON")
+        return
+
+    path = Path(output_path)
+    if path.is_dir() or not path.suffix:
+        spectra_path = path / "spectra.json"
+    else:
+        spectra_path = path.parent / "spectra.json"
+
+    logger.info("Writing %d spectra to %s", len(spectra), spectra_path)
+
+    serialized_data = {spec.spectrum_id: serialize_spectrum(spec) for spec in spectra}
+
+    try:
+        spectra_path.parent.mkdir(parents=True, exist_ok=True)
+        spectra_path.write_text(json.dumps(serialized_data, indent=2), encoding="utf-8")
+        logger.info("Successfully wrote spectra to %s", spectra_path)
+    except OSError as e:
+        logger.error("Failed to write spectra to %s: %s", spectra_path, e)
         raise

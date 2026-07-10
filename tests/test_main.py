@@ -117,7 +117,7 @@ class TestPipelineOrchestration:
 
     def test_run_pipeline_single_files(self, temp_files):
         """Test running pipeline with single paths for spectra and structures."""
-        results, molecules = run_pipeline(
+        results, molecules, spectra = run_pipeline(
             spectra_files=temp_files["mgf"],
             structure_files=temp_files["ala_yaml"],
             mass_tolerance=0.5,
@@ -132,6 +132,8 @@ class TestPipelineOrchestration:
         assert isinstance(molecules, list)
         assert len(molecules) == 1
         assert molecules[0].structure_id == "Ala_structure"
+        assert isinstance(spectra, list)
+        assert len(spectra) == 2
         # Should match each of the 2 spectra to the 1 structure -> 2 results
         assert len(results) == 2
         for r in results:
@@ -140,7 +142,7 @@ class TestPipelineOrchestration:
 
     def test_run_pipeline_multiple_files(self, temp_files):
         """Test running pipeline with lists of paths for multiple structures."""
-        results, molecules = run_pipeline(
+        results, molecules, spectra = run_pipeline(
             spectra_files=[temp_files["mgf"]],
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
             mass_tolerance=0.5,
@@ -151,6 +153,8 @@ class TestPipelineOrchestration:
             cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
         )
 
+        assert isinstance(spectra, list)
+
         # 2 spectra * 2 structures = 4 combinations, but only 2 (with Ala_structure) have
         # matching peaks > 0
         assert len(results) == 2
@@ -160,7 +164,7 @@ class TestPipelineOrchestration:
 
     def test_run_pipeline_sorting_order(self, temp_files):
         """Test sorting of results: descending matched peaks, then ascending IDs."""
-        results, _ = run_pipeline(
+        results, _, _ = run_pipeline(
             spectra_files=temp_files["mgf"],
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
             mass_tolerance=0.5,
@@ -200,7 +204,7 @@ END IONS
         custom_rules = (FragmentationRule("AMINO", 1.0, -1.0),)
 
         # Match with custom rules (AMINO is breakable)
-        results, _ = run_pipeline(
+        results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
             structure_files=temp_files["dimer_yaml"],
             mass_tolerance=0.5,
@@ -216,7 +220,7 @@ END IONS
         assert results[0].structure_id == "Ala_Dimer_structure"
 
         # Match with default rules (AMINO is NOT breakable, yields 0 matches and gets excluded)
-        default_results, _ = run_pipeline(
+        default_results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
             structure_files=temp_files["dimer_yaml"],
             mass_tolerance=0.5,

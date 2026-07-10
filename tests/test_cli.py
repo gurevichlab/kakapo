@@ -115,8 +115,10 @@ class TestCliMainFunction:
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_success(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
@@ -128,7 +130,6 @@ class TestCliMainFunction:
                 MatchResult(
                     structure_id="struct1",
                     spectrum_id="spec_1",
-                    cleaned_spectrum=DUMMY_SPEC,
                     structure_mass=100.0,
                     spectrum_mass=100.0,
                     mass_tolerance=0.01,
@@ -141,6 +142,7 @@ class TestCliMainFunction:
                 )
             ],
             [],
+            [DUMMY_SPEC],
         )
 
         args = [
@@ -162,6 +164,7 @@ class TestCliMainFunction:
             format_type="table",
         )
         mock_write_structures.assert_not_called()
+        mock_write_spectra.assert_not_called()
 
     def test_main_missing_arguments(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that missing required arguments raises SystemExit from argparse."""
@@ -201,15 +204,17 @@ class TestCliMainFunction:
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_output_file_generation(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test output file destination path determination based on arguments."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         out_path = temp_io_structure["root"] / "output_test"
 
         # Case 1: Specific file output path
@@ -231,6 +236,7 @@ class TestCliMainFunction:
             [], output_path=out_path / "res.csv", format_type="csv"
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "res.csv")
+        mock_write_spectra.assert_called_with([], output_path=out_path / "res.csv")
 
         # Case 2: Output directory path (should append filename)
         args_dir = [
@@ -251,19 +257,22 @@ class TestCliMainFunction:
             [], output_path=out_path / "results.txt", format_type="table"
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "results.txt")
+        mock_write_spectra.assert_called_with([], output_path=out_path / "results.txt")
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_default_paths(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test main uses default output and log paths when not provided."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
 
         args = [
             "-s",
@@ -279,19 +288,22 @@ class TestCliMainFunction:
         expected_out = DEFAULT_OUTPUT_DIR / "results.txt"
         mock_write_results.assert_called_with([], output_path=expected_out, format_type="table")
         mock_write_structures.assert_called_once_with([], output_path=expected_out)
+        mock_write_spectra.assert_called_once_with([], output_path=expected_out)
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_dash_stdout(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test outputting to stdout using '-' output argument."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         args = [
             "-s",
             str(temp_io_structure["spec_file1"]),
@@ -306,6 +318,7 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_write_results.assert_called_with([], output_path="-", format_type="table")
         mock_write_structures.assert_not_called()
+        mock_write_spectra.assert_not_called()
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
@@ -342,17 +355,19 @@ class TestCliMainFunction:
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     @patch("kakapo.cli.setup_logging")
     def test_main_custom_log_file(
         self,
         mock_setup_logging: MagicMock,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test main sets up logging to a custom file path."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         log_file = temp_io_structure["root"] / "custom.log"
         args = [
             "-s",
@@ -373,21 +388,26 @@ class TestCliMainFunction:
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
         )
+        mock_write_spectra.assert_called_once_with(
+            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
+        )
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     @patch("kakapo.cli.setup_logging")
     def test_main_log_file_in_output_dir_from_directory_path(
         self,
         mock_setup_logging: MagicMock,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test that log file is created in output dir when --output is a directory path."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         out_dir = temp_io_structure["root"] / "specified_output_dir"
         args_dir = [
             "-s",
@@ -406,21 +426,24 @@ class TestCliMainFunction:
             [], output_path=out_dir / "results.txt", format_type="table"
         )
         mock_write_structures.assert_called_once_with([], output_path=out_dir / "results.txt")
+        mock_write_spectra.assert_called_once_with([], output_path=out_dir / "results.txt")
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     @patch("kakapo.cli.setup_logging")
     def test_main_log_file_in_output_dir_from_file_path(
         self,
         mock_setup_logging: MagicMock,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test that log file is created in parent dir when --output is a file path."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         out_dir = temp_io_structure["root"] / "specified_output_dir"
         out_file = out_dir / "results.csv"
         args_file = [
@@ -438,21 +461,24 @@ class TestCliMainFunction:
         mock_setup_logging.assert_called_with(verbosity=0, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with([], output_path=out_file, format_type="table")
         mock_write_structures.assert_called_once_with([], output_path=out_file)
+        mock_write_spectra.assert_called_once_with([], output_path=out_file)
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     @patch("kakapo.cli.setup_logging")
     def test_main_log_file_in_output_dir_default(
         self,
         mock_setup_logging: MagicMock,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test that log file falls back to DEFAULT_OUTPUT_DIR when --output is not specified."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         args_default = [
             "-s",
             str(temp_io_structure["spec_file1"]),
@@ -472,12 +498,17 @@ class TestCliMainFunction:
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
         )
+        mock_write_spectra.assert_called_once_with(
+            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
+        )
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_top_n_success(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
@@ -488,7 +519,6 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,
@@ -502,7 +532,6 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct2",
                 spectrum_id="spec_2",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,
@@ -514,7 +543,7 @@ class TestCliMainFunction:
                 matched_peaks=[],
             ),
         ]
-        mock_run_pipeline.return_value = (results, [])
+        mock_run_pipeline.return_value = (results, [], [DUMMY_SPEC])
 
         args = [
             "-s",
@@ -538,19 +567,22 @@ class TestCliMainFunction:
             format_type="table",
         )
         mock_write_structures.assert_not_called()
+        mock_write_spectra.assert_not_called()
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_multiple_formats(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
         """Test that specifying multiple formats writes one file per format."""
-        mock_run_pipeline.return_value = ([], [])
+        mock_run_pipeline.return_value = ([], [], [])
         out_path = temp_io_structure["root"] / "multi_out"
 
         args = [
@@ -576,19 +608,29 @@ class TestCliMainFunction:
         assert calls["csv"] == out_path / "results.csv"
         assert calls["json"] == out_path / "results.json"
         mock_write_structures.assert_called_once_with([], output_path=out_path / "results.csv")
+        mock_write_spectra.assert_called_once_with([], output_path=out_path / "results.csv")
 
     @patch("kakapo.cli.run_pipeline")
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_write_structures_receives_matched_molecules(
         self,
+        mock_write_spectra: MagicMock,
         mock_write_structures: MagicMock,
         mock_write_results: MagicMock,
         mock_run_pipeline: MagicMock,
         temp_io_structure,
     ) -> None:
-        """Test that only matched molecules are filtered and passed to write_structures."""
-        from kakapo.models import Chirality, Molecule, Monomer
+        """Test that only matched molecules and spectra are filtered and passed to their write methods."""
+        from kakapo.models import Chirality, Molecule, Monomer, Peak, Spectrum
+
+        spec2 = Spectrum(
+            spectrum_id="spec_2",
+            source_file_path="test_file.mgf",
+            peaks=frozenset([Peak(100.0, 1.0)]),
+            precursor_mass=500.0,
+        )
 
         m1 = Monomer(norine_name="Ala", residue="Ala", is_methylated=False, chirality=Chirality.L)
         mol1 = Molecule(structure_id="struct1", monomers={0: m1})
@@ -598,7 +640,6 @@ class TestCliMainFunction:
             MatchResult(
                 structure_id="struct1",
                 spectrum_id="spec_1",
-                cleaned_spectrum=DUMMY_SPEC,
                 structure_mass=100.0,
                 spectrum_mass=100.0,
                 mass_tolerance=0.01,
@@ -611,7 +652,7 @@ class TestCliMainFunction:
             )
         ]
 
-        mock_run_pipeline.return_value = (results, [mol1, mol2])
+        mock_run_pipeline.return_value = (results, [mol1, mol2], [DUMMY_SPEC, spec2])
 
         out_path = temp_io_structure["root"] / "output_test"
         args = [
@@ -629,6 +670,9 @@ class TestCliMainFunction:
         exit_code = main(args)
         assert exit_code == 0
         mock_write_structures.assert_called_once_with([mol1], output_path=out_path / "results.json")
+        mock_write_spectra.assert_called_once_with(
+            [DUMMY_SPEC], output_path=out_path / "results.json"
+        )
 
     def test_main_top_n_invalid(self, temp_io_structure) -> None:
         """Test that invalid values for --top-n raise SystemExit."""
