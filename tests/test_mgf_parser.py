@@ -207,6 +207,7 @@ class TestMgfParserConversion:
     def test_matchms_to_kakapo_invalid_source_file_path_type(self):
         """Should raise TypeError if source_file_path is not a string."""
         from matchms import Spectrum as MatchmsSpectrum
+
         peaks = np.array([[100.0, 10.0]])
         matchms_spec = MatchmsSpectrum(
             mz=peaks[:, 0],
@@ -698,4 +699,3 @@ END IONS
         finally:
             if os.path.exists(mgf_path):
                 os.unlink(mgf_path)
-
