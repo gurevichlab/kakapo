@@ -17,11 +17,13 @@ from kakapo.config import (
     DEFAULT_MASS_TOLERANCE,
     DEFAULT_MIN_PEAKS,
     DEFAULT_OUTPUT_DIR,
+    DEFAULT_SCORING_MODE,
     DEFAULT_USE_CACHE,
     DEFAULT_X_MODE,
 )
 from kakapo.io.writer import write_results, write_spectra, write_structures
 from kakapo.main import run_pipeline
+from kakapo.models import ScoringMode
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -139,6 +141,13 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=DEFAULT_X_MODE,
         help="Only apply modifications to monomers whose NORINE name starts with 'X'.",
+    )
+    parser.add_argument(
+        "--scoring",
+        choices=[m.value for m in ScoringMode],
+        default=DEFAULT_SCORING_MODE,
+        help="Scoring mode to use for matching (default: all-peaks). "
+        "Choices: all-peaks, exp-peaks.",
     )
 
     # Output options
@@ -342,6 +351,7 @@ def main(args: Optional[list[str]] = None) -> int:
             use_cache=parsed_args.use_cache,
             cache_dir=Path(parsed_args.cache_dir),
             x_mode=parsed_args.x_mode,
+            scoring=ScoringMode(parsed_args.scoring),
         )
 
         # 5. Write results (one file per requested format)

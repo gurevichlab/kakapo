@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from kakapo.constants import DEFAULT_RULES
+from kakapo.models import ScoringMode
 
 DEFAULT_OUTPUT_DIR = Path("kakapo_output")
 DEFAULT_APPLY_FILTERS = True
@@ -14,4 +15,4 @@ DEFAULT_CACHE_DIR = Path(".kakapo_cache")
 
 MAX_TOTAL_MASS_DIFFERENCE = 300
 DEFAULT_X_MODE = False
-
+DEFAULT_SCORING_MODE = ScoringMode.ALL_PEAKS

@@ -5,13 +5,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, Union
 
+from kakapo.config import DEFAULT_SCORING_MODE
 from kakapo.constants import DEFAULT_RULES, FragmentationRule
 from kakapo.core.fragmenter import generate_theoretical_spectrum
 from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_rban_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
 from kakapo.io.yaml_parser import parse_rban_yaml_batch
-from kakapo.models import MatchResult, Molecule, Spectrum
+from kakapo.models import MatchResult, Molecule, ScoringMode, Spectrum
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,6 +28,7 @@ def run_pipeline(  # noqa: C901
     use_cache: bool,
     cache_dir: Path,
     x_mode: bool = False,
+    scoring: ScoringMode = DEFAULT_SCORING_MODE,
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -56,7 +58,8 @@ def run_pipeline(  # noqa: C901
     logger.info("Starting Kakapo workflow pipeline")
     logger.info(
         "Running pipeline with parameters: spectra_files=%s, structure_files=%s, "
-        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s",
+        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s, "
+        "scoring=%s",
         spectra_files,
         structure_files,
         mass_tolerance,
@@ -65,6 +68,7 @@ def run_pipeline(  # noqa: C901
         rules,
         use_cache,
         cache_dir,
+        scoring,
     )
 
     # Normalize spectra files to a list of Path objects
@@ -171,6 +175,7 @@ def run_pipeline(  # noqa: C901
         mass_tolerance=mass_tolerance,
         min_shared_peaks=min_peaks,
         x_mode=x_mode,
+        scoring=scoring,
     )
     duration_match = time.perf_counter() - start_match
     logger.info(
@@ -179,12 +184,12 @@ def run_pipeline(  # noqa: C901
     )
 
     # 5. Sort results
-    # Primary key: matched_peaks_count (descending)
+    # Primary key: score (descending)
     # Secondary key: spectrum_id (ascending)
     # Tertiary key: structure_id (ascending)
-    logger.info("Sorting %d match results", len(results))
+    logger.info("Sorting %d match results by score", len(results))
     start_sort = time.perf_counter()
-    results.sort(key=lambda r: (-r.matched_peaks_count, r.spectrum_id, r.structure_id))
+    results.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
     duration_sort = time.perf_counter() - start_sort
     logger.info(
         "Sorted match results in %.4f seconds",

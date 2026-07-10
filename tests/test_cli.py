@@ -715,3 +715,30 @@ class TestCliMainFunction:
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
         assert args_default.x_mode is False
 
+    def test_cli_parser_scoring(self) -> None:
+        """Verify that --scoring CLI flag is parsed correctly."""
+        from kakapo.cli import create_parser
+
+        parser = create_parser()
+
+        # Test exp-peaks mode
+        args_exp = parser.parse_args(
+            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "exp-peaks"]
+        )
+        assert args_exp.scoring == "exp-peaks"
+
+        # Test all-peaks mode
+        args_all = parser.parse_args(
+            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "all-peaks"]
+        )
+        assert args_all.scoring == "all-peaks"
+
+        # Test default scoring mode (should be all-peaks)
+        args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
+        assert args_default.scoring == "all-peaks"
+
+        # Test invalid scoring mode raises SystemExit
+        with pytest.raises(SystemExit):
+            parser.parse_args(
+                ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "invalid-mode"]
+            )

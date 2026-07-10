@@ -10,6 +10,8 @@ from enum import Enum, auto
 import networkx as nx
 from rban_parsing.rban_parser import NRP_metadata, Parsed_rBAN_Record
 
+from kakapo.constants import PROTON_MASS
+
 
 class Chirality(Enum):
     """Amino acid chirality."""
@@ -17,6 +19,13 @@ class Chirality(Enum):
     L = auto()
     D = auto()
     UNKNOWN = auto()
+
+
+class ScoringMode(str, Enum):
+    """Scoring modes for matching experimental spectra."""
+
+    ALL_PEAKS = "all-peaks"
+    EXP_PEAKS = "exp-peaks"
 
 
 @dataclass(frozen=True)
@@ -78,7 +87,6 @@ class Spectrum:
         Returns:
             The neutral precursor mass in Daltons.
         """
-        from kakapo.constants import PROTON_MASS
 
         charge = self.charge if self.charge is not None else 1
         return self.precursor_mass * charge - PROTON_MASS * charge
@@ -163,7 +171,7 @@ class TheoreticalSpectrum:
     monomer_mass_vector: tuple[float, ...]
     monomers: dict[int, "Monomer"]
 
-    def __post_init__(self): # noqa: C901
+    def __post_init__(self):  # noqa: C901
         if not self.structure_id:
             raise ValueError("Structure ID cannot be empty")
         if len(self.ions) == 0:
@@ -181,13 +189,11 @@ class TheoreticalSpectrum:
         if not isinstance(self.monomers, dict):
             raise TypeError("Monomers must be a dictionary")
         if any(
-            not isinstance(k, int) or not isinstance(v, Monomer)
-            for k, v in self.monomers.items()
+            not isinstance(k, int) or not isinstance(v, Monomer) for k, v in self.monomers.items()
         ):
             raise TypeError("Monomer keys must be integers and values must be Monomer instances")
         if len(self.monomers) != self.monomer_count:
             raise ValueError("Monomers dictionary length must match monomer count")
-
 
 
 @dataclass(frozen=True)
@@ -448,6 +454,7 @@ class MatchResult:
         experimental_peaks_count: Number of experimental peaks in the spectrum.
         monomer_count: Number of monomers in the matched molecule.
         unmodified_monomer_mass_vector: Precalculated unmodified vector of monomer masses.
+        score: The match score calculated based on the selected scoring mode.
         matched_peaks: List of matched peaks.
         modified_monomer_idx: The 0-based index of the modified monomer in the best match.
         mass_mod: The calculated mass difference (precursor - structure) for the match.
@@ -465,6 +472,7 @@ class MatchResult:
     experimental_peaks_count: int
     monomer_count: int
     unmodified_monomer_mass_vector: tuple[float, ...]
+    score: int = 0
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modified_monomer_idx: int | None = None
     mass_mod: float | None = None
@@ -498,3 +506,5 @@ class MatchResult:
             and self.initial_modified_monomer_mass < 0
         ):
             raise ValueError("Initial modified monomer mass must be non-negative")
+        if self.score < 0:
+            raise ValueError("Score must be non-negative")

@@ -11,6 +11,7 @@ from kakapo.models import (
     MatchedPeak,
     MatchResult,
     Peak,
+    ScoringMode,
     Spectrum,
     TheoreticalIonWithMass,
     TheoreticalSpectrum,
@@ -113,11 +114,23 @@ def _calculate_theory_ions_with_mass(
     )
 
 
+def _calculate_score(
+    scoring: ScoringMode,
+    matched_peaks: list[MatchedPeak],
+    matched_peaks_count: int,
+) -> int:
+    """Calculate match score based on the selected scoring mode."""
+    if scoring == ScoringMode.EXP_PEAKS:
+        return len({mp.experimental_mz for mp in matched_peaks})
+    return matched_peaks_count
+
+
 def _match_spectrum_unmodified(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
     mass_tolerance: float,
     mass_mod: float,
+    scoring: ScoringMode,
 ) -> MatchResult:
     """Helper to match spectrum using unmodified monomer masses."""
     # Sort to ensure reproducible greedy matching
@@ -151,6 +164,8 @@ def _match_spectrum_unmodified(
         matched_peaks_count,
     )
 
+    score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
+
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
         spectrum_id=spectrum.spectrum_id,
@@ -162,6 +177,7 @@ def _match_spectrum_unmodified(
         experimental_peaks_count=len(spectrum.peaks),
         monomer_count=theoretical_spectrum.monomer_count,
         unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
+        score=score,
         matched_peaks=matched_peaks,
         modified_monomer_idx=None,
         mass_mod=mass_mod,
@@ -174,6 +190,7 @@ def _match_spectrum_with_mod(
     theoretical_spectrum: TheoreticalSpectrum,
     mass_tolerance: float,
     mass_mod: float,
+    scoring: ScoringMode,
     x_mode: bool = False,
 ) -> MatchResult:
     """Helper to match spectrum using modification-tolerant monomer mass updates."""
@@ -195,6 +212,7 @@ def _match_spectrum_with_mod(
         mass_mod,
     )
 
+    max_score = 0
     max_matched_count = 0
     best_matched_peaks = []
     best_i = None
@@ -218,7 +236,10 @@ def _match_spectrum_with_mod(
             exp_peaks, theory_ions_with_mass, max_charge, mass_tolerance
         )
 
-        if matched_peaks_count > max_matched_count:
+        score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
+
+        if score > max_score:
+            max_score = score
             max_matched_count = matched_peaks_count
             best_matched_peaks = matched_peaks
             best_i = i
@@ -248,6 +269,7 @@ def _match_spectrum_with_mod(
         modified_monomer_idx=best_i,
         mass_mod=mass_mod,
         initial_modified_monomer_mass=initial_modified_monomer_mass,
+        score=max_score,
     )
 
 
@@ -255,6 +277,7 @@ def match_spectrum(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
     mass_tolerance: float,
+    scoring: ScoringMode,
     x_mode: bool = False,
 ) -> MatchResult:
     """Match an experimental spectrum to a theoretical spectrum.
@@ -290,10 +313,12 @@ def match_spectrum(
             theoretical_spectrum.structure_mass,
             mass_tolerance,
         )
-        return _match_spectrum_unmodified(spectrum, theoretical_spectrum, mass_tolerance, mass_mod)
+        return _match_spectrum_unmodified(
+            spectrum, theoretical_spectrum, mass_tolerance, mass_mod, scoring
+        )
 
     return _match_spectrum_with_mod(
-        spectrum, theoretical_spectrum, mass_tolerance, mass_mod, x_mode=x_mode
+        spectrum, theoretical_spectrum, mass_tolerance, mass_mod, scoring, x_mode=x_mode
     )
 
 
@@ -445,6 +470,7 @@ def match_spectra(
     spectra: Iterable[Spectrum],
     theoretical_spectra: Iterable[TheoreticalSpectrum],
     mass_tolerance: float,
+    scoring: ScoringMode,
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
     x_mode: bool = False,
 ) -> list[MatchResult]:
@@ -495,7 +521,7 @@ def match_spectra(
         for struct_id in feasible_ids:
             theo = theo_map[struct_id]
             if abs(theo.structure_mass - spec.get_neutral_mass()) <= MAX_TOTAL_MASS_DIFFERENCE:
-                result = match_spectrum(spec, theo, mass_tolerance, x_mode=x_mode)
+                result = match_spectrum(spec, theo, mass_tolerance, scoring, x_mode=x_mode)
                 if result.matched_peaks_count > 0:
                     results.append(result)
 
