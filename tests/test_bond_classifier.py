@@ -166,7 +166,9 @@ def test_match_rule():
     # Match rule reversed
     # Edge is (10, 11).
     # rule u (C) matches 11, rule v (N) matches 10.
-    matched, is_reversed = _match_rule(local_mol, id_to_rdkit_idx, rule_reversed, AtomicEdge(10, 11))
+    matched, is_reversed = _match_rule(
+        local_mol, id_to_rdkit_idx, rule_reversed, AtomicEdge(10, 11)
+    )
     assert matched is True
     assert is_reversed is True
 
@@ -178,7 +180,9 @@ def test_match_rule():
     local_mol2 = rw_mol2.GetMol()
 
     id_to_rdkit_idx2 = {11: c2_idx, 12: o_idx}
-    matched, is_reversed = _match_rule(local_mol2, id_to_rdkit_idx2, rule_forward, AtomicEdge(11, 12))
+    matched, is_reversed = _match_rule(
+        local_mol2, id_to_rdkit_idx2, rule_forward, AtomicEdge(11, 12)
+    )
     assert matched is False
 
 

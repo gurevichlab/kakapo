@@ -232,10 +232,7 @@ def load_mgf(  # noqa: C901
     if num_spectra > 100:
         num_workers = min(4, os.cpu_count() or 1)
         chunk_size = max(100, num_spectra // (num_workers * 4))
-        chunks = [
-            matchms_spectra[i : i + chunk_size]
-            for i in range(0, num_spectra, chunk_size)
-        ]
+        chunks = [matchms_spectra[i : i + chunk_size] for i in range(0, num_spectra, chunk_size)]
 
         logger.info(
             "Processing %d spectra in parallel using %d workers (chunk size: %d)...",

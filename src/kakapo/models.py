@@ -477,7 +477,9 @@ class MatchResult:
             raise ValueError("Monomer count must be positive")
         if not isinstance(self.unmodified_monomer_mass_vector, tuple):
             raise TypeError("Unmodified monomer mass vector must be a tuple")
-        if any(not isinstance(m, (int, float)) or m < 0 for m in self.unmodified_monomer_mass_vector):
+        if any(
+            not isinstance(m, (int, float)) or m < 0 for m in self.unmodified_monomer_mass_vector
+        ):
             raise ValueError("All monomer masses in vector must be non-negative numbers")
         if len(self.unmodified_monomer_mass_vector) != self.monomer_count:
             raise ValueError("Unmodified monomer mass vector length must match monomer count")
