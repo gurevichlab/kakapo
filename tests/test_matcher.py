@@ -24,7 +24,7 @@ from kakapo.models import (
 def make_spectrum(
     peaks_data: list[tuple[float, float]],
     precursor_mass: float = 500.0,
-    charge: int | None = None,
+    charge: int | None = 1,
     spectrum_id: str = "spec_1",
     source_file_path: str = "test.mgf",
 ) -> Spectrum:
@@ -234,6 +234,36 @@ class TestSpectrumMatcher:
 
         assert results_map[("spec_1", "struct_1")].matched_peaks_count == 1
         assert results_map[("spec_2", "struct_2")].matched_peaks_count == 1
+
+    def test_match_spectra_unknown_charge(self):
+        """Test matching spectrum with unknown charge (charge=None)."""
+        spec = make_spectrum(
+            [(500.0, 100.0)],
+            precursor_mass=1000.0,
+            charge=None,
+            spectrum_id="spec_unknown_charge"
+        )
+        true_precursor_mz = (1000.0 + 2 * PROTON_MASS) / 2
+        from dataclasses import replace
+        spec = replace(spec, precursor_mass=true_precursor_mz)
+
+        theo = make_theoretical_spectrum(
+            [500.0 - PROTON_MASS], structure_mass=1000.0, monomer_count=1, structure_id="struct_1"
+        )
+
+        results = match_spectra(
+            [spec],
+            [theo],
+            mass_tolerance=0.01,
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
+        )
+
+        assert len(results) == 1
+        assert results[0].spectrum_id == "spec_unknown_charge"
+        assert results[0].spectrum_mass == true_precursor_mz
+        assert results[0].matched_peaks_count == 1
+        assert results[0].matched_peaks[0].charge == 1
 
     def test_match_spectra_empty_inputs(self):
         """Test match_spectra with empty input iterables."""

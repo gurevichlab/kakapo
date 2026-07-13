@@ -16,11 +16,13 @@ def temp_files(tmp_path: Path):
     mgf_content = """BEGIN IONS
 TITLE=spec_1
 PEPMASS=147.1128
+CHARGE=1+
 147.1128 100.0
 END IONS
 BEGIN IONS
 TITLE=spec_2
 PEPMASS=260.1972
+CHARGE=1+
 147.1128 50.0
 260.1972 100.0
 END IONS
@@ -194,6 +196,7 @@ class TestPipelineOrchestration:
         custom_mgf_content = """BEGIN IONS
 TITLE=custom_spec
 PEPMASS=148.0478
+CHARGE=1+
 76.0315 100.0
 73.0236 100.0
 END IONS

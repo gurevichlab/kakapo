@@ -76,6 +76,8 @@ class Spectrum:
             raise TypeError("Source file path must be a string")
         if self.charge is not None and not isinstance(self.charge, int):
             raise TypeError("Charge must be an integer or None")
+        if self.charge == 0:
+            object.__setattr__(self, "charge", None)
 
     def get_sorted_peaks(self) -> list[Peak]:
         """Return peaks sorted by mass."""

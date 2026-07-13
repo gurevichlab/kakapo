@@ -277,6 +277,33 @@ END IONS
         finally:
             os.unlink(mgf_path)
 
+    def test_load_mgf_with_zero_charge(self):
+        """Load MGF file containing CHARGE=0+ (treat as unknown/None)."""
+        mgf_content = """BEGIN IONS
+TITLE=spec_zero_charge
+PEPMASS=500.0
+CHARGE=0+
+100 10
+200 20
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+
+        try:
+            # First load: parses MGF and saves to cache
+            spectra = load_mgf(mgf_path, self.cache_dir, apply_filters=False, use_cache=True)
+            assert len(spectra) == 1
+            assert spectra[0].spectrum_id == "spec_zero_charge"
+            assert spectra[0].charge is None
+
+            # Second load: loads from cache
+            spectra_cached = load_mgf(mgf_path, self.cache_dir, apply_filters=False, use_cache=True)
+            assert len(spectra_cached) == 1
+            assert spectra_cached[0].spectrum_id == "spec_zero_charge"
+            assert spectra_cached[0].charge is None
+        finally:
+            os.unlink(mgf_path)
+
     def test_load_mgf_multiple_spectra(self):
         """Load MGF file with multiple spectra."""
         mgf_content = """BEGIN IONS

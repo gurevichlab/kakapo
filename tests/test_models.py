@@ -53,6 +53,15 @@ class TestModelsValidation:
         )
         assert spec.charge == 2
 
+        spec_zero = Spectrum(
+            spectrum_id="spec_1",
+            source_file_path="test_file.mgf",
+            peaks=frozenset([Peak(100.0, 1.0)]),
+            precursor_mass=500.0,
+            charge=0,
+        )
+        assert spec_zero.charge is None
+
         with pytest.raises(TypeError, match="Charge must be an integer or None"):
             Spectrum(
                 spectrum_id="spec_1",

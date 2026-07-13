@@ -3,7 +3,7 @@
 import bisect
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
@@ -506,9 +506,13 @@ def match_spectra(
         if min_shared_peaks <= 1:
             for struct_id, theo in theo_map.items():
                 if theo.monomer_count == 1:
-                    if (
-                        abs(theo.structure_mass - spec.get_neutral_mass())
+                    charges_to_try = (
+                        [spec.charge] if spec.charge is not None else list(range(1, MAX_CHARGE + 1))
+                    )
+                    if any(
+                        abs(theo.structure_mass - (spec.precursor_mass * z - PROTON_MASS * z))
                         <= MAX_TOTAL_MASS_DIFFERENCE
+                        for z in charges_to_try
                     ):
                         feasible_ids.add(struct_id)
 
@@ -520,10 +524,18 @@ def match_spectra(
         )
         for struct_id in feasible_ids:
             theo = theo_map[struct_id]
-            if abs(theo.structure_mass - spec.get_neutral_mass()) <= MAX_TOTAL_MASS_DIFFERENCE:
-                result = match_spectrum(spec, theo, mass_tolerance, scoring, x_mode=x_mode)
-                if result.matched_peaks_count > 0:
-                    results.append(result)
+            charges_to_try = (
+                [spec.charge] if spec.charge is not None else list(range(1, MAX_CHARGE + 1))
+            )
+            for z in charges_to_try:
+                precursor_neutral_mass = spec.precursor_mass * z - PROTON_MASS * z
+                if abs(theo.structure_mass - precursor_neutral_mass) <= MAX_TOTAL_MASS_DIFFERENCE:
+                    spec_with_charge = replace(spec, charge=z)
+                    result = match_spectrum(
+                        spec_with_charge, theo, mass_tolerance, scoring, x_mode=x_mode
+                    )
+                    if result.matched_peaks_count > 0:
+                        results.append(result)
 
     logger.info(
         "Completed batch matching. Generated %d total MatchResult(s).",
