@@ -16,9 +16,9 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from matchms import Spectrum as MatchmsSpectrum
-from matchms.filtering.default_pipelines import CLEAN_PEAKS, DEFAULT_FILTERS
 from matchms.importing import load_from_mgf
 
+from kakapo.config import DEFAULT_FILTERS
 from kakapo.models import Peak, Spectrum
 from kakapo.utils.logger import get_logger
 
@@ -119,7 +119,7 @@ def _process_and_convert_chunk(
 
     Args:
         spectra_chunk: A list of matchms Spectrum objects.
-        apply_filters: Whether to apply matchms CLEAN_PEAKS and DEFAULT_FILTERS.
+        apply_filters: Whether to apply matchms CLEAN_PEAKS.
         min_peaks: Minimum number of peaks required for a spectrum to be included.
         source_file_path: Path to the original MGF file.
 
@@ -129,7 +129,7 @@ def _process_and_convert_chunk(
     from matchms import SpectrumProcessor
 
     if apply_filters:
-        processor = SpectrumProcessor(CLEAN_PEAKS + DEFAULT_FILTERS)
+        processor = SpectrumProcessor(DEFAULT_FILTERS)
         processed_result = processor.process_spectra(spectra_chunk, progress_bar=False)
         if isinstance(processed_result, tuple):
             spectra_chunk = processed_result[0]
@@ -173,7 +173,7 @@ def load_mgf(  # noqa: C901
     Args:
         file_path: Path to the .mgf file.
         cache_dir: Path to the cache directory.
-        apply_filters: If True, apply matchms CLEAN_PEAKS and DEFAULT_FILTERS.
+        apply_filters: If True, apply matchms CLEAN_PEAKS.
                       Default is True.
         min_peaks: Minimum number of peaks a spectrum must have to be included.
                   Default is 1.
