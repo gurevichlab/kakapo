@@ -157,37 +157,58 @@ class TestModelsValidation:
         """MatchedPeak validates that theoretical_mz is non-negative."""
         with pytest.raises(ValueError, match="Theoretical m/z must be non-negative"):
             MatchedPeak(
-                theoretical_mz=-1.0, experimental_mz=100.0, charge=1, theoretical_fragment_mask=1
+                theoretical_mz=-1.0,
+                experimental_mz=100.0,
+                experimental_peak_idx=0,
+                charge=1,
+                theoretical_fragment_mask=1,
             )
 
     def test_matched_peak_negative_experimental_mz(self):
         """MatchedPeak validates that experimental_mz is non-negative."""
         with pytest.raises(ValueError, match="Experimental m/z must be non-negative"):
             MatchedPeak(
-                theoretical_mz=100.0, experimental_mz=-1.0, charge=1, theoretical_fragment_mask=1
+                theoretical_mz=100.0,
+                experimental_mz=-1.0,
+                experimental_peak_idx=0,
+                charge=1,
+                theoretical_fragment_mask=1,
             )
 
     def test_matched_peak_zero_charge(self):
         """MatchedPeak validates that charge is positive (fails for zero)."""
         with pytest.raises(ValueError, match="Charge must be positive"):
             MatchedPeak(
-                theoretical_mz=100.0, experimental_mz=100.0, charge=0, theoretical_fragment_mask=1
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                experimental_peak_idx=0,
+                charge=0,
+                theoretical_fragment_mask=1,
             )
 
     def test_matched_peak_negative_charge(self):
         """MatchedPeak validates that charge is positive (fails for negative)."""
         with pytest.raises(ValueError, match="Charge must be positive"):
             MatchedPeak(
-                theoretical_mz=100.0, experimental_mz=100.0, charge=-1, theoretical_fragment_mask=1
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                experimental_peak_idx=0,
+                charge=-1,
+                theoretical_fragment_mask=1,
             )
 
     def test_matched_peak_valid_initialization(self):
         """MatchedPeak initializes successfully with valid inputs."""
         ep = MatchedPeak(
-            theoretical_mz=100.0, experimental_mz=100.1, charge=2, theoretical_fragment_mask=3
+            theoretical_mz=100.0,
+            experimental_mz=100.1,
+            experimental_peak_idx=5,
+            charge=2,
+            theoretical_fragment_mask=3,
         )
         assert ep.theoretical_mz == 100.0
         assert ep.experimental_mz == 100.1
+        assert ep.experimental_peak_idx == 5
         assert ep.charge == 2
         assert ep.theoretical_fragment_mask == 3
 
@@ -197,6 +218,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_idx=0,
                 charge=1,
                 theoretical_fragment_mask="not an int",  # type: ignore
             )
@@ -205,7 +227,33 @@ class TestModelsValidation:
         """MatchedPeak validates that theoretical_fragment_mask is positive."""
         with pytest.raises(ValueError, match="Theoretical fragment mask must be positive"):
             MatchedPeak(
-                theoretical_mz=100.0, experimental_mz=100.0, charge=1, theoretical_fragment_mask=-1
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                experimental_peak_idx=0,
+                charge=1,
+                theoretical_fragment_mask=-1,
+            )
+
+    def test_matched_peak_invalid_index_type(self):
+        """MatchedPeak validates that experimental_peak_idx is an integer."""
+        with pytest.raises(TypeError, match="Experimental peak index must be an integer"):
+            MatchedPeak(
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                charge=1,
+                theoretical_fragment_mask=1,
+                experimental_peak_idx="not an int",  # type: ignore
+            )
+
+    def test_matched_peak_negative_index(self):
+        """MatchedPeak validates that experimental_peak_idx is non-negative."""
+        with pytest.raises(ValueError, match="Experimental peak index must be non-negative"):
+            MatchedPeak(
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                charge=1,
+                theoretical_fragment_mask=1,
+                experimental_peak_idx=-1,
             )
 
     def test_match_result_default_matched_peaks(self):

@@ -418,12 +418,14 @@ class MatchedPeak:
     Attributes:
         theoretical_mz: The m/z value of the theoretical peak.
         experimental_mz: The m/z value of the experimental peak.
+        experimental_peak_idx: The index of the matched peak in the experimental spectrum.
         charge: The charge of the matched peak.
         theoretical_fragment_mask: Bitmask representing the monomers in this fragment.
     """
 
     theoretical_mz: float
     experimental_mz: float
+    experimental_peak_idx: int
     charge: int
     theoretical_fragment_mask: int
 
@@ -438,6 +440,10 @@ class MatchedPeak:
             raise TypeError("Theoretical fragment mask must be an integer")
         if self.theoretical_fragment_mask <= 0:
             raise ValueError("Theoretical fragment mask must be positive")
+        if not isinstance(self.experimental_peak_idx, int):
+            raise TypeError("Experimental peak index must be an integer")
+        if self.experimental_peak_idx < 0:
+            raise ValueError("Experimental peak index must be non-negative")
 
 
 @dataclass(frozen=True)

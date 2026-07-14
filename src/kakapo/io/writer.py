@@ -155,6 +155,7 @@ def format_as_json(results: list[MatchResult]) -> str:
                 {
                     "theoretical_mz": mp.theoretical_mz,
                     "experimental_mz": mp.experimental_mz,
+                    "experimental_peak_idx": mp.experimental_peak_idx,
                     "charge": mp.charge,
                     "theoretical_fragment_mask": mask_str,
                 }
@@ -345,7 +346,6 @@ def write_structures(
 def serialize_spectrum(spec: Spectrum) -> dict:
     """Serialize a Spectrum object into a JSON-serializable dictionary."""
     return {
-        "spectrum_id": spec.spectrum_id,
         "source_file_path": spec.source_file_path,
         "peaks": [{"mass": p.mass, "intensity": p.intensity} for p in spec.get_sorted_peaks()],
         "precursor_mass": spec.precursor_mass,

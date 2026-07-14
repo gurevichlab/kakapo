@@ -76,6 +76,7 @@ def _match_peaks(
                         MatchedPeak(
                             theoretical_mz=mz,
                             experimental_mz=peak.mass,
+                            experimental_peak_idx=idx,
                             charge=charge,
                             theoretical_fragment_mask=ion.mask,
                         )

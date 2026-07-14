@@ -154,6 +154,7 @@ class TestWriterJsonFormatting:
                 MatchedPeak(
                     theoretical_mz=100.0,
                     experimental_mz=100.1,
+                    experimental_peak_idx=2,
                     charge=1,
                     theoretical_fragment_mask=5,
                 )
@@ -172,6 +173,7 @@ class TestWriterJsonFormatting:
 
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
+        assert data[0]["matched_peaks"][0]["experimental_peak_idx"] == 2
 
         assert data[1]["structure_id"] == "NRP_002"
         assert data[1]["monomer_count"] == 8
@@ -346,7 +348,6 @@ class TestWriterWriteSpectra:
 
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "spec_1" in data
-        assert data["spec_1"]["spectrum_id"] == "spec_1"
         assert data["spec_1"]["peaks"][0]["mass"] == 100.0
 
     def test_write_spectra_to_file_path(self, tmp_path: Path) -> None:
@@ -360,4 +361,3 @@ class TestWriterWriteSpectra:
 
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "spec_1" in data
-        assert data["spec_1"]["spectrum_id"] == "spec_1"
