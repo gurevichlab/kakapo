@@ -295,7 +295,8 @@ class TestWriterWriteStructures:
 
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "Ala_structure" in data
-        assert data["Ala_structure"]["structure_id"] == "Ala_structure"
+        assert "structure_id" not in data["Ala_structure"]
+        assert data["Ala_structure"]["input_compound_id"] == "Ala_structure"
 
     def test_write_structures_to_file_path(self, tmp_path: Path) -> None:
         """Test writing structures when output_path is a specific file path."""
@@ -322,7 +323,8 @@ class TestWriterWriteStructures:
 
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "Ala_structure" in data
-        assert data["Ala_structure"]["structure_id"] == "Ala_structure"
+        assert "structure_id" not in data["Ala_structure"]
+        assert data["Ala_structure"]["input_compound_id"] == "Ala_structure"
 
 
 class TestWriterWriteSpectra:

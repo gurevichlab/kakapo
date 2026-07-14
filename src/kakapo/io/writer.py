@@ -13,7 +13,6 @@ from typing import Optional, Union
 
 from tabulate import tabulate
 
-from kakapo.io.yaml_parser import _serialize_molecule
 from kakapo.models import MatchResult, Molecule, Spectrum
 from kakapo.utils.logger import get_logger
 
@@ -239,6 +238,69 @@ def write_results(
         except OSError as e:
             logger.error("Failed to write results to %s: %s", file_path, e)
             raise
+
+
+def _serialize_molecule(mol: Molecule) -> dict:
+    """Serialize a Molecule object into a JSON-serializable dictionary.
+
+    Args:
+        mol: The Molecule instance to serialize.
+
+    Returns:
+        A dictionary representation of the Molecule.
+    """
+    return {
+        "input_compound_id": (
+            mol.source_parsed_record.compound_id if mol.source_parsed_record else mol.structure_id
+        ),
+        "monomers": {
+            str(k): {
+                "norine_name": v.norine_name,
+                "residue": v.residue,
+                "is_methylated": v.is_methylated,
+                "chirality": v.chirality.name,
+                "atoms": list(v.atoms),
+                "mass": v.mass,
+            }
+            for k, v in mol.monomers.items()
+        },
+        "bonds": [
+            {
+                "source_idx": b.source_idx,
+                "target_idx": b.target_idx,
+                "bond_type": b.bond_type,
+                "subtypes": [{"name": s.name, "reversed": s.reversed} for s in b.subtypes],
+            }
+            for b in mol.bonds
+        ],
+        "smiles": mol.smiles,
+        "atoms": {
+            str(k): {
+                "name": v.name,
+                "hydrogens": v.hydrogens,
+            }
+            for k, v in mol.atoms.items()
+        },
+        "atomic_bonds": [
+            [
+                [edge.atom1, edge.atom2],
+                {
+                    "arity": ab.arity,
+                    "bond_type": ab.bond_type,
+                },
+            ]
+            for edge, ab in mol.atomic_bonds.items()
+        ],
+        "metadata": {
+            "name": mol.metadata.name if mol.metadata else None,
+            "smiles": mol.metadata.smiles if mol.metadata else None,
+            "origin": mol.metadata.origin if mol.metadata else None,
+            "inchikey": mol.metadata.inchikey if mol.metadata else None,
+            "source": mol.metadata.source if mol.metadata else None,
+        }
+        if mol.metadata
+        else None,
+    }
 
 
 def write_structures(
