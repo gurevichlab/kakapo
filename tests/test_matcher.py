@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import cast
 
 import pytest
@@ -238,13 +239,10 @@ class TestSpectrumMatcher:
     def test_match_spectra_unknown_charge(self):
         """Test matching spectrum with unknown charge (charge=None)."""
         spec = make_spectrum(
-            [(500.0, 100.0)],
-            precursor_mass=1000.0,
-            charge=None,
-            spectrum_id="spec_unknown_charge"
+            [(500.0, 100.0)], precursor_mass=1000.0, charge=None, spectrum_id="spec_unknown_charge"
         )
         true_precursor_mz = (1000.0 + 2 * PROTON_MASS) / 2
-        from dataclasses import replace
+
         spec = replace(spec, precursor_mass=true_precursor_mz)
 
         theo = make_theoretical_spectrum(
