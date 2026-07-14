@@ -9,6 +9,7 @@ from kakapo.models import (
     Peak,
     Spectrum,
     TheoreticalIonWithMass,
+    Tolerance,
 )
 
 DUMMY_SPEC = Spectrum(
@@ -97,7 +98,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=0,  # Invalid: must be > 0
                 experimental_peaks_count=10,
@@ -113,7 +114,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=-1.0,
                 spectrum_mass=100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=12,
@@ -129,7 +130,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=-100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=12,
@@ -137,15 +138,15 @@ class TestModelsValidation:
                 unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
             )
 
-    def test_match_result_negative_mass_tolerance(self):
-        """MatchResult validates that mass tolerance is non-negative."""
-        with pytest.raises(ValueError, match="Mass tolerance must be non-negative"):
+    def test_match_result_invalid_tolerance_type(self):
+        """MatchResult validates that tolerance is a Tolerance instance."""
+        with pytest.raises(TypeError, match="tolerance must be a Tolerance instance"):
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.5,
-                mass_tolerance=-0.01,
+                tolerance="not a tolerance instance",  # type: ignore
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=12,
@@ -263,7 +264,7 @@ class TestModelsValidation:
             spectrum_id="spec_1",
             structure_mass=100.0,
             spectrum_mass=100.5,
-            mass_tolerance=0.01,
+            tolerance=Tolerance(0.01),
             matched_peaks_count=5,
             theoretical_peaks_count=10,
             experimental_peaks_count=15,
@@ -280,7 +281,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=-1,
@@ -296,7 +297,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=15,
@@ -313,7 +314,7 @@ class TestModelsValidation:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.5,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=10,
                 experimental_peaks_count=15,
@@ -334,3 +335,83 @@ class TestModelsValidation:
         assert ion.fragment_id == "frag_1"
         assert ion.mass == 100.0
         assert ion.mask == 3
+
+
+class TestTolerance:
+    """Unit tests for the Tolerance class."""
+
+    def test_tolerance_creation_valid(self):
+        t = Tolerance(value=20.0, unit="ppm", min_tolerance=0.005)
+        assert t.value == 20.0
+        assert t.unit == "ppm"
+        assert t.min_tolerance == 0.005
+
+    def test_tolerance_creation_negative_value(self):
+        with pytest.raises(ValueError, match="Tolerance value must be non-negative"):
+            Tolerance(value=-1.0)
+
+    def test_tolerance_creation_invalid_unit(self):
+        with pytest.raises(ValueError, match="Tolerance unit must be 'da' or 'ppm'"):
+            Tolerance(value=1.0, unit="invalid")
+
+    def test_tolerance_creation_negative_min_tolerance(self):
+        with pytest.raises(ValueError, match="Minimum tolerance must be non-negative"):
+            Tolerance(value=1.0, unit="ppm", min_tolerance=-0.1)
+
+    def test_tolerance_from_string_ppm(self):
+        t = Tolerance.from_string("20ppm")
+        assert t.value == 20.0
+        assert t.unit == "ppm"
+
+    def test_tolerance_from_string_da(self):
+        t = Tolerance.from_string("0.02da")
+        assert t.value == 0.02
+        assert t.unit == "da"
+
+    def test_tolerance_from_string_default_unit(self):
+        t = Tolerance.from_string("0.02")
+        assert t.value == 0.02
+        assert t.unit == "da"
+
+    def test_tolerance_from_string_invalid_ppm(self):
+        with pytest.raises(ValueError, match="Invalid ppm tolerance value"):
+            Tolerance.from_string("abcppm")
+
+    def test_tolerance_from_string_invalid_da(self):
+        with pytest.raises(ValueError, match="Invalid Da tolerance value"):
+            Tolerance.from_string("abcda")
+
+    def test_tolerance_from_string_invalid_value(self):
+        with pytest.raises(ValueError, match="Invalid tolerance value"):
+            Tolerance.from_string("abc")
+
+    def test_tolerance_is_within_da(self):
+        t = Tolerance(value=0.02, unit="da")
+        assert t.is_within(100.0, 100.01)
+        assert not t.is_within(100.0, 100.03)
+
+    def test_tolerance_is_within_ppm(self):
+        t = Tolerance(value=20.0, unit="ppm", min_tolerance=0.0001)
+        # At 100.0: 20 ppm = 0.002. Limit = 0.002.
+        assert t.is_within(100.0, 100.0015)
+        assert not t.is_within(100.0, 100.0025)
+
+    def test_tolerance_is_within_ppm_min_limit(self):
+        t = Tolerance(value=20.0, unit="ppm", min_tolerance=0.001)
+        # At 10.0: 20 ppm = 0.0002. min_tolerance = 0.001. Limit = 0.001.
+        assert t.is_within(10.0, 10.0005)
+        assert not t.is_within(10.0, 10.0015)
+
+    def test_tolerance_get_limit_da(self):
+        t = Tolerance(value=0.02, unit="da")
+        assert t.get_limit(100.0) == 0.02
+        assert t.get_limit(1000.0) == 0.02
+
+    def test_tolerance_get_limit_ppm(self):
+        t = Tolerance(value=20.0, unit="ppm", min_tolerance=0.001)
+        assert t.get_limit(100.0) == pytest.approx(0.002)
+        assert t.get_limit(10.0) == pytest.approx(0.001)
+
+    def test_tolerance_str(self):
+        t = Tolerance(value=20.0, unit="ppm")
+        assert str(t) == "20.0ppm"

@@ -7,7 +7,7 @@ import pytest
 
 from kakapo.cli import main, resolve_paths
 from kakapo.config import DEFAULT_OUTPUT_DIR
-from kakapo.models import MatchResult, Peak, Spectrum
+from kakapo.models import MatchResult, Peak, Spectrum, Tolerance
 
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
@@ -132,7 +132,7 @@ class TestCliMainFunction:
                     spectrum_id="spec_1",
                     structure_mass=100.0,
                     spectrum_mass=100.0,
-                    mass_tolerance=0.01,
+                    tolerance=Tolerance(0.01),
                     matched_peaks_count=2,
                     theoretical_peaks_count=5,
                     experimental_peaks_count=10,
@@ -521,7 +521,7 @@ class TestCliMainFunction:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.0,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=5,
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
@@ -534,7 +534,7 @@ class TestCliMainFunction:
                 spectrum_id="spec_2",
                 structure_mass=100.0,
                 spectrum_mass=100.0,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=3,
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
@@ -642,7 +642,7 @@ class TestCliMainFunction:
                 spectrum_id="spec_1",
                 structure_mass=100.0,
                 spectrum_mass=100.0,
-                mass_tolerance=0.01,
+                tolerance=Tolerance(0.01),
                 matched_peaks_count=2,
                 theoretical_peaks_count=5,
                 experimental_peaks_count=10,
@@ -703,6 +703,34 @@ class TestCliMainFunction:
         ]
         with pytest.raises(SystemExit):
             main(args_neg)
+
+    @patch("kakapo.cli.run_pipeline")
+    def test_main_with_ppm_and_min_tolerance(
+        self,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test parsing ppm tolerance and min_tolerance CLI options."""
+        mock_run_pipeline.return_value = ([], [], [])
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "20ppm",
+            "--min-tolerance",
+            "0.005",
+            "--stdout",
+        ]
+        exit_code = main(args)
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once()
+        called_args, called_kwargs = mock_run_pipeline.call_args
+        tol = called_kwargs["tolerance"]
+        assert tol.value == 20.0
+        assert tol.unit == "ppm"
+        assert tol.min_tolerance == 0.005
 
     def test_cli_parser_x_mode(self) -> None:
         """Verify that --x-mode CLI flag is parsed correctly."""

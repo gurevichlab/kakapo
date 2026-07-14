@@ -16,6 +16,7 @@ from kakapo.config import (
     DEFAULT_FRAGMENTATION_RULES,
     DEFAULT_MASS_TOLERANCE,
     DEFAULT_MIN_PEAKS,
+    DEFAULT_MIN_TOLERANCE,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_SCORING_MODE,
     DEFAULT_USE_CACHE,
@@ -23,7 +24,7 @@ from kakapo.config import (
 )
 from kakapo.io.writer import write_results, write_spectra, write_structures
 from kakapo.main import run_pipeline
-from kakapo.models import ScoringMode
+from kakapo.models import ScoringMode, Tolerance
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -106,9 +107,15 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tolerance",
         "-t",
-        type=float,
+        type=str,
         default=DEFAULT_MASS_TOLERANCE,
-        help="Mass tolerance window in Daltons for peak matching.",
+        help="Mass tolerance window (e.g. '20ppm', '0.02da', or '0.02' for Da).",
+    )
+    parser.add_argument(
+        "--min-tolerance",
+        type=float,
+        default=DEFAULT_MIN_TOLERANCE,
+        help="Minimum absolute mass tolerance in Daltons (only applied for ppm).",
     )
     parser.add_argument(
         "--min-peaks",
@@ -313,6 +320,13 @@ def main(args: Optional[list[str]] = None) -> int:
     if parsed_args.top_n is not None and parsed_args.top_n <= 0:
         parser.error("--top-n must be positive.")
 
+    try:
+        tolerance = Tolerance.from_string(
+            parsed_args.tolerance, min_tolerance=parsed_args.min_tolerance
+        )
+    except ValueError as e:
+        parser.error(str(e))
+
     # 1. Configure logging
     configure_logging(parsed_args)
 
@@ -344,7 +358,7 @@ def main(args: Optional[list[str]] = None) -> int:
         results, molecules, spectra = run_pipeline(
             spectra_files=spectra_files,
             structure_files=structure_files,
-            mass_tolerance=parsed_args.tolerance,
+            tolerance=tolerance,
             apply_filters=parsed_args.apply_filters,
             min_peaks=parsed_args.min_peaks,
             rules=DEFAULT_FRAGMENTATION_RULES,

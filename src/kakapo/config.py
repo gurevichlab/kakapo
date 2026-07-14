@@ -5,19 +5,19 @@ from pathlib import Path
 from matchms import filtering as msfilters
 
 from kakapo.constants import DEFAULT_RULES
-from kakapo.models import ScoringMode
 
 DEFAULT_OUTPUT_DIR = Path("kakapo_output")
 DEFAULT_APPLY_FILTERS = True
 DEFAULT_MIN_PEAKS = 5
 DEFAULT_FRAGMENTATION_RULES = DEFAULT_RULES
-DEFAULT_MASS_TOLERANCE = 0.02
+DEFAULT_MIN_TOLERANCE = 0.001
+DEFAULT_MASS_TOLERANCE = "0.02da"
 DEFAULT_USE_CACHE = True
 DEFAULT_CACHE_DIR = Path(".kakapo_cache")
 
 MAX_TOTAL_MASS_DIFFERENCE = 300
 DEFAULT_X_MODE = False
-DEFAULT_SCORING_MODE = ScoringMode.ALL_PEAKS
+DEFAULT_SCORING_MODE = "all-peaks"
 
 DEFAULT_FILTERS = [
     (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),

@@ -12,7 +12,7 @@ from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_rban_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
 from kakapo.io.yaml_parser import parse_rban_yaml_batch
-from kakapo.models import MatchResult, Molecule, ScoringMode, Spectrum
+from kakapo.models import MatchResult, Molecule, ScoringMode, Spectrum, Tolerance
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,14 +21,14 @@ logger = get_logger(__name__)
 def run_pipeline(  # noqa: C901
     spectra_files: Union[str, Path, Iterable[Union[str, Path]]],
     structure_files: Union[str, Path, Iterable[Union[str, Path]]],
-    mass_tolerance: float,
+    tolerance: Tolerance,
     apply_filters: bool,
     min_peaks: int,
     rules: Optional[tuple[FragmentationRule, ...]],
     use_cache: bool,
     cache_dir: Path,
     x_mode: bool = False,
-    scoring: ScoringMode = DEFAULT_SCORING_MODE,
+    scoring: ScoringMode = ScoringMode(DEFAULT_SCORING_MODE),  # noqa: B008
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -38,7 +38,7 @@ def run_pipeline(  # noqa: C901
     Args:
         spectra_files: Single path or list of paths to MGF experimental spectra files.
         structure_files: Single path or list of paths to rBAN YAML structure files.
-        mass_tolerance: The maximum absolute mass difference (in Da) allowed for matching peaks.
+        tolerance: The Tolerance configuration allowed for matching peaks.
         apply_filters: Whether to clean up experimental spectra using matchms filters.
         min_peaks: Minimum number of peaks required to include an experimental spectrum.
         rules: Fragmentation rules to apply.
@@ -58,11 +58,11 @@ def run_pipeline(  # noqa: C901
     logger.info("Starting Kakapo workflow pipeline")
     logger.info(
         "Running pipeline with parameters: spectra_files=%s, structure_files=%s, "
-        "mass_tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s, "
+        "tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s, "
         "scoring=%s",
         spectra_files,
         structure_files,
-        mass_tolerance,
+        tolerance,
         apply_filters,
         min_peaks,
         rules,
@@ -172,7 +172,7 @@ def run_pipeline(  # noqa: C901
     results = match_spectra(
         spectra=spectra,
         theoretical_spectra=theoretical_spectra,
-        mass_tolerance=mass_tolerance,
+        tolerance=tolerance,
         min_shared_peaks=min_peaks,
         x_mode=x_mode,
         scoring=scoring,

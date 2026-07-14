@@ -10,6 +10,7 @@ from enum import Enum, auto
 import networkx as nx
 from rban_parsing.rban_parser import NRP_metadata, Parsed_rBAN_Record
 
+from kakapo.config import DEFAULT_MIN_TOLERANCE
 from kakapo.constants import PROTON_MASS
 
 
@@ -26,6 +27,89 @@ class ScoringMode(str, Enum):
 
     ALL_PEAKS = "all-peaks"
     EXP_PEAKS = "exp-peaks"
+
+
+@dataclass(frozen=True)
+class Tolerance:
+    """Represents a mass tolerance window, which can be absolute (Da) or relative (ppm).
+
+    Attributes:
+        value: The tolerance value.
+        unit: The unit of tolerance ("da" or "ppm").
+        min_tolerance: The minimum absolute tolerance limit in Daltons (only applied for ppm).
+    """
+
+    value: float
+    unit: str = "da"
+    min_tolerance: float = DEFAULT_MIN_TOLERANCE
+
+    def __post_init__(self):
+        if self.value < 0:
+            raise ValueError("Tolerance value must be non-negative")
+        if self.unit not in ("da", "ppm"):
+            raise ValueError("Tolerance unit must be 'da' or 'ppm'")
+        if self.min_tolerance < 0:
+            raise ValueError("Minimum tolerance must be non-negative")
+
+    def is_within(self, theoretical_mz: float, experimental_mz: float) -> bool:
+        """Check if an experimental m/z is within the tolerance window of a theoretical m/z.
+
+        Args:
+            theoretical_mz: The theoretical reference m/z.
+            experimental_mz: The experimental m/z.
+
+        Returns:
+            True if the difference is within tolerance, False otherwise.
+        """
+        if self.unit == "ppm":
+            tol = max(theoretical_mz * self.value * 1e-6, self.min_tolerance)
+        else:
+            tol = self.value
+        return abs(experimental_mz - theoretical_mz) <= tol
+
+    def get_limit(self, theoretical_mz: float) -> float:
+        """Get the absolute tolerance limit in Daltons for a given theoretical m/z.
+
+        Args:
+            theoretical_mz: The theoretical reference m/z.
+
+        Returns:
+            The tolerance limit in Daltons.
+        """
+        if self.unit == "ppm":
+            return max(theoretical_mz * self.value * 1e-6, self.min_tolerance)
+        return self.value
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit}"
+
+    @classmethod
+    def from_string(cls, val_str: str, min_tolerance: float = 0.001) -> "Tolerance":
+        """Parse a tolerance string like '20ppm', '0.01da', or '0.01'.
+
+        Args:
+            val_str: The string to parse.
+            min_tolerance: The minimum absolute tolerance in Daltons.
+
+        Returns:
+            A Tolerance instance.
+        """
+        s = val_str.strip().lower()
+        if s.endswith("ppm"):
+            try:
+                return cls(value=float(s[:-3]), unit="ppm", min_tolerance=min_tolerance)
+            except ValueError as e:
+                raise ValueError(f"Invalid ppm tolerance value: '{val_str}'") from e
+        elif s.endswith("da"):
+            try:
+                return cls(value=float(s[:-2]), unit="da", min_tolerance=min_tolerance)
+            except ValueError as e:
+                raise ValueError(f"Invalid Da tolerance value: '{val_str}'") from e
+        else:
+            try:
+                return cls(value=float(s), unit="da", min_tolerance=min_tolerance)
+            except ValueError as e:
+                raise ValueError(f"Invalid tolerance value: '{val_str}'") from e
 
 
 @dataclass(frozen=True)
@@ -456,7 +540,7 @@ class MatchResult:
         cleaned_spectrum: Cleaned experimental spectrum used for matching.
         structure_mass: Exact mass of the matched molecule.
         spectrum_mass: Precursor mass of the matched spectrum.
-        mass_tolerance: Mass tolerance used for matching.
+        tolerance: Tolerance configuration used for matching.
         matched_peaks_count: Number of experimental peaks matching theory.
         theoretical_peaks_count: Number of theoretical peaks generated.
         experimental_peaks_count: Number of experimental peaks in the spectrum.
@@ -474,7 +558,7 @@ class MatchResult:
     spectrum_id: str
     structure_mass: float
     spectrum_mass: float
-    mass_tolerance: float
+    tolerance: Tolerance
     matched_peaks_count: int
     theoretical_peaks_count: int
     experimental_peaks_count: int
@@ -491,8 +575,8 @@ class MatchResult:
             raise ValueError("Structure mass must be non-negative")
         if self.spectrum_mass < 0:
             raise ValueError("Spectrum mass must be non-negative")
-        if self.mass_tolerance < 0:
-            raise ValueError("Mass tolerance must be non-negative")
+        if not isinstance(self.tolerance, Tolerance):
+            raise TypeError("tolerance must be a Tolerance instance")
         if self.matched_peaks_count < 0:
             raise ValueError("Matched peaks count must be non-negative")
         if self.theoretical_peaks_count <= 0:

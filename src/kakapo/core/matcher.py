@@ -15,6 +15,7 @@ from kakapo.models import (
     Spectrum,
     TheoreticalIonWithMass,
     TheoreticalSpectrum,
+    Tolerance,
 )
 from kakapo.utils.logger import get_logger
 
@@ -45,7 +46,7 @@ def _match_peaks(
     exp_peaks: list[Peak],
     theory_ions_with_mass: list[TheoreticalIonWithMass],
     max_charge: int,
-    mass_tolerance: float,
+    tolerance: Tolerance,
 ) -> tuple[int, list[MatchedPeak]]:
     """Greedy peak matching algorithm of pre-calculated theoretical ions against experimental
     peaks.
@@ -54,7 +55,7 @@ def _match_peaks(
         exp_peaks: Sorted list of experimental peaks.
         theory_ions_with_mass: Sorted list of theoretical ions with pre-calculated masses.
         max_charge: Maximum charge to consider.
-        mass_tolerance: Maximum absolute mass difference allowed for a match.
+        tolerance: Tolerance configuration.
 
     Returns:
         Tuple of (matched_peaks_count, matched_peaks).
@@ -67,9 +68,10 @@ def _match_peaks(
         last_idx = 0
         for ion in theory_ions_with_mass:
             mz = (ion.mass + PROTON_MASS * charge) / charge
+            tol = tolerance.get_limit(mz)
             for idx in range(last_idx, len(exp_peaks)):
                 peak = exp_peaks[idx]
-                if abs(peak.mass - mz) <= mass_tolerance:
+                if tolerance.is_within(mz, peak.mass):
                     matched_peaks_count += 1
                     last_idx = idx + 1
                     matched_peaks.append(
@@ -89,7 +91,7 @@ def _match_peaks(
                         peak.mass,
                     )
                     break
-                if peak.mass > mz + mass_tolerance:
+                if peak.mass > mz + tol:
                     last_idx = idx
                     break
             else:
@@ -129,7 +131,7 @@ def _calculate_score(
 def _match_spectrum_unmodified(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
-    mass_tolerance: float,
+    tolerance: Tolerance,
     mass_mod: float,
     scoring: ScoringMode,
 ) -> MatchResult:
@@ -155,7 +157,7 @@ def _match_spectrum_unmodified(
     theory_ions_with_mass = _calculate_theory_ions_with_mass(theoretical_spectrum, monomer_masses)
 
     matched_peaks_count, matched_peaks = _match_peaks(
-        exp_peaks, theory_ions_with_mass, max_charge, mass_tolerance
+        exp_peaks, theory_ions_with_mass, max_charge, tolerance
     )
 
     logger.debug(
@@ -172,7 +174,7 @@ def _match_spectrum_unmodified(
         spectrum_id=spectrum.spectrum_id,
         structure_mass=theoretical_spectrum.structure_mass,
         spectrum_mass=spectrum.precursor_mass,
-        mass_tolerance=mass_tolerance,
+        tolerance=tolerance,
         matched_peaks_count=matched_peaks_count,
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         experimental_peaks_count=len(spectrum.peaks),
@@ -189,7 +191,7 @@ def _match_spectrum_unmodified(
 def _match_spectrum_with_mod(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
-    mass_tolerance: float,
+    tolerance: Tolerance,
     mass_mod: float,
     scoring: ScoringMode,
     x_mode: bool = False,
@@ -234,7 +236,7 @@ def _match_spectrum_with_mod(
         )
 
         matched_peaks_count, matched_peaks = _match_peaks(
-            exp_peaks, theory_ions_with_mass, max_charge, mass_tolerance
+            exp_peaks, theory_ions_with_mass, max_charge, tolerance
         )
 
         score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
@@ -260,7 +262,7 @@ def _match_spectrum_with_mod(
         spectrum_id=spectrum.spectrum_id,
         structure_mass=theoretical_spectrum.structure_mass,
         spectrum_mass=spectrum.precursor_mass,
-        mass_tolerance=mass_tolerance,
+        tolerance=tolerance,
         matched_peaks_count=max_matched_count,
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         experimental_peaks_count=len(spectrum.peaks),
@@ -277,7 +279,7 @@ def _match_spectrum_with_mod(
 def match_spectrum(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
-    mass_tolerance: float,
+    tolerance: Tolerance,
     scoring: ScoringMode,
     x_mode: bool = False,
 ) -> MatchResult:
@@ -291,35 +293,40 @@ def match_spectrum(
     Args:
         spectrum: The experimental Spectrum instance.
         theoretical_spectrum: The TheoreticalSpectrum instance.
-        mass_tolerance: The maximum absolute mass difference (in Da) allowed for a match.
+        tolerance: The Tolerance configuration allowed for a match.
 
     Returns:
         A MatchResult instance containing matching metrics.
     """
     logger.debug(
-        "Matching experimental spectrum '%s' against structure '%s' (tolerance: %f Da)",
+        "Matching experimental spectrum '%s' against structure '%s' (tolerance: %s)",
         spectrum.spectrum_id,
         theoretical_spectrum.structure_id,
-        mass_tolerance,
+        tolerance,
     )
 
     precursor_neutral_mass = spectrum.get_neutral_mass()
     mass_mod = precursor_neutral_mass - theoretical_spectrum.structure_mass
 
-    if abs(mass_mod) <= mass_tolerance:
+    precursor_mz = spectrum.precursor_mass
+    precursor_tol = tolerance.get_limit(precursor_mz)
+    charge = spectrum.charge if spectrum.charge is not None else 1
+    precursor_neutral_tolerance = charge * precursor_tol
+
+    if abs(mass_mod) <= precursor_neutral_tolerance:
         logger.debug(
             "Precursor neutral mass (%f) matches structure mass (%f) within tolerance (%f). "
             "Running unmodified matching.",
             precursor_neutral_mass,
             theoretical_spectrum.structure_mass,
-            mass_tolerance,
+            precursor_neutral_tolerance,
         )
         return _match_spectrum_unmodified(
-            spectrum, theoretical_spectrum, mass_tolerance, mass_mod, scoring
+            spectrum, theoretical_spectrum, tolerance, mass_mod, scoring
         )
 
     return _match_spectrum_with_mod(
-        spectrum, theoretical_spectrum, mass_tolerance, mass_mod, scoring, x_mode=x_mode
+        spectrum, theoretical_spectrum, tolerance, mass_mod, scoring, x_mode=x_mode
     )
 
 
@@ -377,7 +384,7 @@ def _build_structure_index(
 def _filter_candidates_with_index(
     spectrum: Spectrum,
     index: _StructureIndex,
-    mass_tolerance: float,
+    tolerance: Tolerance,
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
 ) -> set[str]:
     """Query experimental spectrum against the index to filter candidate structures.
@@ -395,7 +402,7 @@ def _filter_candidates_with_index(
     Args:
         spectrum: The experimental Spectrum instance.
         index: The _StructureIndex compile of database spectra.
-        mass_tolerance: Mass tolerance in Daltons for peaks matching.
+        tolerance: Tolerance configuration.
         min_shared_peaks: Minimum Shared Peak Count score to keep a candidate
             structure (defaults to DEFAULT_MIN_PEAKS).
 
@@ -454,7 +461,8 @@ def _filter_candidates_with_index(
         for c in range(1, max_charge + 1):
             # Convert experimental peak m/z to neutral mass at charge c
             neutral_mass = peak.mass * c - PROTON_MASS * c
-            neutral_tolerance = c * mass_tolerance
+            tol_mz = tolerance.get_limit(peak.mass)
+            neutral_tolerance = c * tol_mz
 
             # 1. Unmodified peak match
             query_index(neutral_mass, neutral_tolerance)
@@ -470,7 +478,7 @@ def _filter_candidates_with_index(
 def match_spectra(
     spectra: Iterable[Spectrum],
     theoretical_spectra: Iterable[TheoreticalSpectrum],
-    mass_tolerance: float,
+    tolerance: Tolerance,
     scoring: ScoringMode,
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
     x_mode: bool = False,
@@ -480,7 +488,7 @@ def match_spectra(
     Args:
         spectra: An iterable of experimental Spectrum instances.
         theoretical_spectra: An iterable of TheoreticalSpectrum instances.
-        mass_tolerance: The maximum absolute mass difference (in Da) allowed for a match.
+        tolerance: The Tolerance configuration.
         min_shared_peaks: Minimum shared peak count for candidate filtering
             (defaults to DEFAULT_MIN_PEAKS).
 
@@ -502,7 +510,7 @@ def match_spectra(
     results: list[MatchResult] = []
     for spec in spectra_list:
         feasible_ids = _filter_candidates_with_index(
-            spec, index, mass_tolerance, min_shared_peaks=min_shared_peaks
+            spec, index, tolerance, min_shared_peaks=min_shared_peaks
         )
         if min_shared_peaks <= 1:
             for struct_id, theo in theo_map.items():
@@ -533,7 +541,7 @@ def match_spectra(
                 if abs(theo.structure_mass - precursor_neutral_mass) <= MAX_TOTAL_MASS_DIFFERENCE:
                     spec_with_charge = replace(spec, charge=z)
                     result = match_spectrum(
-                        spec_with_charge, theo, mass_tolerance, scoring, x_mode=x_mode
+                        spec_with_charge, theo, tolerance, scoring, x_mode=x_mode
                     )
                     if result.matched_peaks_count > 0:
                         results.append(result)

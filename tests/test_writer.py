@@ -13,7 +13,7 @@ from kakapo.io.writer import (
     write_spectra,
     write_structures,
 )
-from kakapo.models import MatchResult, Peak, Spectrum
+from kakapo.models import MatchResult, Peak, Spectrum, Tolerance
 
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
@@ -32,7 +32,7 @@ def sample_results() -> list[MatchResult]:
             spectrum_id="spec_101",
             structure_mass=800.45,
             spectrum_mass=800.46,
-            mass_tolerance=0.02,
+            tolerance=Tolerance(0.02),
             matched_peaks_count=5,
             theoretical_peaks_count=10,
             experimental_peaks_count=15,
@@ -48,7 +48,7 @@ def sample_results() -> list[MatchResult]:
             spectrum_id="spec_102",
             structure_mass=950.50,
             spectrum_mass=950.48,
-            mass_tolerance=0.05,
+            tolerance=Tolerance(0.05),
             matched_peaks_count=3,
             theoretical_peaks_count=12,
             experimental_peaks_count=20,
@@ -82,6 +82,7 @@ class TestWriterCsvFormatting:
         assert rows[0]["structure_id"] == "NRP_001"
         assert rows[0]["spectrum_id"] == "spec_101"
         assert float(rows[0]["structure_mass"]) == 800.45
+        assert rows[0]["tolerance"] == "0.02da"
         assert int(rows[0]["matched_peaks_count"]) == 5
         assert int(rows[0]["experimental_peaks_count"]) == 15
         assert rows[0]["modified_monomer_idx"] == ""
@@ -144,7 +145,7 @@ class TestWriterJsonFormatting:
             spectrum_id=sample_results[0].spectrum_id,
             structure_mass=sample_results[0].structure_mass,
             spectrum_mass=sample_results[0].spectrum_mass,
-            mass_tolerance=sample_results[0].mass_tolerance,
+            tolerance=sample_results[0].tolerance,
             matched_peaks_count=sample_results[0].matched_peaks_count,
             theoretical_peaks_count=sample_results[0].theoretical_peaks_count,
             experimental_peaks_count=sample_results[0].experimental_peaks_count,
@@ -170,6 +171,7 @@ class TestWriterJsonFormatting:
         assert len(data) == 2
         assert data[0]["structure_id"] == "NRP_001"
         assert data[0]["spectrum_id"] == "spec_101"
+        assert data[0]["tolerance"] == "0.02da"
 
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"

@@ -6,7 +6,7 @@ import pytest
 
 from kakapo.constants import FragmentationRule
 from kakapo.main import run_pipeline
-from kakapo.models import MatchResult
+from kakapo.models import MatchResult, Tolerance
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ class TestPipelineOrchestration:
         results, molecules, spectra = run_pipeline(
             spectra_files=temp_files["mgf"],
             structure_files=temp_files["ala_yaml"],
-            mass_tolerance=0.5,
+            tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
             rules=None,
@@ -147,7 +147,7 @@ class TestPipelineOrchestration:
         results, molecules, spectra = run_pipeline(
             spectra_files=[temp_files["mgf"]],
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
-            mass_tolerance=0.5,
+            tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
             rules=None,
@@ -169,7 +169,7 @@ class TestPipelineOrchestration:
         results, _, _ = run_pipeline(
             spectra_files=temp_files["mgf"],
             structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
-            mass_tolerance=0.5,
+            tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
             rules=None,
@@ -210,7 +210,7 @@ END IONS
         results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
             structure_files=temp_files["dimer_yaml"],
-            mass_tolerance=0.5,
+            tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
             rules=custom_rules,
@@ -226,7 +226,7 @@ END IONS
         default_results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
             structure_files=temp_files["dimer_yaml"],
-            mass_tolerance=0.5,
+            tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
             rules=None,
@@ -241,7 +241,7 @@ END IONS
             run_pipeline(
                 spectra_files=[],
                 structure_files=["dummy.yaml"],
-                mass_tolerance=0.1,
+                tolerance=Tolerance(0.1),
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,
@@ -253,7 +253,7 @@ END IONS
             run_pipeline(
                 spectra_files=["dummy.mgf"],
                 structure_files=[],
-                mass_tolerance=0.1,
+                tolerance=Tolerance(0.1),
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,
@@ -267,7 +267,7 @@ END IONS
             run_pipeline(
                 spectra_files="nonexistent.mgf",
                 structure_files="nonexistent.yaml",
-                mass_tolerance=0.1,
+                tolerance=Tolerance(0.1),
                 apply_filters=True,
                 min_peaks=1,
                 rules=None,

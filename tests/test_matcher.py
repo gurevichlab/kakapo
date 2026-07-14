@@ -19,6 +19,7 @@ from kakapo.models import (
     Spectrum,
     TheoreticalIon,
     TheoreticalSpectrum,
+    Tolerance,
 )
 
 
@@ -81,32 +82,55 @@ def make_theoretical_spectrum(
 class TestSpectrumMatcher:
     """Unit tests for the spectrum matching engine."""
 
-    @pytest.mark.parametrize(
-        "peaks,ion_masses,tolerance,expected_count",
-        [
-            # Exact matches
-            (
-                [(100.0, 1.0), (200.0, 1.0), (300.0, 1.0)],
-                [100.0 - 1.007276, 200.0 - 1.007276, 300.0 - 1.007276],
-                0.01,
-                3,
-            ),
-            # Within tolerance
-            ([(100.01, 1.0), (200.02, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.03, 2),
-            # Outside tolerance
-            ([(100.01, 1.0), (200.02, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.005, 0),
-            # No matches
-            ([(150.0, 1.0), (250.0, 1.0)], [100.0 - 1.007276, 200.0 - 1.007276], 0.1, 0),
-        ],
-    )
-    def test_basic_matching_scenarios(self, peaks, ion_masses, tolerance, expected_count):
-        """Test basic peak matching with exact, within tolerance, and no match scenarios."""
+    def test_basic_matching_exact(self):
+        """Test basic peak matching where peaks match the theoretical ions exactly."""
+        peaks = [(100.0, 1.0), (200.0, 1.0), (300.0, 1.0)]
+        ion_masses = [100.0 - 1.007276, 200.0 - 1.007276, 300.0 - 1.007276]
         spec = make_spectrum(peaks, precursor_mass=500.0)
         theo = make_theoretical_spectrum(
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
-        result = match_spectrum(spec, theo, mass_tolerance=tolerance, scoring=ScoringMode.ALL_PEAKS)
-        assert result.matched_peaks_count == expected_count
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+        )
+        assert result.matched_peaks_count == 3
+
+    def test_basic_matching_within_tolerance(self):
+        """Test basic peak matching where peaks are slightly off but within the tolerance window."""
+        peaks = [(100.01, 1.0), (200.02, 1.0)]
+        ion_masses = [100.0 - 1.007276, 200.0 - 1.007276]
+        spec = make_spectrum(peaks, precursor_mass=500.0)
+        theo = make_theoretical_spectrum(
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
+        )
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.03), scoring=ScoringMode.ALL_PEAKS
+        )
+        assert result.matched_peaks_count == 2
+
+    def test_basic_matching_outside_tolerance(self):
+        """Test basic peak matching where peaks are outside the tolerance window."""
+        peaks = [(100.01, 1.0), (200.02, 1.0)]
+        ion_masses = [100.0 - 1.007276, 200.0 - 1.007276]
+        spec = make_spectrum(peaks, precursor_mass=500.0)
+        theo = make_theoretical_spectrum(
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
+        )
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.005), scoring=ScoringMode.ALL_PEAKS
+        )
+        assert result.matched_peaks_count == 0
+
+    def test_basic_matching_no_matches(self):
+        """Test basic peak matching where theoretical ions do not match any peaks."""
+        peaks = [(150.0, 1.0), (250.0, 1.0)]
+        ion_masses = [100.0 - 1.007276, 200.0 - 1.007276]
+        spec = make_spectrum(peaks, precursor_mass=500.0)
+        theo = make_theoretical_spectrum(
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
+        )
+        result = match_spectrum(spec, theo, tolerance=Tolerance(0.1), scoring=ScoringMode.ALL_PEAKS)
+        assert result.matched_peaks_count == 0
 
     def test_greedy_matching_unique_peaks(self):
         """Ensure each experimental peak can match at most one theoretical ion, and vice versa."""
@@ -119,7 +143,9 @@ class TestSpectrumMatcher:
         )
 
         # Only 1 match should occur because there is only 1 experimental peak
-        result1 = match_spectrum(spec, theo, mass_tolerance=0.05, scoring=ScoringMode.ALL_PEAKS)
+        result1 = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.05), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result1.matched_peaks_count == 1
 
         # Two experimental peaks close to the same theoretical ion
@@ -127,7 +153,9 @@ class TestSpectrumMatcher:
         theo2 = make_theoretical_spectrum([100.0 - 1.007276], structure_mass=500.0, monomer_count=1)
 
         # Only 1 match should occur because there is only 1 theoretical ion
-        result2 = match_spectrum(spec2, theo2, mass_tolerance=0.05, scoring=ScoringMode.ALL_PEAKS)
+        result2 = match_spectrum(
+            spec2, theo2, tolerance=Tolerance(0.05), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result2.matched_peaks_count == 1
 
     def test_greedy_matching_takes_first(self):
@@ -141,7 +169,9 @@ class TestSpectrumMatcher:
 
         # 100.0 matches 100.01 (first)
         # 100.04 matches 100.05 (remaining)
-        result = match_spectrum(spec, theo, mass_tolerance=0.02, scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result.matched_peaks_count == 2
 
     def test_matched_peaks_populated(self):
@@ -153,7 +183,9 @@ class TestSpectrumMatcher:
             monomer_count=3,
         )
 
-        result = match_spectrum(spec, theo, mass_tolerance=0.02, scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result.matched_peaks_count == 2
         assert result.experimental_peaks_count == 3
         assert len(result.matched_peaks) == 2
@@ -182,7 +214,9 @@ class TestSpectrumMatcher:
         """Test matching charge limit restrictions and fallback behavior."""
         theo = make_theoretical_spectrum([198.0], structure_mass=500.0, monomer_count=1)
         spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=spec_charge)
-        result = match_spectrum(spec, theo, mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result.matched_peaks_count == expected_count
         if expected_count > 0:
             assert result.matched_peaks[0].charge == expected_charge
@@ -191,7 +225,9 @@ class TestSpectrumMatcher:
         """Test matching peaks of different charges when spectrum charge allows it."""
         theo = make_theoretical_spectrum([198.0, 298.0], structure_mass=500.0, monomer_count=2)
         spec = make_spectrum([(199.007276, 1.0), (150.007276, 1.0)], precursor_mass=500.0, charge=2)
-        result = match_spectrum(spec, theo, mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+        )
 
         assert result.matched_peaks_count == 2
 
@@ -223,7 +259,7 @@ class TestSpectrumMatcher:
         results = match_spectra(
             [spec1, spec2],
             [theo1, theo2],
-            mass_tolerance=0.01,
+            tolerance=Tolerance(0.01),
             scoring=ScoringMode.ALL_PEAKS,
             min_shared_peaks=1,
         )
@@ -252,7 +288,7 @@ class TestSpectrumMatcher:
         results = match_spectra(
             [spec],
             [theo],
-            mass_tolerance=0.01,
+            tolerance=Tolerance(0.01),
             scoring=ScoringMode.ALL_PEAKS,
             min_shared_peaks=1,
         )
@@ -269,12 +305,17 @@ class TestSpectrumMatcher:
         theo = make_theoretical_spectrum([100.0 - 1.007276], structure_mass=500.0, monomer_count=1)
 
         assert (
-            len(match_spectra([], [theo], mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)) == 0
+            len(match_spectra([], [theo], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            == 0
         )
         assert (
-            len(match_spectra([spec], [], mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)) == 0
+            len(match_spectra([spec], [], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            == 0
         )
-        assert len(match_spectra([], [], mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)) == 0
+        assert (
+            len(match_spectra([], [], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            == 0
+        )
 
     @pytest.mark.parametrize(
         "structure_mass,expected_match",
@@ -299,7 +340,11 @@ class TestSpectrumMatcher:
             monomer_mass=500.0,
         )
         results = match_spectra(
-            [spec], [theo], mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS, min_shared_peaks=1
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
         )
         if expected_match:
             assert len(results) == 1
@@ -320,7 +365,11 @@ class TestSpectrumMatcher:
             monomer_mass=125.0,
         )
         results = match_spectra(
-            [spec], [theo], mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS, min_shared_peaks=1
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
         )
         assert len(results) == 0
 
@@ -361,13 +410,13 @@ class TestSpectrumMatcher:
 
         # min_shared_peaks=5: Should only return struct_1
         candidates = _filter_candidates_with_index(
-            spec_matching_1, index, mass_tolerance=0.01, min_shared_peaks=5
+            spec_matching_1, index, tolerance=Tolerance(0.01), min_shared_peaks=5
         )
         assert candidates == {"struct_1"}
 
         # min_shared_peaks=6: spec only has 5 matching peaks, should return empty set
         candidates_6 = _filter_candidates_with_index(
-            spec_matching_1, index, mass_tolerance=0.01, min_shared_peaks=6
+            spec_matching_1, index, tolerance=Tolerance(0.01), min_shared_peaks=6
         )
         assert candidates_6 == set()
 
@@ -379,7 +428,7 @@ class TestSpectrumMatcher:
                 self.charge = 1
 
         mock_spec = cast(Spectrum, MockSpectrum())
-        assert _filter_candidates_with_index(mock_spec, index, mass_tolerance=0.01) == set()
+        assert _filter_candidates_with_index(mock_spec, index, tolerance=Tolerance(0.01)) == set()
 
     def test_index_bin_border_handling(self):
         """Test that peaks near and on bin borders are correctly indexed and queried."""
@@ -400,7 +449,7 @@ class TestSpectrumMatcher:
         )
 
         candidates = _filter_candidates_with_index(
-            spec, index, mass_tolerance=0.01, min_shared_peaks=1
+            spec, index, tolerance=Tolerance(0.01), min_shared_peaks=1
         )
         assert candidates == {"struct_borders"}
 
@@ -422,7 +471,7 @@ class TestSpectrumMatcher:
         )
 
         candidates = _filter_candidates_with_index(
-            spec, index, mass_tolerance=0.02, min_shared_peaks=1
+            spec, index, tolerance=Tolerance(0.02), min_shared_peaks=1
         )
         assert candidates == {"struct_near_zero"}
 
@@ -443,7 +492,7 @@ class TestSpectrumMatcher:
         )
 
         candidates = _filter_candidates_with_index(
-            spec, index, mass_tolerance=0.02, min_shared_peaks=1
+            spec, index, tolerance=Tolerance(0.02), min_shared_peaks=1
         )
         assert candidates == set()
 
@@ -457,7 +506,7 @@ class TestSpectrumMatcher:
 
         # Query against empty index
         spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0)
-        assert _filter_candidates_with_index(spec, empty_index, mass_tolerance=0.01) == set()
+        assert _filter_candidates_with_index(spec, empty_index, tolerance=Tolerance(0.01)) == set()
 
     def test_index_query_multiple_charges(self):
         """Test that querying matches correctly under multiple charge states."""
@@ -477,7 +526,7 @@ class TestSpectrumMatcher:
         )
 
         candidates = _filter_candidates_with_index(
-            spec, index, mass_tolerance=0.01, min_shared_peaks=1
+            spec, index, tolerance=Tolerance(0.01), min_shared_peaks=1
         )
         assert candidates == {"struct_multicharge"}
 
@@ -563,7 +612,9 @@ class TestSpectrumMatcher:
         )
 
         spec = make_spectrum(peaks, precursor_mass=precursor_mass, charge=1)
-        result = match_spectrum(spec, theo, mass_tolerance=0.01, scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+        )
         assert result.matched_peaks_count == expected_matched
         assert result.mass_mod == pytest.approx(expected_mod)
         assert result.modified_monomer_idx == expected_idx
@@ -632,7 +683,7 @@ class TestSpectrumMatcher:
 
         # In x_mode=False, it should successfully match (modifying Ala, idx 1, to get peak 110.0)
         res_normal = match_spectrum(
-            spec_ala, theo, mass_tolerance=0.02, scoring=ScoringMode.ALL_PEAKS, x_mode=False
+            spec_ala, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS, x_mode=False
         )
         assert res_normal.matched_peaks_count == 1
         assert res_normal.modified_monomer_idx == 1
@@ -640,7 +691,7 @@ class TestSpectrumMatcher:
         # In x_mode=True, it should NOT match since Ala doesn't start with X,
         # and modifying X0 (idx 0) doesn't produce peak 110.0 (it produces 115.0 and 100.0)
         res_x = match_spectrum(
-            spec_ala, theo, mass_tolerance=0.02, scoring=ScoringMode.ALL_PEAKS, x_mode=True
+            spec_ala, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS, x_mode=True
         )
         assert res_x.matched_peaks_count == 0
         assert res_x.modified_monomer_idx is None
@@ -697,13 +748,51 @@ class TestSpectrumMatcher:
         )
 
         # 1. Test "all-peaks" mode (default)
-        res_all = match_spectrum(spec, theo, mass_tolerance=0.02, scoring=ScoringMode.ALL_PEAKS)
+        res_all = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
+        )
         assert res_all.matched_peaks_count == 2
         assert len(res_all.matched_peaks) == 2
         assert res_all.score == 2
 
         # 2. Test "exp-peaks" mode
-        res_exp = match_spectrum(spec, theo, mass_tolerance=0.02, scoring=ScoringMode.EXP_PEAKS)
+        res_exp = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
+        )
         assert res_exp.matched_peaks_count == 2
         assert len(res_exp.matched_peaks) == 2
         assert res_exp.score == 1
+
+    def test_ppm_tolerance_matching(self):
+        """Test matching using ppm relative tolerance."""
+        # 20 ppm at 100 Da = 0.002 Da.
+        # 20 ppm at 1000 Da = 0.02 Da.
+
+        # Test case 1: peak within ppm window
+        # mz = 100.0, experimental peak = 100.0015 (diff = 0.0015 <= 0.002)
+        spec1 = make_spectrum([(100.0015, 1.0)], precursor_mass=500.0)
+        theo1 = make_theoretical_spectrum(
+            [100.0 - PROTON_MASS], structure_mass=500.0, monomer_count=1
+        )
+
+        # PPM tolerance = 20.0, min_tolerance = 0.0001 (so ppm limit 0.002 takes precedence)
+        tol_ppm = Tolerance(value=20.0, unit="ppm", min_tolerance=0.0001)
+        res1 = match_spectrum(spec1, theo1, tolerance=tol_ppm, scoring=ScoringMode.ALL_PEAKS)
+        assert res1.matched_peaks_count == 1
+
+        # Test case 2: peak outside ppm window but within min_tolerance
+        # mz = 100.0, experimental peak = 100.005 (diff = 0.005 > 0.002)
+        # Without min_tolerance it should fail. With min_tolerance = 0.01 it should succeed.
+        spec2 = make_spectrum([(100.005, 1.0)], precursor_mass=500.0)
+
+        tol_ppm_low_min = Tolerance(value=20.0, unit="ppm", min_tolerance=0.001)
+        res2_fail = match_spectrum(
+            spec2, theo1, tolerance=tol_ppm_low_min, scoring=ScoringMode.ALL_PEAKS
+        )
+        assert res2_fail.matched_peaks_count == 0
+
+        tol_ppm_high_min = Tolerance(value=20.0, unit="ppm", min_tolerance=0.01)
+        res2_pass = match_spectrum(
+            spec2, theo1, tolerance=tol_ppm_high_min, scoring=ScoringMode.ALL_PEAKS
+        )
+        assert res2_pass.matched_peaks_count == 1
