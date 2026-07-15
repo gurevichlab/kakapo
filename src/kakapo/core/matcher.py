@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 
 from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
-from kakapo.constants import MAX_CHARGE, PROTON_MASS
+from kakapo.constants import MAX_CHARGE, PROTON_MASS, SCORING_WEIGHTS
 from kakapo.models import (
     MatchedPeak,
     MatchResult,
@@ -63,58 +63,221 @@ def _match_peaks(
     matched_peaks_count = 0
     matched_peaks: list[MatchedPeak] = []
 
-    for charge in range(1, max_charge + 1):
-        # Two pointers technique to find matches
-        last_idx = 0
-        for ion in theory_ions_with_mass:
-            mz = (ion.mass + PROTON_MASS * charge) / charge
-            tol = tolerance.get_limit(mz)
-            for idx in range(last_idx, len(exp_peaks)):
-                peak = exp_peaks[idx]
-                if tolerance.is_within(mz, peak.mass):
-                    matched_peaks_count += 1
-                    last_idx = idx + 1
-                    matched_peaks.append(
-                        MatchedPeak(
-                            theoretical_mz=mz,
-                            experimental_mz=peak.mass,
-                            experimental_peak_idx=idx,
-                            charge=charge,
-                            theoretical_fragment_mask=ion.mask,
-                        )
-                    )
-                    logger.debug(
-                        "Matched ion '%s' (m/z: %f, charge: %d) to peak (m/z: %f)",
-                        ion.fragment_id,
-                        mz,
-                        charge,
-                        peak.mass,
-                    )
-                    break
-                if peak.mass > mz + tol:
-                    last_idx = idx
-                    break
+    # Two pointers technique to find matches
+    exp_idx_map = dict.fromkeys(range(1, max_charge + 1), 0)
+    theo_idx = 0
+
+    while theo_idx < len(theory_ions_with_mass):
+        ion = theory_ions_with_mass[theo_idx]
+        mz = ion.mz
+        charge = ion.charge
+
+        if charge not in exp_idx_map:
+            theo_idx += 1
+            continue
+
+        exp_idx = exp_idx_map[charge]
+        tol = tolerance.get_limit(mz)
+
+        # Advance experimental index past peaks below the current tolerance window
+        while exp_idx < len(exp_peaks):
+            peak = exp_peaks[exp_idx]
+            if peak.mass < mz - tol:
+                exp_idx += 1
             else:
-                last_idx += 1
+                break
+        exp_idx_map[charge] = exp_idx
+
+        # If we have an experimental peak in range, check for a match
+        if exp_idx < len(exp_peaks):
+            peak = exp_peaks[exp_idx]
+            if tolerance.is_within(mz, peak.mass):
+                matched_peaks_count += 1
+                matched_peaks.append(
+                    MatchedPeak(
+                        theoretical_mz=mz,
+                        experimental_mz=peak.mass,
+                        experimental_peak_idx=exp_idx,
+                        charge=charge,
+                        theoretical_fragment_mask=ion.mask,
+                    )
+                )
+                logger.debug(
+                    "Matched ion '%s' (m/z: %f, charge: %d) to peak (m/z: %f)",
+                    ion.fragment_id,
+                    mz,
+                    charge,
+                    peak.mass,
+                )
+                exp_idx_map[charge] = exp_idx + 1
+
+        theo_idx += 1
+
     return matched_peaks_count, matched_peaks
+
+
+def _match_group_candidates(
+    theoretical_peaks: list[TheoreticalIonWithMass],
+    theo_idx: int,
+    peak: Peak,
+    tolerance: Tolerance,
+) -> tuple[int, list[TheoreticalIonWithMass]]:
+    """Collect all consecutive theoretical peaks matching the same experimental peak.
+
+    Returns:
+        Tuple of (new_theo_idx, candidates).
+    """
+    candidates = []
+    while theo_idx < len(theoretical_peaks):
+        cand = theoretical_peaks[theo_idx]
+        if not tolerance.is_within(cand.mz, peak.mass):
+            break
+        candidates.append(cand)
+        theo_idx += 1
+    return theo_idx, candidates
+
+
+def _score_missing_cluster(
+    theoretical_peaks: list[TheoreticalIonWithMass],
+    theo_idx: int,
+    exp_peaks: list[Peak],
+    exp_idx: int,
+    tolerance: Tolerance,
+) -> tuple[int, float]:
+    """Score a cluster of missing theoretical peaks starting at theo_idx.
+
+    Returns:
+        Tuple of (new_theo_idx, score_contribution).
+    """
+    cluster_start = theoretical_peaks[theo_idx]
+    missing_candidates = [cluster_start]
+    theo_idx += 1
+
+    while theo_idx < len(theoretical_peaks):
+        cand = theoretical_peaks[theo_idx]
+        tol = tolerance.get_limit(cand.mz)
+
+        if abs(cand.mz - cluster_start.mz) >= 2 * tol:
+            break
+
+        if exp_idx < len(exp_peaks):
+            current_peak = exp_peaks[exp_idx]
+            if tolerance.is_within(cand.mz, current_peak.mass):
+                break
+
+        missing_candidates.append(cand)
+        theo_idx += 1
+
+    rep = min(missing_candidates, key=lambda c: c.charge)
+    charge_weights = SCORING_WEIGHTS[rep.charge]
+    return theo_idx, charge_weights.missing_peak_weight
+
+
+def _match_peaks_intencity(
+    exp_peaks: list[Peak],
+    theory_ions_with_mass: list[TheoreticalIonWithMass],
+    max_charge: int,
+    tolerance: Tolerance,
+) -> tuple[float, list[MatchedPeak]]:
+    """Two-pointer peak matching algorithm with intensity-based scoring.
+
+    Args:
+        exp_peaks: Sorted list of experimental peaks.
+        theory_ions_with_mass: Sorted list of theoretical ions with pre-calculated masses.
+        max_charge: Maximum charge to consider.
+        tolerance: Tolerance configuration.
+
+    Returns:
+        Tuple of (score, matched_peaks).
+    """
+    # Filter candidate theoretical peaks for those with valid scoring weights
+    theoretical_peaks = [ion for ion in theory_ions_with_mass if ion.charge in SCORING_WEIGHTS]
+
+    # Map experimental peaks to intensity rank (descending intensity)
+    sorted_by_intensity = sorted(exp_peaks, key=lambda p: p.intensity, reverse=True)
+    rank_map = {peak: rank for rank, peak in enumerate(sorted_by_intensity)}
+
+    score = 0.0
+    matched_peaks: list[MatchedPeak] = []
+
+    exp_idx = 0
+    theo_idx = 0
+
+    while theo_idx < len(theoretical_peaks):
+        ion = theoretical_peaks[theo_idx]
+        mz = ion.mz
+
+        # Advance experimental index past peaks below the current tolerance window
+        while exp_idx < len(exp_peaks):
+            peak = exp_peaks[exp_idx]
+            tol = tolerance.get_limit(mz)
+            if peak.mass < mz - tol:
+                exp_idx += 1
+            else:
+                break
+
+        # If we have an experimental peak in range, check for a match
+        if exp_idx < len(exp_peaks):
+            peak = exp_peaks[exp_idx]
+            if tolerance.is_within(mz, peak.mass):
+                theo_idx, candidates = _match_group_candidates(
+                    theoretical_peaks, theo_idx, peak, tolerance
+                )
+                rep = min(candidates, key=lambda c: c.charge)
+
+                charge_weights = SCORING_WEIGHTS[rep.charge]
+                rank = min(rank_map[peak], charge_weights.max_rank)
+                score += charge_weights.weights[rank]
+
+                matched_peaks.append(
+                    MatchedPeak(
+                        theoretical_mz=rep.mz,
+                        experimental_mz=peak.mass,
+                        experimental_peak_idx=exp_idx,
+                        charge=rep.charge,
+                        theoretical_fragment_mask=rep.mask,
+                    )
+                )
+                logger.debug(
+                    "Matched ion '%s' (m/z: %f, charge: %d) as rep to peak (m/z: %f)",
+                    rep.fragment_id,
+                    rep.mz,
+                    rep.charge,
+                    peak.mass,
+                )
+                exp_idx += 1
+                continue
+
+        # The current theoretical peak did not match. Find missing candidates group.
+        theo_idx, missing_score = _score_missing_cluster(
+            theoretical_peaks, theo_idx, exp_peaks, exp_idx, tolerance
+        )
+        score += missing_score
+
+    return score, matched_peaks
 
 
 def _calculate_theory_ions_with_mass(
     theoretical_spectrum: TheoreticalSpectrum,
     monomer_masses: Iterable[float],
+    max_charge: int,
 ) -> list[TheoreticalIonWithMass]:
-    """Calculate and sort theoretical ion masses based on monomer masses."""
-    return sorted(
-        [
-            TheoreticalIonWithMass(
-                fragment_id=ion.fragment_id,
-                mass=_fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass,
-                mask=ion.mask,
+    """Calculate and sort theoretical ion masses based on monomer masses and charges."""
+    ions = []
+    for charge in range(1, max_charge + 1):
+        for ion in theoretical_spectrum.ions:
+            mass = _fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass
+            mz = (mass + PROTON_MASS * charge) / charge
+            ions.append(
+                TheoreticalIonWithMass(
+                    fragment_id=ion.fragment_id,
+                    mass=mass,
+                    mask=ion.mask,
+                    charge=charge,
+                    mz=mz,
+                )
             )
-            for ion in theoretical_spectrum.ions
-        ],
-        key=lambda item: item.mass,
-    )
+    return sorted(ions, key=lambda item: item.mz)
 
 
 def _calculate_score(
@@ -154,11 +317,20 @@ def _match_spectrum_unmodified(
         mass_mod,
     )
 
-    theory_ions_with_mass = _calculate_theory_ions_with_mass(theoretical_spectrum, monomer_masses)
-
-    matched_peaks_count, matched_peaks = _match_peaks(
-        exp_peaks, theory_ions_with_mass, max_charge, tolerance
+    theory_ions_with_mass = _calculate_theory_ions_with_mass(
+        theoretical_spectrum, monomer_masses, max_charge
     )
+
+    if scoring == ScoringMode.INTENCITY:
+        score, matched_peaks = _match_peaks_intencity(
+            exp_peaks, theory_ions_with_mass, max_charge, tolerance
+        )
+        matched_peaks_count = len(matched_peaks)
+    else:
+        matched_peaks_count, matched_peaks = _match_peaks(
+            exp_peaks, theory_ions_with_mass, max_charge, tolerance
+        )
+        score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
 
     logger.debug(
         "Matching complete for '%s' vs '%s': matched %d peaks (unmodified).",
@@ -166,8 +338,6 @@ def _match_spectrum_unmodified(
         theoretical_spectrum.structure_id,
         matched_peaks_count,
     )
-
-    score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
@@ -215,7 +385,7 @@ def _match_spectrum_with_mod(
         mass_mod,
     )
 
-    max_score = 0
+    max_score = float("-inf")
     max_matched_count = 0
     best_matched_peaks = []
     best_i = None
@@ -232,20 +402,26 @@ def _match_spectrum_with_mod(
             continue
 
         theory_ions_with_mass = _calculate_theory_ions_with_mass(
-            theoretical_spectrum, updated_monomer_masses
+            theoretical_spectrum, updated_monomer_masses, max_charge
         )
 
-        matched_peaks_count, matched_peaks = _match_peaks(
-            exp_peaks, theory_ions_with_mass, max_charge, tolerance
-        )
+        if scoring == ScoringMode.INTENCITY:
+            score, matched_peaks = _match_peaks_intencity(
+                exp_peaks, theory_ions_with_mass, max_charge, tolerance
+            )
+            matched_peaks_count = len(matched_peaks)
+        else:
+            matched_peaks_count, matched_peaks = _match_peaks(
+                exp_peaks, theory_ions_with_mass, max_charge, tolerance
+            )
+            score = float(_calculate_score(scoring, matched_peaks, matched_peaks_count))
 
-        score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
-
-        if score > max_score:
-            max_score = score
-            max_matched_count = matched_peaks_count
-            best_matched_peaks = matched_peaks
-            best_i = i
+        if matched_peaks_count > 0:
+            if best_i is None or score > max_score:
+                max_score = score
+                max_matched_count = matched_peaks_count
+                best_matched_peaks = matched_peaks
+                best_i = i
 
     logger.debug(
         "Matching complete for '%s' vs '%s': max matched %d peaks (best monomer index: %s).",
@@ -256,6 +432,7 @@ def _match_spectrum_with_mod(
     )
 
     initial_modified_monomer_mass = monomer_masses[best_i] if best_i is not None else None
+    final_score = max_score if best_i is not None else 0.0
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
@@ -272,7 +449,7 @@ def _match_spectrum_with_mod(
         modified_monomer_idx=best_i,
         mass_mod=mass_mod,
         initial_modified_monomer_mass=initial_modified_monomer_mass,
-        score=max_score,
+        score=final_score,
     )
 
 
@@ -360,7 +537,7 @@ def _build_structure_index(
     """
     flat_peaks: list[tuple[float, str]] = []
     for theo in theoretical_spectra:
-        ions = _calculate_theory_ions_with_mass(theo, theo.monomer_mass_vector)
+        ions = _calculate_theory_ions_with_mass(theo, theo.monomer_mass_vector, 1)
         for ion in ions:
             flat_peaks.append((ion.mass, theo.structure_id))
 

@@ -796,3 +796,81 @@ class TestSpectrumMatcher:
             spec2, theo1, tolerance=tol_ppm_high_min, scoring=ScoringMode.ALL_PEAKS
         )
         assert res2_pass.matched_peaks_count == 1
+
+    def test_intencity_scoring_single_matched_peak(self):
+        """Test intensity scoring with a single matched peak."""
+        # 1 experimental peak
+        peaks = [(100.0, 100.0)]
+        # 1 matching theoretical ion (mz = 100.0 at charge 1)
+        ion_masses = [100.0 - PROTON_MASS]
+        spec = make_spectrum(peaks, precursor_mass=500.0)
+        theo = make_theoretical_spectrum(
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
+        )
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENCITY
+        )
+        assert result.matched_peaks_count == 1
+        assert result.score == pytest.approx(3.846)
+
+    def test_intencity_scoring_multiple_ranked_peaks(self):
+        """Test intensity scoring with multiple matched peaks of different ranks."""
+        peaks2 = [(100.0, 100.0), (200.0, 50.0)]
+        ion_masses2 = [100.0 - PROTON_MASS, 200.0 - PROTON_MASS]
+        spec2 = make_spectrum(peaks2, precursor_mass=500.0)
+        theo2 = make_theoretical_spectrum(
+            ion_masses2, structure_mass=500.0, monomer_count=len(ion_masses2)
+        )
+        result2 = match_spectrum(
+            spec2, theo2, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENCITY
+        )
+        assert result2.matched_peaks_count == 2
+        assert result2.score == pytest.approx(3.846 + 4.059)
+
+    def test_intencity_scoring_priority(self):
+        """Test charge priority selection (charge 1 over charge 2) in representative matching."""
+        peaks = [(100.0, 100.0)]
+        # Two theoretical ions that match 100.0 at charge 1 and charge 2 respectively
+        ion_masses = [100.0 - PROTON_MASS, 200.0 - 2 * PROTON_MASS]
+        spec = make_spectrum(peaks, precursor_mass=500.0, charge=2)
+        theo = make_theoretical_spectrum(
+            ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
+        )
+        result = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENCITY
+        )
+        assert result.matched_peaks_count == 1
+        assert result.score == pytest.approx(3.203)
+        assert result.matched_peaks[0].charge == 1
+
+    def test_intencity_scoring_missing_group_clustered(self):
+        """Test missing peak clustering under 2 * tolerance distance constraint."""
+        # Tolerance = 0.02. 2 * tolerance = 0.04.
+        tol = Tolerance(0.02)
+        # Experimental peak far away so nothing matches
+        peaks = [(1000.0, 1.0)]
+        spec = make_spectrum(peaks, precursor_mass=1000.0, charge=1)
+
+        # Within 2 * tolerance -> single missing group
+        ion_masses_clustered = [300.0 - PROTON_MASS, 300.01 - PROTON_MASS]
+        theo_clustered = make_theoretical_spectrum(
+            ion_masses_clustered, structure_mass=1000.0, monomer_count=2
+        )
+        res1 = match_spectrum(spec, theo_clustered, tolerance=tol, scoring=ScoringMode.INTENCITY)
+        assert res1.matched_peaks_count == 0
+        assert res1.score == pytest.approx(-0.337)
+
+    def test_intencity_scoring_missing_groups_separated(self):
+        """Test that missing peaks outside 2 * tolerance are penalized as separate groups."""
+        tol = Tolerance(0.02)
+        peaks = [(1000.0, 1.0)]
+        spec = make_spectrum(peaks, precursor_mass=1000.0, charge=1)
+
+        # Outside 2 * tolerance -> separate missing groups
+        ion_masses_separated = [300.0 - PROTON_MASS, 300.1 - PROTON_MASS]
+        theo_separated = make_theoretical_spectrum(
+            ion_masses_separated, structure_mass=1000.0, monomer_count=2
+        )
+        res2 = match_spectrum(spec, theo_separated, tolerance=tol, scoring=ScoringMode.INTENCITY)
+        assert res2.matched_peaks_count == 0
+        assert res2.score == pytest.approx(-0.337 * 2)

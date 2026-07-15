@@ -4,6 +4,7 @@ This module stores immutable chemistry and mass-spec constants that are loaded
 and parsed on import from external configuration files.
 """
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 # Locate constants files relative to this file
 CONSTANTS_DIR = Path(__file__).parent / "constants"
 ELEMENT_LIST_PATH = CONSTANTS_DIR / "element_list.txt"
+SCORING_WEIGHTS_PATH = CONSTANTS_DIR / "scoring_weights.json"
 
 
 def load_atomic_masses(path: Path) -> dict[str, float]:
@@ -79,3 +81,40 @@ DEFAULT_RULES = (
     FragmentationRule("OC", H_MASS, -H_MASS),
     FragmentationRule("CC", 0, 0),
 )
+
+
+@dataclass(frozen=True)
+class ChargeWeights:
+    """Weights and max rank configuration for a specific precursor charge state."""
+
+    max_rank: int
+    charge: int
+    missing_peak_weight: float
+    weights: tuple[float, ...]
+
+
+def load_scoring_weights(path: Path) -> dict[int, ChargeWeights]:
+    """Parse scoring weights from scoring_weights.json."""
+    if not path.exists():
+        raise FileNotFoundError(f"Scoring weights configuration file not found at {path}")
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    weights_dict = {}
+    for item in data:
+        charge = item["charge"]
+        weights_dict[charge] = ChargeWeights(
+            max_rank=item["max_rank"],
+            charge=charge,
+            missing_peak_weight=item["missing"],
+            weights=tuple(item["weights"]),
+        )
+    return weights_dict
+
+
+try:
+    SCORING_WEIGHTS = load_scoring_weights(SCORING_WEIGHTS_PATH)
+except Exception as e:
+    print(f"Error loading scoring weights: {e}", file=sys.stderr)
+    SCORING_WEIGHTS = {}

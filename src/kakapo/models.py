@@ -27,6 +27,7 @@ class ScoringMode(str, Enum):
 
     ALL_PEAKS = "all-peaks"
     EXP_PEAKS = "exp-peaks"
+    INTENCITY = "intencity"
 
 
 @dataclass(frozen=True)
@@ -230,12 +231,16 @@ class TheoreticalIonWithMass:
     fragment_id: str
     mass: float
     mask: int
+    charge: int = 1
+    mz: float = 0.0
 
     def __post_init__(self):
         if not self.fragment_id:
             raise ValueError("Fragment ID cannot be empty")
         if self.mask <= 0:
             raise ValueError("Mask must be positive")
+        if self.charge <= 0:
+            raise ValueError("Charge must be positive")
 
 
 @dataclass(frozen=True)
@@ -564,7 +569,7 @@ class MatchResult:
     experimental_peaks_count: int
     monomer_count: int
     unmodified_monomer_mass_vector: tuple[float, ...]
-    score: int = 0
+    score: float = 0.0
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modified_monomer_idx: int | None = None
     mass_mod: float | None = None
@@ -598,5 +603,3 @@ class MatchResult:
             and self.initial_modified_monomer_mass < 0
         ):
             raise ValueError("Initial modified monomer mass must be non-negative")
-        if self.score < 0:
-            raise ValueError("Score must be non-negative")
