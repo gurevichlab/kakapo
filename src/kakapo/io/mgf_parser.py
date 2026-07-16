@@ -17,6 +17,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from matchms import Spectrum as MatchmsSpectrum
+from matchms import SpectrumProcessor
 from matchms.importing import load_from_mgf
 
 from kakapo.config import DEFAULT_FILTERS
@@ -127,8 +128,6 @@ def _process_and_convert_chunk(
     Returns:
         A list of kakapo Spectrum models.
     """
-    from matchms import SpectrumProcessor
-
     if apply_filters:
         processor = SpectrumProcessor(DEFAULT_FILTERS)
         processed_result = processor.process_spectra(spectra_chunk, progress_bar=False)
