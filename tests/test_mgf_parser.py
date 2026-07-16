@@ -10,7 +10,6 @@ import pytest
 
 from kakapo.io.mgf_parser import (
     _get_precursor_mass,
-    _get_spectrum_id,
     _matchms_to_kakapo,
     load_mgf,
     load_mgf_batch,
@@ -82,29 +81,7 @@ class TestMgfParserHelpers:
         with pytest.raises(ValueError, match="Could not extract"):
             _get_precursor_mass(metadata)
 
-    def test_get_spectrum_id_from_spectrum_id_field(self):
-        """Extract spectrum_id from spectrum_id field."""
-        metadata = {"spectrum_id": "spec_001"}
-        spectrum_id = _get_spectrum_id(metadata)
-        assert spectrum_id == "spec_001"
 
-    def test_get_spectrum_id_from_scan_field(self):
-        """Extract spectrum_id from scan field."""
-        metadata = {"scan": "123"}
-        spectrum_id = _get_spectrum_id(metadata)
-        assert spectrum_id == "123"
-
-    def test_get_spectrum_id_from_title_field(self):
-        """Extract spectrum_id from title field."""
-        metadata = {"title": "compound_A_ms2"}
-        spectrum_id = _get_spectrum_id(metadata)
-        assert spectrum_id == "compound_A_ms2"
-
-    def test_get_spectrum_id_fallback(self):
-        """Fall back to 'unknown' when no ID field is present."""
-        metadata = {"precursor_mz": 500.0}
-        spectrum_id = _get_spectrum_id(metadata)
-        assert spectrum_id == "unknown"
 
 
 class TestMgfParserConversion:
@@ -171,7 +148,7 @@ class TestMgfParserConversion:
 
         peaks = np.array([[50.0, 5.0], [100.0, 10.0]])
         metadata = {
-            "scan": "42",
+            "spectrum_id": "42",
             "pepmass": (250.5, 500.0),
         }
 
@@ -723,6 +700,56 @@ END IONS
             assert len(spectra_cached) == 1
             assert spectra_cached[0].source_file_path == str(Path(mgf_path).resolve())
 
+        finally:
+            if os.path.exists(mgf_path):
+                os.unlink(mgf_path)
+
+    def test_load_mgf_with_duplicate_ids(self, tmp_path):
+        """Test that duplicate spectrum IDs get suffix _idx appended."""
+        mgf_content = """BEGIN IONS
+TITLE=spec_dup
+PEPMASS=500.0
+100 10
+END IONS
+BEGIN IONS
+TITLE=spec_dup
+PEPMASS=600.0
+200 20
+END IONS
+BEGIN IONS
+TITLE=spec_unique
+PEPMASS=700.0
+300 30
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+        try:
+            spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
+            assert len(spectra) == 3
+            assert spectra[0].spectrum_id == "spec_dup_0"
+            assert spectra[1].spectrum_id == "spec_dup_1"
+            assert spectra[2].spectrum_id == "spec_unique"
+        finally:
+            if os.path.exists(mgf_path):
+                os.unlink(mgf_path)
+
+    def test_load_mgf_with_missing_ids(self, tmp_path):
+        """Test that spectra with no ID fields generate ID as index."""
+        mgf_content = """BEGIN IONS
+PEPMASS=500.0
+100 10
+END IONS
+BEGIN IONS
+PEPMASS=600.0
+200 20
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+        try:
+            spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
+            assert len(spectra) == 2
+            assert spectra[0].spectrum_id == "0"
+            assert spectra[1].spectrum_id == "1"
         finally:
             if os.path.exists(mgf_path):
                 os.unlink(mgf_path)

@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -138,7 +139,7 @@ def _process_and_convert_chunk(
 
     kakapo_spectra = []
     for matchms_spec in spectra_chunk:
-        spec_id = _get_spectrum_id(matchms_spec.metadata)
+        spec_id = matchms_spec.metadata.get("spectrum_id")
         try:
             if len(matchms_spec.peaks) < min_peaks:
                 logger.debug(
@@ -226,6 +227,8 @@ def load_mgf(  # noqa: C901
     if not matchms_spectra:
         logger.warning("No spectra found in %s", file_path)
         raise ValueError(f"No spectra found in {file_path}")
+
+    _ensure_unique_spectrum_ids(matchms_spectra)
 
     # Convert and process matchms spectra to kakapo models
     num_spectra = len(matchms_spectra)
@@ -399,22 +402,42 @@ def _get_precursor_mass(metadata: dict) -> float:
     )
 
 
-def _get_spectrum_id(metadata: dict) -> str:
-    """Extract spectrum identifier from metadata.
+def _ensure_unique_spectrum_ids(matchms_spectra: list[MatchmsSpectrum]) -> None:
+    """Ensure all spectra have unique IDs.
 
-    Tries multiple common field names and falls back to a generic ID.
+    If no ID fields are present, generates ID as index.
+    If spectrum IDs are not unique, appends suffix _idx (index of spectrum in the file).
+    Modifies the matchms spectra metadata in place.
 
     Args:
-        metadata: Spectrum metadata dictionary.
-
-    Returns:
-        Spectrum identifier string.
+        matchms_spectra: List of matchms Spectrum objects.
     """
-    for field in ["spectrum_id", "scan", "spectrumID", "title"]:
-        if field in metadata and metadata[field] is not None:
-            return str(metadata[field])
+    initial_ids = []
+    for i, spec in enumerate(matchms_spectra):
+        metadata = spec.metadata
+        spec_id = None
+        for field in ["spectrum_id", "scan", "spectrumID", "title", "feature_id"]:
+            if field in metadata and metadata[field] is not None:
+                val = str(metadata[field]).strip()
+                if val:
+                    spec_id = val
+                    break
 
-    return "unknown"
+        if spec_id is not None:
+            initial_ids.append(spec_id)
+        else:
+            initial_ids.append(str(i))
+
+    id_counts = Counter(initial_ids)
+
+    for i, spec in enumerate(matchms_spectra):
+        init_id = initial_ids[i]
+        if id_counts[init_id] > 1:
+            final_id = f"{init_id}_{i}"
+        else:
+            final_id = init_id
+
+        spec.set("spectrum_id", final_id)
 
 
 def _matchms_to_kakapo(  # noqa: C901
@@ -438,7 +461,7 @@ def _matchms_to_kakapo(  # noqa: C901
     metadata = matchms_spec.metadata
 
     # Extract spectrum ID
-    spectrum_id = _get_spectrum_id(metadata)
+    spectrum_id = metadata.get("spectrum_id")
     if not spectrum_id:
         raise ValueError("Spectrum ID cannot be empty")
 
