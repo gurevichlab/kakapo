@@ -320,14 +320,14 @@ class TestSpectrumMatcher:
     @pytest.mark.parametrize(
         "structure_mass,expected_match",
         [
-            # Upper bound checks (precursor = 500.0, diff <= 300.0 -> max structure_mass = 800.0)
-            (799.99, True),
-            (800.0, True),
-            (800.01, False),
-            # Lower bound checks (precursor = 500.0, diff <= 300.0 -> min structure_mass = 200.0)
-            (200.01, True),
-            (200.0, True),
-            (199.99, False),
+            # Upper bound checks (precursor = 500.0, diff <= 250.0 -> max structure_mass = 750.0)
+            (749.99, True),
+            (750.0, True),
+            (750.01, False),
+            # Lower bound checks (precursor = 500.0, diff <= 250.0 -> min structure_mass = 250.0)
+            (250.01, True),
+            (250.0, True),
+            (249.99, False),
         ],
     )
     def test_match_spectra_mass_difference_limits(self, structure_mass, expected_match):
@@ -355,12 +355,12 @@ class TestSpectrumMatcher:
     def test_match_spectra_zero_peaks_skipped(self):
         """Test that pairwise matching skips pairs with 0 matched peaks."""
         spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
-        # Structure mass = 800.0, meaning mass_mod = -300.0.
+        # Structure mass = 700.0, meaning mass_mod = -200.0.
         # Since monomer_mass is only 125.0, this modification is invalid (<=0),
         # so match_spectrum will yield 0 matched peaks.
         theo = make_theoretical_spectrum(
             [100.0 - 1.007276],
-            structure_mass=800.0,
+            structure_mass=700.0,
             structure_id="struct_zero_peaks",
             monomer_mass=125.0,
         )
@@ -372,6 +372,87 @@ class TestSpectrumMatcher:
             min_shared_peaks=1,
         )
         assert len(results) == 0
+
+    def test_match_spectra_negative_monomer_modification_skipped(self):
+        """Test that pairwise matching filters out structures where max monomer mass plus
+        mass difference is negative.
+        """
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        # Structure mass is 700.0 -> mass_mod = 500.0 - 700.0 = -200.0.
+        # Monomer mass is 150.0 -> max is 150.0. 150.0 + (-200.0) = -50.0 < 0.
+        # This structure should be skipped.
+        theo = make_theoretical_spectrum(
+            [100.0 - 1.007276],
+            structure_mass=700.0,
+            structure_id="struct_neg_monomer",
+            monomer_mass=150.0,
+        )
+        results = match_spectra(
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
+        )
+        assert len(results) == 0
+
+    def test_match_spectra_zero_mass_modification_allowed(self):
+        """Test that a mass modification resulting in exactly 0 monomer mass is allowed
+        and matched.
+        """
+        # Precursor neutral mass = 300.0 (m/z ~ 301.007)
+        # Structure mass = 500.0. Mass mod = -200.0.
+        # Monomer 0 mass = 200.0 -> updated to 200.0 - 200.0 = 0.0 (allowed).
+        # Monomer 1 mass = 300.0 -> remains 300.0.
+        # Theoretical ion: fragment contains Monomer 1 (mass 300.0).
+        # Experimental peak: 300.0 + PROTON_MASS = 301.007276.
+        spec = make_spectrum([(301.007276, 1.0)], precursor_mass=300.0, spectrum_id="spec_1")
+
+        # Build theoretical spectrum
+        ions = frozenset(
+            [
+                TheoreticalIon(
+                    fragment_id="frag_0",
+                    mask=2,  # Monomer 1 only
+                    rules_shifts=(RuleShift("TEST", 0.0),),
+                )
+            ]
+        )
+        monomers = {
+            0: Monomer(
+                norine_name="Mon_0",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=200.0,
+            ),
+            1: Monomer(
+                norine_name="Mon_1",
+                residue="Y",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=300.0,
+            ),
+        }
+        theo = TheoreticalSpectrum(
+            structure_id="struct_zero_mass",
+            ions=ions,
+            structure_mass=500.0,
+            monomer_count=2,
+            monomer_mass_vector=(200.0, 300.0),
+            monomers=monomers,
+        )
+
+        results = match_spectra(
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
+        )
+        assert len(results) == 1
+        assert results[0].matched_peaks_count == 1
+        assert results[0].modified_monomer_idx == 0
 
     def test_build_structure_index_and_filtering(self):
         """Test building structure index and filtering candidate structures."""

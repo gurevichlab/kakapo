@@ -5,6 +5,8 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 
+from tqdm import tqdm
+
 from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS, SCORING_WEIGHTS
 from kakapo.models import (
@@ -398,7 +400,7 @@ def _match_spectrum_with_mod(
 
         updated_monomer_masses = list(monomer_masses)
         updated_monomer_masses[i] += mass_mod
-        if updated_monomer_masses[i] <= 0:
+        if updated_monomer_masses[i] < 0:
             continue
 
         theory_ions_with_mass = _calculate_theory_ions_with_mass(
@@ -685,7 +687,7 @@ def match_spectra(
     theo_map = {theo.structure_id: theo for theo in theo_list}
 
     results: list[MatchResult] = []
-    for spec in spectra_list:
+    for spec in tqdm(spectra_list, desc="Matching spectra", unit="spec"):
         feasible_ids = _filter_candidates_with_index(
             spec, index, tolerance, min_shared_peaks=min_shared_peaks
         )
@@ -715,7 +717,11 @@ def match_spectra(
             )
             for z in charges_to_try:
                 precursor_neutral_mass = spec.precursor_mass * z - PROTON_MASS * z
-                if abs(theo.structure_mass - precursor_neutral_mass) <= MAX_TOTAL_MASS_DIFFERENCE:
+                mass_diff = precursor_neutral_mass - theo.structure_mass
+                if (
+                    abs(mass_diff) <= MAX_TOTAL_MASS_DIFFERENCE
+                    and max(theo.monomer_mass_vector) + mass_diff >= 0
+                ):
                     spec_with_charge = replace(spec, charge=z)
                     result = match_spectrum(
                         spec_with_charge, theo, tolerance, scoring, x_mode=x_mode
