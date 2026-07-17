@@ -15,40 +15,59 @@ from kakapo.models import Molecule
 
 
 class TestJsonParserBasic:
-    """Test JSON parser with full Parsed_rBAN_Record structures."""
+    """Test JSON parser with new BGC variant JSON structures."""
 
     def test_parse_parsed_rban_record_retains_atomic_payload(self):
-        """Parse a full Parsed_rBAN_Record JSON and retain source atom graph."""
+        """Parse a full BGC variant JSON and retain source atom graph."""
         json_data = {
+            "bgc_variant_id": {
+                "bgc_id": {
+                    "antiSMASH_file": "dummy.json",
+                    "contig_idx": 1,
+                    "bgc_idx": 1,
+                },
+                "variant_idx": 0,
+            },
             "compound_id": "NRP_PARSED_1",
-            "metadata": {
-                "name": "ParsedRecord",
-                "smiles": "NCC(=O)O",
-                "origin": None,
-                "inchikey": None,
-                "source": None,
-            },
-            "atoms": {
-                "0": {"name": "N", "hydrogens": 2},
-                "1": {"name": "C", "hydrogens": 1},
-                "2": {"name": "C", "hydrogens": 0},
-                "3": {"name": "O", "hydrogens": 0},
-                "4": {"name": "O", "hydrogens": 1},
-            },
-            "monomers": {
-                "0": {
-                    "name": "Ala",
-                    "atoms": [0, 1, 2, 3, 4],
-                    "chirality": "L",
-                    "is_pks_hybrid": False,
+            "original_score": 10.0,
+            "new_variants": [
+                {
+                    "score": 10.0,
+                    "rank": 0,
+                    "original_id": "NRP_PARSED_1",
+                    "new_record": {
+                        "compound_id": "NRP_PARSED_1",
+                        "metadata": {
+                            "name": "ParsedRecord",
+                            "smiles": "NCC(=O)O",
+                            "origin": None,
+                            "inchikey": None,
+                            "source": None,
+                        },
+                        "atoms": {
+                            "0": {"name": "N", "hydrogens": 2},
+                            "1": {"name": "C", "hydrogens": 1},
+                            "2": {"name": "C", "hydrogens": 0},
+                            "3": {"name": "O", "hydrogens": 0},
+                            "4": {"name": "O", "hydrogens": 1},
+                        },
+                        "monomers": {
+                            "0": {
+                                "name": "Ala",
+                                "atoms": [0, 1, 2, 3, 4],
+                                "chirality": "L",
+                                "is_pks_hybrid": False,
+                            }
+                        },
+                        "monomer_bonds": [],
+                        "atomic_bonds": [
+                            [[0, 1], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[1, 2], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[2, 3], {"arity": "2", "bond_type": "DOUBLE"}],
+                            [[2, 4], {"arity": "1", "bond_type": "SINGLE"}],
+                        ],
+                    },
                 }
-            },
-            "monomer_bonds": {},
-            "atomic_bonds": [
-                [[0, 1], {"arity": "1", "bond_type": "SINGLE"}],
-                [[1, 2], {"arity": "1", "bond_type": "SINGLE"}],
-                [[2, 3], {"arity": "2", "bond_type": "DOUBLE"}],
-                [[2, 4], {"arity": "1", "bond_type": "SINGLE"}],
             ],
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -56,9 +75,9 @@ class TestJsonParserBasic:
             json_path = f.name
 
         try:
-            molecule = parse_rban_json(json_path)
-
-            assert isinstance(molecule, Molecule)
+            res = parse_rban_json(json_path)
+            assert isinstance(res, Molecule)
+            molecule = res
             assert molecule.structure_id == "NRP_PARSED_1"
             assert molecule.smiles == "NCC(=O)O"
             assert len(molecule.monomers) == 1
@@ -73,49 +92,61 @@ class TestJsonParserBasic:
             os.unlink(json_path)
 
     def test_parse_parsed_rban_record_list(self):
-        """Parse a JSON file containing a list of Parsed_rBAN_Records."""
+        """Parse a JSON file containing a list of BGC variant items."""
         json_data = [
             {
-                "compound_id": "NRP_PARSED_LIST_1",
-                "metadata": {
-                    "name": "ParsedRecord1",
-                    "smiles": "NCC(=O)O",
-                    "origin": None,
-                    "inchikey": None,
-                    "source": None,
-                },
-                "atoms": {"0": {"name": "N", "hydrogens": 2}},
-                "monomers": {
-                    "0": {
-                        "name": "Ala",
-                        "atoms": [0],
-                        "chirality": "L",
-                        "is_pks_hybrid": False,
+                "new_variants": [
+                    {
+                        "new_record": {
+                            "compound_id": "NRP_PARSED_LIST_1",
+                            "metadata": {
+                                "name": "ParsedRecord1",
+                                "smiles": "NCC(=O)O",
+                                "origin": None,
+                                "inchikey": None,
+                                "source": None,
+                            },
+                            "atoms": {"0": {"name": "N", "hydrogens": 2}},
+                            "monomers": {
+                                "0": {
+                                    "name": "Ala",
+                                    "atoms": [0],
+                                    "chirality": "L",
+                                    "is_pks_hybrid": False,
+                                }
+                            },
+                            "monomer_bonds": [],
+                            "atomic_bonds": [],
+                        }
                     }
-                },
-                "monomer_bonds": {},
-                "atomic_bonds": [],
+                ]
             },
             {
-                "compound_id": "NRP_PARSED_LIST_2",
-                "metadata": {
-                    "name": "ParsedRecord2",
-                    "smiles": "NCC(=O)O",
-                    "origin": None,
-                    "inchikey": None,
-                    "source": None,
-                },
-                "atoms": {"0": {"name": "N", "hydrogens": 2}},
-                "monomers": {
-                    "0": {
-                        "name": "Ala",
-                        "atoms": [0],
-                        "chirality": "L",
-                        "is_pks_hybrid": False,
+                "new_variants": [
+                    {
+                        "new_record": {
+                            "compound_id": "NRP_PARSED_LIST_2",
+                            "metadata": {
+                                "name": "ParsedRecord2",
+                                "smiles": "NCC(=O)O",
+                                "origin": None,
+                                "inchikey": None,
+                                "source": None,
+                            },
+                            "atoms": {"0": {"name": "N", "hydrogens": 2}},
+                            "monomers": {
+                                "0": {
+                                    "name": "Ala",
+                                    "atoms": [0],
+                                    "chirality": "L",
+                                    "is_pks_hybrid": False,
+                                }
+                            },
+                            "monomer_bonds": [],
+                            "atomic_bonds": [],
+                        }
                     }
-                },
-                "monomer_bonds": {},
-                "atomic_bonds": [],
+                ]
             },
         ]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -123,9 +154,9 @@ class TestJsonParserBasic:
             json_path = f.name
 
         try:
-            molecules = parse_rban_json(json_path)
-
-            assert isinstance(molecules, dict)
+            res = parse_rban_json(json_path)
+            assert isinstance(res, dict)
+            molecules = res
             assert len(molecules) == 2
             assert "NRP_PARSED_LIST_1" in molecules
             assert "NRP_PARSED_LIST_2" in molecules
@@ -140,20 +171,32 @@ class TestJsonParserBasic:
         """Parse list with duplicate compound IDs and apply suffixes."""
         json_data = [
             {
-                "compound_id": "NRP_DUP",
-                "metadata": {"name": "A", "smiles": "N"},
-                "atoms": {"0": {"name": "N", "hydrogens": 2}},
-                "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
-                "monomer_bonds": {},
-                "atomic_bonds": [],
+                "new_variants": [
+                    {
+                        "new_record": {
+                            "compound_id": "NRP_DUP",
+                            "metadata": {"name": "A", "smiles": "N"},
+                            "atoms": {"0": {"name": "N", "hydrogens": 2}},
+                            "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
+                            "monomer_bonds": [],
+                            "atomic_bonds": [],
+                        }
+                    }
+                ]
             },
             {
-                "compound_id": "NRP_DUP",
-                "metadata": {"name": "B", "smiles": "N"},
-                "atoms": {"0": {"name": "N", "hydrogens": 2}},
-                "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
-                "monomer_bonds": {},
-                "atomic_bonds": [],
+                "new_variants": [
+                    {
+                        "new_record": {
+                            "compound_id": "NRP_DUP",
+                            "metadata": {"name": "B", "smiles": "N"},
+                            "atoms": {"0": {"name": "N", "hydrogens": 2}},
+                            "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
+                            "monomer_bonds": [],
+                            "atomic_bonds": [],
+                        }
+                    }
+                ]
             },
         ]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -161,7 +204,9 @@ class TestJsonParserBasic:
             json_path = f.name
 
         try:
-            molecules = parse_rban_json(json_path)
+            res = parse_rban_json(json_path)
+            assert isinstance(res, dict)
+            molecules = res
             assert len(molecules) == 2
             assert "NRP_DUP" in molecules
             assert "NRP_DUP_2" in molecules
@@ -204,8 +249,14 @@ class TestJsonParserErrors:
     def test_parse_missing_required_fields(self):
         """Should raise ValueError when Parsed_rBAN_Record fields are missing."""
         json_data = {
-            "compound_id": "NRP005",
-            "metadata": {"smiles": "NCC(=O)O"},
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP005",
+                        "metadata": {"smiles": "NCC(=O)O"},
+                    }
+                }
+            ]
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(json_data, f)
@@ -220,18 +271,24 @@ class TestJsonParserErrors:
     def test_parse_missing_monomers(self):
         """Should raise ValueError when Parsed_rBAN_Record has no monomers."""
         json_data = {
-            "compound_id": "NRP006",
-            "metadata": {
-                "name": "NoMonomers",
-                "smiles": "NCC(=O)O",
-                "origin": None,
-                "inchikey": None,
-                "source": None,
-            },
-            "atoms": {"0": {"name": "N", "hydrogens": 2}},
-            "atomic_bonds": [],
-            "monomer_bonds": {},
-            "monomers": {},
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP006",
+                        "metadata": {
+                            "name": "NoMonomers",
+                            "smiles": "NCC(=O)O",
+                            "origin": None,
+                            "inchikey": None,
+                            "source": None,
+                        },
+                        "atoms": {"0": {"name": "N", "hydrogens": 2}},
+                        "atomic_bonds": [],
+                        "monomer_bonds": [],
+                        "monomers": {},
+                    }
+                }
+            ]
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(json_data, f)
@@ -250,20 +307,32 @@ class TestJsonParserBatch:
     def test_parse_batch_multiple_files(self):
         """Parse multiple JSON files at once."""
         json_data_1 = {
-            "compound_id": "NRP_A",
-            "metadata": {"name": None, "smiles": "N"},
-            "atoms": {"0": {"name": "N", "hydrogens": 1}},
-            "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
-            "monomer_bonds": {},
-            "atomic_bonds": [],
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP_A",
+                        "metadata": {"name": None, "smiles": "N"},
+                        "atoms": {"0": {"name": "N", "hydrogens": 1}},
+                        "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
+                        "monomer_bonds": [],
+                        "atomic_bonds": [],
+                    }
+                }
+            ]
         }
         json_data_2 = {
-            "compound_id": "NRP_B",
-            "metadata": {"name": None, "smiles": "N"},
-            "atoms": {"0": {"name": "N", "hydrogens": 1}},
-            "monomers": {"0": {"name": "Gly", "atoms": [0], "chirality": "L"}},
-            "monomer_bonds": {},
-            "atomic_bonds": [],
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP_B",
+                        "metadata": {"name": None, "smiles": "N"},
+                        "atoms": {"0": {"name": "N", "hydrogens": 1}},
+                        "monomers": {"0": {"name": "Gly", "atoms": [0], "chirality": "L"}},
+                        "monomer_bonds": [],
+                        "atomic_bonds": [],
+                    }
+                }
+            ]
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_a.json")
@@ -285,12 +354,18 @@ class TestJsonParserBatch:
     def test_parse_batch_with_error(self):
         """Batch parsing should report all errors."""
         json_data_1 = {
-            "compound_id": "NRP_A",
-            "metadata": {"name": None, "smiles": "N"},
-            "atoms": {"0": {"name": "N", "hydrogens": 1}},
-            "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
-            "monomer_bonds": {},
-            "atomic_bonds": [],
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP_A",
+                        "metadata": {"name": None, "smiles": "N"},
+                        "atoms": {"0": {"name": "N", "hydrogens": 1}},
+                        "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
+                        "monomer_bonds": [],
+                        "atomic_bonds": [],
+                    }
+                }
+            ]
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_a.json")
@@ -307,12 +382,18 @@ class TestJsonParserBatch:
     def test_parse_batch_with_caching(self):
         """Parse multiple files with and without cache hits."""
         json_data_1 = {
-            "compound_id": "NRP_C",
-            "metadata": {"name": None, "smiles": "N"},
-            "atoms": {"0": {"name": "N", "hydrogens": 1}},
-            "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
-            "monomer_bonds": {},
-            "atomic_bonds": [],
+            "new_variants": [
+                {
+                    "new_record": {
+                        "compound_id": "NRP_C",
+                        "metadata": {"name": None, "smiles": "N"},
+                        "atoms": {"0": {"name": "N", "hydrogens": 1}},
+                        "monomers": {"0": {"name": "Ala", "atoms": [0], "chirality": "L"}},
+                        "monomer_bonds": [],
+                        "atomic_bonds": [],
+                    }
+                }
+            ]
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_c.json")

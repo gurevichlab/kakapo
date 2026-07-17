@@ -9,9 +9,10 @@ import os
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import orjson
+from pydantic import BaseModel, Field, RootModel
 from rban_parsing.rban_parser import Parsed_rBAN_Record
 
 from kakapo.io.yaml_parser import (
@@ -73,6 +74,57 @@ def _load_json_file(json_path: str | Path) -> list | dict:
         _log_and_raise(f"JSON file not found: {json_path}", FileNotFoundError, e)
 
 
+class NewVariant(BaseModel):
+    """Pydantic model representing a single altered variant of a compound."""
+
+    score: float | None = None
+    rank: int | None = None
+    original_id: str | None = None
+    new_record: dict[str, Any]
+
+
+class BGCVariantItem(BaseModel):
+    """Pydantic model representing a BGC compound and its variants."""
+
+    bgc_variant_id: dict[str, Any] = Field(default_factory=dict)
+    compound_id: str | None = None
+    original_score: float | None = None
+    new_variants: list[NewVariant] = Field(default_factory=list)
+
+
+class BGCVariantsFile(RootModel[list[BGCVariantItem]]):
+    """Root model to parse a list of BGC variant items from a JSON file."""
+
+    pass
+
+
+def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool]:
+    """Extract new_record dictionaries from BGC variant items.
+
+    Uses Pydantic schemas to validate the structure of the JSON data and
+    safely extract the nested new_record dicts.
+
+    Args:
+        json_data: Parsed JSON data, either a single BGC dict or a list of BGC dicts.
+
+    Returns:
+        A tuple containing:
+            - A list of record dictionaries.
+            - A boolean indicating if the input root was a list (for return type selection).
+    """
+    is_list = isinstance(json_data, list)
+    if is_list:
+        parsed_data = BGCVariantsFile.model_validate(json_data).root
+    else:
+        parsed_data = [BGCVariantItem.model_validate(json_data)]
+
+    records = []
+    for item in parsed_data:
+        for variant in item.new_variants:
+            records.append(variant.new_record)
+    return records, is_list
+
+
 def _process_single_record(args: tuple[dict, str]) -> Molecule:
     """Helper function to parse a single record in parallel."""
     item, unique_id = args
@@ -86,20 +138,21 @@ def parse_rban_json(  # noqa: C901
     """Parse a Parsed_rBAN_Record JSON file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
-        json_path: Path to a JSON file containing one Parsed_rBAN_Record dict or a list of them.
+        json_path: Path to a JSON file containing BGC variant items with new_record structures.
         id_counts: Optional tracker dictionary mapping compound IDs to their occurrence count
             for suffix-based deduplication.
 
     Returns:
         A kakapo Molecule instance representing the structure, or a dictionary mapping
-        structure IDs to Molecule instances if the file contains a list of records.
+        structure IDs to Molecule instances if the file contains a list of BGC items or multiple
+        variants.
 
     Raises:
         FileNotFoundError: If the JSON file does not exist.
         ValueError: If the file is not valid JSON or fails to parse.
     """
     json_path = Path(json_path)
-    logger.info("Parsing rBAN JSON from %s", json_path)
+    logger.info("Parsing BGC variants JSON from %s", json_path)
     if id_counts is None:
         id_counts = {}
 
@@ -108,24 +161,24 @@ def parse_rban_json(  # noqa: C901
     if json_data is None:
         _log_and_raise(f"JSON file {json_path} is empty", ValueError, level="warning")
 
-    is_list = isinstance(json_data, list)
-    if is_list and not json_data:
-        _log_and_raise(f"JSON file {json_path} contains an empty list", ValueError, level="warning")
+    records, is_list = _extract_and_clean_records(json_data)
 
-    records = json_data if is_list else [json_data]
+    if not records:
+        _log_and_raise(
+            f"No valid new_variants records found in {json_path}",
+            ValueError,
+            level="warning" if is_list else "error",
+        )
+
     molecules = {}
     errors = []
 
     # Pre-calculate unique IDs sequentially to keep it correct and fast
     tasks = []
     for i, item in enumerate(records):
-        if not isinstance(item, dict):
-            errors.append(f"Index {i}: Expected a dictionary, got {type(item).__name__}")
-            continue
-
         base_id = item.get("compound_id")
         if not base_id:
-            # If compound_id is missing, let from_dict raise/handle it, but we need a unique_id
+            # If compound_id is missing, use a fallback
             metadata = item.get("metadata") or {}
             base_id = metadata.get("name") or f"unknown_{i}"
 
