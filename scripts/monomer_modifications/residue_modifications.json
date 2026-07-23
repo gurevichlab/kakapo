@@ -8,13 +8,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Aad"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -28,13 +21,6 @@
       "mass_difference": 42.010565,
       "modified_monomers": [
         "NAc-Abu"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Abu"
       ]
     },
     {
@@ -77,18 +63,10 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NdMe-Ala"
-      ]
-    },
-    {
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "D-3OMe-Ala",
-        "NMe-Ala"
+        "D-3OMe-Ala"
       ]
     },
     {
@@ -141,13 +119,6 @@
       "mass_difference": 74.000394,
       "modified_monomers": [
         "NAc-diOH-Arg"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Arg"
       ]
     },
     {
@@ -217,8 +188,7 @@
       "formula_difference": "+C2H4",
       "mass_difference": 28.0313,
       "modified_monomers": [
-        "NMe-D-N2Me-Asn",
-        "NMe-bMe-Asn"
+        "NMe-D-N2Me-Asn"
       ]
     },
     {
@@ -248,10 +218,7 @@
       "mass_difference": 14.01565,
       "modified_monomers": [
         "D-N2Me-Asn",
-        "NMe-Asn",
-        "bD-N2Me-Asn",
-        "bMe-Asn",
-        "bbMe-Asn"
+        "bD-N2Me-Asn"
       ]
     },
     {
@@ -330,7 +297,6 @@
       "formula_difference": "+C2H4",
       "mass_difference": 28.0313,
       "modified_monomers": [
-        "NMe-bMe-Asp",
         "NMe-bOMe-Asp"
       ]
     },
@@ -347,10 +313,8 @@
       "mass_difference": 14.01565,
       "modified_monomers": [
         "D-bMe-Asp",
-        "NMe-Asp",
         "bMe-Asp",
         "bOMe-Asp",
-        "bbMe-Asp",
         "bbOMe-Asp"
       ]
     },
@@ -394,20 +358,6 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "Me2-Bmt"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Bmt"
-      ]
-    },
-    {
       "formula_difference": "+CH2-O",
       "mass_difference": -1.979265,
       "modified_monomers": [
@@ -435,13 +385,6 @@
       "mass_difference": 58.005479,
       "modified_monomers": [
         "NAc-5OH-Cap"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Cap"
       ]
     },
     {
@@ -483,13 +426,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Cit"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -506,17 +442,9 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "diMe-Cys"
-      ]
-    },
-    {
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "NMe-Cys",
         "aMe-Cys"
       ]
     },
@@ -544,13 +472,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-CysA"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -564,13 +485,6 @@
       "mass_difference": 42.010565,
       "modified_monomers": [
         "NAc-Dab"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Dab"
       ]
     },
     {
@@ -590,13 +504,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Dbu"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -610,13 +517,6 @@
       "mass_difference": 42.010565,
       "modified_monomers": [
         "NAc-Dhpg"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Dhpg"
       ]
     },
     {
@@ -636,13 +536,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Dpr"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -656,13 +549,6 @@
       "mass_difference": 42.010565,
       "modified_monomers": [
         "NAc-End"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-End"
       ]
     },
     {
@@ -690,27 +576,11 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "3Me-4Me-Gln",
-        "NMe-bMe-Gln",
-        "b3Me-4Me-Gln"
-      ]
-    },
-    {
       "formula_difference": "+C3H4O",
       "mass_difference": 56.026215,
       "modified_monomers": [
         "NAc-bMe-Gln",
         "NFo-3Me-4Me-Gln"
-      ]
-    },
-    {
-      "formula_difference": "+C3H6",
-      "mass_difference": 42.04695,
-      "modified_monomers": [
-        "NMe-3Me-4Me-Gln"
       ]
     },
     {
@@ -724,10 +594,7 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "D-bMe-Gln",
-        "NMe-Gln",
-        "bMe-Gln",
-        "bbMe-Gln"
+        "D-bMe-Gln"
       ]
     },
     {
@@ -802,7 +669,6 @@
       "formula_difference": "+C2H4",
       "mass_difference": 28.0313,
       "modified_monomers": [
-        "NMe-3Me-Glu",
         "NMe-MeO-Glu"
       ]
     },
@@ -839,12 +705,9 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "3Me-Glu",
         "D-MeO-Glu",
         "MeO-D-Glu",
         "MeO-Glu",
-        "NMe-Glu",
-        "b3Me-Glu",
         "bMeO-Glu"
       ]
     },
@@ -942,13 +805,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Gly"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -970,13 +826,6 @@
       "mass_difference": 58.005479,
       "modified_monomers": [
         "NAc-OH-His"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-His"
       ]
     },
     {
@@ -1053,13 +902,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Hpg"
-      ]
-    },
-    {
       "formula_difference": "+CHCl",
       "mass_difference": 47.976678,
       "modified_monomers": [
@@ -1097,13 +939,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Hph"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -1124,13 +959,6 @@
       "mass_difference": 55.989829,
       "modified_monomers": [
         "NAc-4oxo-Hpr"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Hpr"
       ]
     },
     {
@@ -1165,13 +993,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Hse"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -1189,26 +1010,10 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NMe-3Me-Hty"
-      ]
-    },
-    {
       "formula_difference": "+C3H4O",
       "mass_difference": 56.026215,
       "modified_monomers": [
         "NAc-3Me-Hty"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "3Me-Hty",
-        "NMe-Hty",
-        "b3Me-Hty"
       ]
     },
     {
@@ -1232,8 +1037,7 @@
       "formula_difference": "+C2H4",
       "mass_difference": 28.0313,
       "modified_monomers": [
-        "NMe-OMe-Ile",
-        "NMe-bMe-Ile"
+        "NMe-OMe-Ile"
       ]
     },
     {
@@ -1263,15 +1067,6 @@
       "mass_difference": 61.955942,
       "modified_monomers": [
         "NFo-Cl-Ile"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Ile",
-        "NMe-aIle/NMe-Ile",
-        "bMe-Ile"
       ]
     },
     {
@@ -1322,13 +1117,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Kyn"
-      ]
-    },
-    {
       "formula_difference": "+CO",
       "mass_difference": 27.994915,
       "modified_monomers": [
@@ -1367,15 +1155,6 @@
       "mass_difference": 58.005479,
       "modified_monomers": [
         "NAc-3OH-Leu"
-      ]
-    },
-    {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NMe-bMe-Leu",
-        "NMe-bMe-Leu/diMe-aIle",
-        "NdMe-Leu"
       ]
     },
     {
@@ -1419,7 +1198,6 @@
       "mass_difference": 14.01565,
       "modified_monomers": [
         "D-NMe-Leu",
-        "NMe-Leu",
         "NMe-t-Leu"
       ]
     },
@@ -1467,13 +1245,6 @@
       "mass_difference": 42.010565,
       "modified_monomers": [
         "NAc-Lys"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Lys"
       ]
     },
     {
@@ -1532,13 +1303,6 @@
       "mass_difference": 86.036779,
       "modified_monomers": [
         "NAc-bbMe2-O-Met"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Met"
       ]
     },
     {
@@ -1642,13 +1406,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Orn"
-      ]
-    },
-    {
       "formula_difference": "+CH2O",
       "mass_difference": 30.010565,
       "modified_monomers": [
@@ -1738,14 +1495,6 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NMe-3Me-Phe",
-        "NMe-bMe-Phe"
-      ]
-    },
-    {
       "formula_difference": "+C2H5N",
       "mass_difference": 43.042199,
       "modified_monomers": [
@@ -1814,12 +1563,7 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "3Me-Phe",
-        "D-NMe-Phe",
-        "NMe-Phe",
-        "b3Me-Phe",
-        "bMe-Phe",
-        "bbMe-Phe"
+        "D-NMe-Phe"
       ]
     },
     {
@@ -1904,15 +1648,6 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NMe-3Me-Pro",
-        "NMe-4Me-Pro",
-        "NMe-5Me-Pro"
-      ]
-    },
-    {
       "formula_difference": "+C2H4O",
       "mass_difference": 44.026215,
       "modified_monomers": [
@@ -1962,16 +1697,6 @@
       "mass_difference": 95.91697,
       "modified_monomers": [
         "NFo-Cl2-Pro"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "3Me-Pro",
-        "4Me-Pro",
-        "5Me-Pro",
-        "NMe-Pro"
       ]
     },
     {
@@ -2103,8 +1828,7 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "D-NMe-Ser",
-        "NMe-Ser"
+        "D-NMe-Ser"
       ]
     },
     {
@@ -2119,15 +1843,6 @@
       "mass_difference": 43.017047,
       "modified_monomers": [
         "gSer"
-      ]
-    }
-  ],
-  "Suc": [
-    {
-      "formula_difference": "+CHN-O2",
-      "mass_difference": -4.97893,
-      "modified_monomers": [
-        "Me-Suc"
       ]
     }
   ],
@@ -2179,8 +1894,6 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "NMe-Thr",
-        "OMe-Thr",
         "bOMe-Thr"
       ]
     },
@@ -2279,13 +1992,6 @@
       ]
     },
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "NMe-1Me-Trp"
-      ]
-    },
-    {
       "formula_difference": "+C2H4O",
       "mass_difference": 44.026215,
       "modified_monomers": [
@@ -2351,13 +2057,6 @@
       ]
     },
     {
-      "formula_difference": "+C3H6",
-      "mass_difference": 42.04695,
-      "modified_monomers": [
-        "bbMe-NMe-Trp"
-      ]
-    },
-    {
       "formula_difference": "+C4H4O3",
       "mass_difference": 100.016044,
       "modified_monomers": [
@@ -2369,13 +2068,6 @@
       "mass_difference": 86.036779,
       "modified_monomers": [
         "NMe-N1-COOH-bhTrp"
-      ]
-    },
-    {
-      "formula_difference": "+C4H8",
-      "mass_difference": 56.0626,
-      "modified_monomers": [
-        "bbNMe-NMe-Trp"
       ]
     },
     {
@@ -2412,15 +2104,6 @@
       "mass_difference": 61.955942,
       "modified_monomers": [
         "NFo-D-Cl-Trp"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "1Me-Trp",
-        "NMe-Trp",
-        "b1Me-Trp"
       ]
     },
     {
@@ -2616,13 +2299,6 @@
       ]
     },
     {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-Tyr"
-      ]
-    },
-    {
       "formula_difference": "+CH2O",
       "mass_difference": 30.010565,
       "modified_monomers": [
@@ -2754,8 +2430,7 @@
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "D-NMe-Val",
-        "NMe-Val"
+        "D-NMe-Val"
       ]
     },
     {
@@ -2791,18 +2466,10 @@
   ],
   "aIle": [
     {
-      "formula_difference": "+C2H4",
-      "mass_difference": 28.0313,
-      "modified_monomers": [
-        "diMe-aIle"
-      ]
-    },
-    {
       "formula_difference": "+CH2",
       "mass_difference": 14.01565,
       "modified_monomers": [
-        "D-NMe-aIle",
-        "NMe-aIle"
+        "D-NMe-aIle"
       ]
     }
   ],
@@ -2812,13 +2479,6 @@
       "mass_difference": 96.99862,
       "modified_monomers": [
         "OMe-bAla-Thz"
-      ]
-    },
-    {
-      "formula_difference": "+CH2",
-      "mass_difference": 14.01565,
-      "modified_monomers": [
-        "NMe-bAla"
       ]
     }
   ],

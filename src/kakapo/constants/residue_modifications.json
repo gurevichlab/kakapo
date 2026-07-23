@@ -1,0 +1,2494 @@
+{
+  "Aad": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Aad"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Aad"
+      ]
+    }
+  ],
+  "Abu": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Abu"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-D-Abu"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "OH-4Abu"
+      ]
+    },
+    {
+      "formula_difference": "-H2",
+      "mass_difference": -2.01565,
+      "modified_monomers": [
+        "dhAbu"
+      ]
+    }
+  ],
+  "Aib": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Aib"
+      ]
+    }
+  ],
+  "Ala": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Ala"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-3OMe-Ala"
+      ]
+    },
+    {
+      "formula_difference": "+CN2O",
+      "mass_difference": 56.001063,
+      "modified_monomers": [
+        "bU-dAla"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "D-NFo-Ala",
+        "NFo-Ala"
+      ]
+    },
+    {
+      "formula_difference": "-H2",
+      "mass_difference": -2.01565,
+      "modified_monomers": [
+        "dh-Ala"
+      ]
+    }
+  ],
+  "Arg": [
+    {
+      "formula_difference": "+C-H2",
+      "mass_difference": 9.98435,
+      "modified_monomers": [
+        "ck-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2",
+      "mass_difference": 26.01565,
+      "modified_monomers": [
+        "v-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O3",
+      "mass_difference": 74.000394,
+      "modified_monomers": [
+        "NAc-diOH-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "hk-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O2",
+      "mass_difference": 46.005479,
+      "modified_monomers": [
+        "NMe-diOH-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Arg",
+        "k-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+CO3",
+      "mass_difference": 59.984744,
+      "modified_monomers": [
+        "NFo-diOH-Arg"
+      ]
+    },
+    {
+      "formula_difference": "+O2",
+      "mass_difference": 31.989829,
+      "modified_monomers": [
+        "bdiOH-Arg",
+        "diOH-Arg"
+      ]
+    }
+  ],
+  "Asn": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Asn",
+        "NFo-D-N2Me-Asn",
+        "NFo-bMe-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-OH-Asn",
+        "NFo-D-N2Me-bOH-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C2H3O5P",
+      "mass_difference": 137.97181,
+      "modified_monomers": [
+        "NAc-D-PO-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "NMe-D-N2Me-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4O",
+      "mass_difference": 44.026215,
+      "modified_monomers": [
+        "NMe-D-N2Me-bOH-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-D-N2Me-Asn",
+        "NAc-bMe-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NAc-D-N2Me-bOH-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-N2Me-Asn",
+        "bD-N2Me-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "D-N2Me-bOH-Asn",
+        "NMe-OH-Asn",
+        "bD-N2Me-bOH-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CH3O4P",
+      "mass_difference": 109.976895,
+      "modified_monomers": [
+        "NMe-D-PO-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CHO5P",
+      "mass_difference": 123.95616,
+      "modified_monomers": [
+        "NFo-D-PO-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-OH-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+HO4P",
+      "mass_difference": 95.961245,
+      "modified_monomers": [
+        "D-PO-Asn",
+        "bD-PO-Asn"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "D-OH-Asn",
+        "OH-Asn",
+        "bOH-Asn"
+      ]
+    }
+  ],
+  "Asp": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Asp",
+        "NFo-bMe-Asp",
+        "NFo-bOMe-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-OH-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "NMe-bOMe-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-bMe-Asp",
+        "NAc-bOMe-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-bMe-Asp",
+        "bMe-Asp",
+        "bOMe-Asp",
+        "bbOMe-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-OH-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-OH-Asp"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "D-OH-Asp",
+        "OH-Asp",
+        "bOH-Asp"
+      ]
+    }
+  ],
+  "Bmt": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Bmt"
+      ]
+    },
+    {
+      "formula_difference": "+CH2-O",
+      "mass_difference": -1.979265,
+      "modified_monomers": [
+        "3d-NMe-Bmt"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Bmt"
+      ]
+    }
+  ],
+  "Cap": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Cap"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-5OH-Cap"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-5OH-Cap"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Cap"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-5OH-Cap"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "5OH-Cap",
+        "b5OH-Cap"
+      ]
+    }
+  ],
+  "Cit": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Cit"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Cit"
+      ]
+    }
+  ],
+  "Cys": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Cys"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "aMe-Cys"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Cys"
+      ]
+    },
+    {
+      "formula_difference": "-H2",
+      "mass_difference": -2.01565,
+      "modified_monomers": [
+        "dhCys"
+      ]
+    }
+  ],
+  "CysA": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-CysA"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-CysA"
+      ]
+    }
+  ],
+  "Dab": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Dab"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Dab"
+      ]
+    }
+  ],
+  "Dbu": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Dbu"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Dbu"
+      ]
+    }
+  ],
+  "Dhpg": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Dhpg"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Dhpg"
+      ]
+    }
+  ],
+  "Dpr": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Dpr"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Dpr"
+      ]
+    }
+  ],
+  "End": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-End"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-End"
+      ]
+    }
+  ],
+  "Gln": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Gln",
+        "NFo-bMe-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-bOH-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-bMe-Gln",
+        "NFo-3Me-4Me-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+C4H6O",
+      "mass_difference": 70.041865,
+      "modified_monomers": [
+        "NAc-3Me-4Me-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-bMe-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-bOH-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-bOH-Gln"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "bOH-Gln",
+        "bbOH-Gln"
+      ]
+    }
+  ],
+  "Glu": [
+    {
+      "formula_difference": "+C-H2",
+      "mass_difference": 9.98435,
+      "modified_monomers": [
+        "NFo-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C-O",
+      "mass_difference": -3.994915,
+      "modified_monomers": [
+        "NMe-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C2",
+      "mass_difference": 24.0,
+      "modified_monomers": [
+        "NAc-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2-O",
+      "mass_difference": 10.020735,
+      "modified_monomers": [
+        "2Me-3Me-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Glu",
+        "NFo-3Me-Glu",
+        "NFo-MeO-Glu"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "NMe-MeO-Glu"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2",
+      "mass_difference": 38.01565,
+      "modified_monomers": [
+        "NFo-2Me-3Me-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4-O",
+      "mass_difference": 24.036386,
+      "modified_monomers": [
+        "NMe-2Me-3Me-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-3Me-Glu",
+        "NAc-MeO-Glu"
+      ]
+    },
+    {
+      "formula_difference": "+C4H4",
+      "mass_difference": 52.0313,
+      "modified_monomers": [
+        "NAc-2Me-3Me-pGlu"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-MeO-Glu",
+        "MeO-D-Glu",
+        "MeO-Glu",
+        "bMeO-Glu"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Glu"
+      ]
+    },
+    {
+      "formula_difference": "-H2O",
+      "mass_difference": -18.010565,
+      "modified_monomers": [
+        "pGlu"
+      ]
+    }
+  ],
+  "Gly": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NMe-aFo-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C2O2",
+      "mass_difference": 55.989829,
+      "modified_monomers": [
+        "NFo-aFo-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2O2",
+      "mass_difference": 70.005479,
+      "modified_monomers": [
+        "NAc-aFo-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C6H3F",
+      "mass_difference": 94.021878,
+      "modified_monomers": [
+        "D-F-ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C6H4",
+      "mass_difference": 76.0313,
+      "modified_monomers": [
+        "D-ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C7H3FO",
+      "mass_difference": 122.016793,
+      "modified_monomers": [
+        "NFo-D-F-ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C7H4O",
+      "mass_difference": 104.026215,
+      "modified_monomers": [
+        "NFo-Ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C7H5F",
+      "mass_difference": 108.037528,
+      "modified_monomers": [
+        "NMe-D-F-ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C7H6",
+      "mass_difference": 90.04695,
+      "modified_monomers": [
+        "NMe-Ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C8H5FO",
+      "mass_difference": 136.032443,
+      "modified_monomers": [
+        "NAc-D-F-ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+C8H6O",
+      "mass_difference": 118.041865,
+      "modified_monomers": [
+        "NAc-Ph-Gly"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "aFo-Gly",
+        "baFo-Gly"
+      ]
+    }
+  ],
+  "His": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-His"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-OH-His"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-OH-His"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-His"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-OH-His"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "OH-His",
+        "bOH-His"
+      ]
+    }
+  ],
+  "Hpg": [
+    {
+      "formula_difference": "+C2Cl2O",
+      "mass_difference": 109.93262,
+      "modified_monomers": [
+        "NAc-Cl2-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO",
+      "mass_difference": 75.971592,
+      "modified_monomers": [
+        "NAc-Cl-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2",
+      "mass_difference": 81.937705,
+      "modified_monomers": [
+        "NMe-Cl2-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2O-H2",
+      "mass_difference": 95.91697,
+      "modified_monomers": [
+        "NFo-Cl2-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+CClO-H",
+      "mass_difference": 61.955942,
+      "modified_monomers": [
+        "NFo-Cl-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+CHCl",
+      "mass_difference": 47.976678,
+      "modified_monomers": [
+        "NMe-Cl-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+Cl-H",
+      "mass_difference": 33.961028,
+      "modified_monomers": [
+        "Cl-Hpg"
+      ]
+    },
+    {
+      "formula_difference": "+Cl2-H2",
+      "mass_difference": 67.922055,
+      "modified_monomers": [
+        "Cl2-Hpg"
+      ]
+    }
+  ],
+  "Hph": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Hph"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Hph"
+      ]
+    }
+  ],
+  "Hpr": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Hpr"
+      ]
+    },
+    {
+      "formula_difference": "+C2O2",
+      "mass_difference": 55.989829,
+      "modified_monomers": [
+        "NAc-4oxo-Hpr"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Hpr",
+        "NMe-4oxo-Hpr"
+      ]
+    },
+    {
+      "formula_difference": "+CO2-H2",
+      "mass_difference": 41.974179,
+      "modified_monomers": [
+        "NFo-4oxo-Hpr"
+      ]
+    },
+    {
+      "formula_difference": "+O-H2",
+      "mass_difference": 13.979265,
+      "modified_monomers": [
+        "4oxo-Hpr"
+      ]
+    }
+  ],
+  "Hse": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Hse"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Hse"
+      ]
+    }
+  ],
+  "Hty": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Hty",
+        "NFo-3Me-Hty"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-3Me-Hty"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Hty"
+      ]
+    }
+  ],
+  "Ile": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Ile",
+        "NFo-bMe-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "NMe-OMe-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO",
+      "mass_difference": 75.971592,
+      "modified_monomers": [
+        "NAc-Cl-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-bMe-Ile",
+        "NMe-NAc-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+C4H5NO",
+      "mass_difference": 83.037114,
+      "modified_monomers": [
+        "MeOx-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+CClO-H",
+      "mass_difference": 61.955942,
+      "modified_monomers": [
+        "NFo-Cl-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-OH-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+CHCl",
+      "mass_difference": 47.976678,
+      "modified_monomers": [
+        "NMe-Cl-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Ile"
+      ]
+    },
+    {
+      "formula_difference": "+Cl-H",
+      "mass_difference": 33.961028,
+      "modified_monomers": [
+        "Cl-Ile",
+        "bCl-Ile"
+      ]
+    }
+  ],
+  "Ival": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Ival"
+      ]
+    }
+  ],
+  "Kyn": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Kyn"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Kyn"
+      ]
+    }
+  ],
+  "Lac": [
+    {
+      "formula_difference": "+C6H4",
+      "mass_difference": 76.0313,
+      "modified_monomers": [
+        "D-Ph-Lac",
+        "Ph-Lac"
+      ]
+    },
+    {
+      "formula_difference": "+C6H4O",
+      "mass_difference": 92.026215,
+      "modified_monomers": [
+        "4OH-D-Ph-Lac"
+      ]
+    }
+  ],
+  "Leu": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Leu",
+        "NAc-t-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-3OH-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2",
+      "mass_difference": 81.937705,
+      "modified_monomers": [
+        "Cl2-NMe-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2-H2",
+      "mass_difference": 79.922055,
+      "modified_monomers": [
+        "Cl2-NMe-dhLeu"
+      ]
+    },
+    {
+      "formula_difference": "+CCl3-H",
+      "mass_difference": 115.898733,
+      "modified_monomers": [
+        "Cl3-NMe-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CCl3-H3",
+      "mass_difference": 113.883083,
+      "modified_monomers": [
+        "Cl3-NMe-dhLeu"
+      ]
+    },
+    {
+      "formula_difference": "+CCl3O-H",
+      "mass_difference": 131.893648,
+      "modified_monomers": [
+        "Cl3-2OH-NMe-Leu",
+        "Cl3-5OH-NMe-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-NMe-Leu",
+        "NMe-t-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-3OH-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Leu",
+        "NFo-t-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-3OH-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "3OH-Leu",
+        "b3OH-Leu"
+      ]
+    },
+    {
+      "formula_difference": "+O-H3N",
+      "mass_difference": -1.031634,
+      "modified_monomers": [
+        "k-Leu"
+      ]
+    }
+  ],
+  "Lys": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Lys"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Lys"
+      ]
+    }
+  ],
+  "Met": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O3",
+      "mass_difference": 74.000394,
+      "modified_monomers": [
+        "NAc-O2-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4O",
+      "mass_difference": 44.026215,
+      "modified_monomers": [
+        "bbMe2-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NFo-bbMe2-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C3H6O",
+      "mass_difference": 58.041865,
+      "modified_monomers": [
+        "NMe-bbMe2-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+C4H6O2",
+      "mass_difference": 86.036779,
+      "modified_monomers": [
+        "NAc-bbMe2-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O2",
+      "mass_difference": 46.005479,
+      "modified_monomers": [
+        "NMe-O2-Met"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Met"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-O-Met"
+      ]
+    },
+    {
+      "formula_difference": "+CO3",
+      "mass_difference": 59.984744,
+      "modified_monomers": [
+        "NFo-O2-Met"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "O-Met",
+        "bO-Met"
+      ]
+    },
+    {
+      "formula_difference": "+O2",
+      "mass_difference": 31.989829,
+      "modified_monomers": [
+        "O2-Met",
+        "bO2-Met"
+      ]
+    }
+  ],
+  "Orn": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "Ac-OH-Orn",
+        "D-Ac-OH-Orn",
+        "NAc-OH-Orn",
+        "NMe-Fo-OH-Orn",
+        "bAc-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+C2O3",
+      "mass_difference": 71.984744,
+      "modified_monomers": [
+        "NFo-Fo-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2O3",
+      "mass_difference": 86.000394,
+      "modified_monomers": [
+        "NAc-Fo-OH-Orn",
+        "NFo-Ac-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NMe-Ac-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+C4H4O3",
+      "mass_difference": 100.016044,
+      "modified_monomers": [
+        "NAc-Ac-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "D-Fo-OH-Orn",
+        "Fo-OH-Orn",
+        "NFo-OH-Orn",
+        "bFo-OH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "D-OH-Orn",
+        "OH-Orn",
+        "bOH-Orn"
+      ]
+    },
+    {
+      "formula_difference": "-H2",
+      "mass_difference": -2.01565,
+      "modified_monomers": [
+        "D-OH-cOrn",
+        "OH-cOrn"
+      ]
+    }
+  ],
+  "Phe": [
+    {
+      "formula_difference": "+Br-H",
+      "mass_difference": 77.910513,
+      "modified_monomers": [
+        "Br-Phe",
+        "bBr-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+BrO-H",
+      "mass_difference": 93.905427,
+      "modified_monomers": [
+        "bOH-Br-Phe",
+        "bbOH-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C",
+      "mass_difference": 12.0,
+      "modified_monomers": [
+        "NMe-dPhe"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Phe",
+        "NFo-3Me-Phe",
+        "NFo-bMe-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O3",
+      "mass_difference": 74.000394,
+      "modified_monomers": [
+        "NAc-diOH-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C2H3Br",
+      "mass_difference": 105.941813,
+      "modified_monomers": [
+        "NMe-bMe-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C2H5N",
+      "mass_difference": 43.042199,
+      "modified_monomers": [
+        "NMe-MeA-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C2HBrO",
+      "mass_difference": 119.921077,
+      "modified_monomers": [
+        "NAc-Br-Phe",
+        "NFo-bMe-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C2HBrO2",
+      "mass_difference": 135.915992,
+      "modified_monomers": [
+        "NAc-bOH-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C3H3BrO",
+      "mass_difference": 133.936727,
+      "modified_monomers": [
+        "NAc-bMe-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-3Me-Phe",
+        "NAc-bMe-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NOMe-Ac-D-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+C3H7N",
+      "mass_difference": 57.057849,
+      "modified_monomers": [
+        "NMe-Me2A-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CBrO-H",
+      "mass_difference": 105.905427,
+      "modified_monomers": [
+        "NFo-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CBrO2-H",
+      "mass_difference": 121.900342,
+      "modified_monomers": [
+        "NFo-bOH-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-NMe-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "bOH-NMe-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O2",
+      "mass_difference": 46.005479,
+      "modified_monomers": [
+        "NMe-diOH-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CHBr",
+      "mass_difference": 91.926163,
+      "modified_monomers": [
+        "NMe-Br-Phe",
+        "bMe-Br-Phe",
+        "bbMe-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CHBrO",
+      "mass_difference": 107.921077,
+      "modified_monomers": [
+        "NMe-bOH-Br-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+CO3",
+      "mass_difference": 59.984744,
+      "modified_monomers": [
+        "NFo-diOH-Phe"
+      ]
+    },
+    {
+      "formula_difference": "+O2",
+      "mass_difference": 31.989829,
+      "modified_monomers": [
+        "bdiOH-Phe",
+        "diOH-Phe"
+      ]
+    }
+  ],
+  "Pro": [
+    {
+      "formula_difference": "+C2Cl2O",
+      "mass_difference": 109.93262,
+      "modified_monomers": [
+        "NAc-Cl2-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Pro",
+        "NFo-3Me-Pro",
+        "NFo-4Me-Pro",
+        "NFo-5Me-Pro",
+        "NMe-4oxo-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-3OH-Pro",
+        "NAc-4OH-Pro",
+        "NFo-3OH-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4O",
+      "mass_difference": 44.026215,
+      "modified_monomers": [
+        "NMe-3OH-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C2O2",
+      "mass_difference": 55.989829,
+      "modified_monomers": [
+        "NAc-4oxo-Pro",
+        "NFo-4oxo-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2O2",
+      "mass_difference": 70.005479,
+      "modified_monomers": [
+        "NAc-4oxo-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-3Me-Pro",
+        "NAc-4Me-Pro",
+        "NAc-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NAc-3OH-5Me-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2",
+      "mass_difference": 81.937705,
+      "modified_monomers": [
+        "NMe-Cl2-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CCl2O-H2",
+      "mass_difference": 95.91697,
+      "modified_monomers": [
+        "NFo-Cl2-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "3OH-5Me-Pro",
+        "NMe-3OH-Pro",
+        "NMe-4OH-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "4oxo-5Me-Pro",
+        "NFo-Pro",
+        "NMe-4oxo-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-3OH-Pro",
+        "NFo-4OH-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+CO2-H2",
+      "mass_difference": 41.974179,
+      "modified_monomers": [
+        "NFo-4oxo-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+Cl2-H2",
+      "mass_difference": 67.922055,
+      "modified_monomers": [
+        "Cl2-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "3OH-Pro",
+        "4OH-Pro",
+        "D-4OH-Pro"
+      ]
+    },
+    {
+      "formula_difference": "+O-H2",
+      "mass_difference": 13.979265,
+      "modified_monomers": [
+        "4oxo-Pro"
+      ]
+    }
+  ],
+  "Pyr": [
+    {
+      "formula_difference": "+C2HNO2",
+      "mass_difference": 71.000728,
+      "modified_monomers": [
+        "dPyr"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "OH-Pyr"
+      ]
+    }
+  ],
+  "Ser": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Ser",
+        "NAc-Ser",
+        "bAc-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2O2",
+      "mass_difference": 70.005479,
+      "modified_monomers": [
+        "NFo-Ac-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NMe-Ac-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C4H4O2",
+      "mass_difference": 84.021129,
+      "modified_monomers": [
+        "NAc-Ac-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C6H4",
+      "mass_difference": 76.0313,
+      "modified_monomers": [
+        "bPh-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C7H4O",
+      "mass_difference": 104.026215,
+      "modified_monomers": [
+        "NFo-Ph-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+C8H6O",
+      "mass_difference": 118.041865,
+      "modified_monomers": [
+        "NAc-Ph-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-NMe-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Ser"
+      ]
+    },
+    {
+      "formula_difference": "+HN3",
+      "mass_difference": 43.017047,
+      "modified_monomers": [
+        "gSer"
+      ]
+    }
+  ],
+  "Thr": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Thr",
+        "NFo-OMe-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-4OH-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "NMe-OMe-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO",
+      "mass_difference": 75.971592,
+      "modified_monomers": [
+        "NAc-4Cl-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-OMe-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CClO-H",
+      "mass_difference": 61.955942,
+      "modified_monomers": [
+        "NFo-4Cl-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "bOMe-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-4OH-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CHCl",
+      "mass_difference": 47.976678,
+      "modified_monomers": [
+        "NMe-4Cl-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-4OH-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+Cl-H",
+      "mass_difference": 33.961028,
+      "modified_monomers": [
+        "4Cl-Thr",
+        "b4Cl-Thr"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "4OH-Thr",
+        "b4OH-Thr"
+      ]
+    }
+  ],
+  "Trp": [
+    {
+      "formula_difference": "+Br-H",
+      "mass_difference": 77.910513,
+      "modified_monomers": [
+        "Br-Trp",
+        "bBr-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+BrO-H",
+      "mass_difference": 93.905427,
+      "modified_monomers": [
+        "Br-OH-Trp",
+        "bBr-OH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2ClNO2",
+      "mass_difference": 104.961756,
+      "modified_monomers": [
+        "NFo-D-Cl-CONH2-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2ClNO",
+      "mass_difference": 90.982491,
+      "modified_monomers": [
+        "NMe-D-Cl-CONH2-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Trp",
+        "NFo-1Me-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-OH-Trp",
+        "NAc-pTrp",
+        "NFo-OMe-Trp",
+        "NMe-D-COOH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4O",
+      "mass_difference": 44.026215,
+      "modified_monomers": [
+        "NMe-OMe-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2HBrO",
+      "mass_difference": 119.921077,
+      "modified_monomers": [
+        "NAc-Br-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2HBrO2",
+      "mass_difference": 135.915992,
+      "modified_monomers": [
+        "NAc-Br-OH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO",
+      "mass_difference": 75.971592,
+      "modified_monomers": [
+        "NAc-D-Cl-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C2O3",
+      "mass_difference": 71.984744,
+      "modified_monomers": [
+        "NFo-D-COOH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2ClNO2",
+      "mass_difference": 118.977406,
+      "modified_monomers": [
+        "NAc-D-Cl-CONH2-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C3H2O3",
+      "mass_difference": 86.000394,
+      "modified_monomers": [
+        "NAc-D-COOH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O",
+      "mass_difference": 56.026215,
+      "modified_monomers": [
+        "NAc-1Me-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "N1-COOH-bhTrp",
+        "NAc-OMe-Trp",
+        "bN1-COOH-bhTrp"
+      ]
+    },
+    {
+      "formula_difference": "+C4H4O3",
+      "mass_difference": 100.016044,
+      "modified_monomers": [
+        "NFo-N1-COOH-bhTrp"
+      ]
+    },
+    {
+      "formula_difference": "+C4H6O2",
+      "mass_difference": 86.036779,
+      "modified_monomers": [
+        "NMe-N1-COOH-bhTrp"
+      ]
+    },
+    {
+      "formula_difference": "+C5H6O3",
+      "mass_difference": 114.031694,
+      "modified_monomers": [
+        "NAc-N1-COOH-bhTrp"
+      ]
+    },
+    {
+      "formula_difference": "+CBrO-H",
+      "mass_difference": 105.905427,
+      "modified_monomers": [
+        "NFo-Br-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CBrO2-H",
+      "mass_difference": 121.900342,
+      "modified_monomers": [
+        "NFo-Br-OH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CClNO",
+      "mass_difference": 76.966841,
+      "modified_monomers": [
+        "D-Cl-CONH2-Trp",
+        "bD-Cl-CONH2-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CClO-H",
+      "mass_difference": 61.955942,
+      "modified_monomers": [
+        "NFo-D-Cl-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-OH-Trp",
+        "NMe-pTrp",
+        "OMe-Trp",
+        "bOMe-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CHBr",
+      "mass_difference": 91.926163,
+      "modified_monomers": [
+        "NMe-Br-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CHBrO",
+      "mass_difference": 107.921077,
+      "modified_monomers": [
+        "NMe-Br-OH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CHCl",
+      "mass_difference": 47.976678,
+      "modified_monomers": [
+        "NMe-Cl-Trp",
+        "NMe-D-Cl-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CHClO",
+      "mass_difference": 63.971592,
+      "modified_monomers": [
+        "NMe-Cl-OH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "D-COOH-Trp",
+        "NFo-OH-Trp",
+        "NFo-pTrp",
+        "bD-COOH-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+Cl-H",
+      "mass_difference": 33.961028,
+      "modified_monomers": [
+        "D-Cl-Trp",
+        "bD-Cl-Trp"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "OH-Trp",
+        "bOH-Trp",
+        "pTrp"
+      ]
+    },
+    {
+      "formula_difference": "-H2",
+      "mass_difference": -2.01565,
+      "modified_monomers": [
+        "dh-Trp"
+      ]
+    }
+  ],
+  "Tyr": [
+    {
+      "formula_difference": "+Br-H",
+      "mass_difference": 77.910513,
+      "modified_monomers": [
+        "Br-Tyr",
+        "bBr-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2",
+      "mass_difference": 24.0,
+      "modified_monomers": [
+        "dv-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2",
+      "mass_difference": 26.01565,
+      "modified_monomers": [
+        "v-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "NAc-Tyr",
+        "v-OH-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-bOH-Tyr",
+        "NFo-bOMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4",
+      "mass_difference": 28.0313,
+      "modified_monomers": [
+        "D-NMe-OMe-Tyr",
+        "NMe-OMe-Tyr",
+        "e-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2H4O",
+      "mass_difference": 44.026215,
+      "modified_monomers": [
+        "NMe-bOMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2HBrO",
+      "mass_difference": 119.921077,
+      "modified_monomers": [
+        "NAc-Br-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO",
+      "mass_difference": 75.971592,
+      "modified_monomers": [
+        "NAc-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2HClO2",
+      "mass_difference": 91.966507,
+      "modified_monomers": [
+        "NAc-bOH-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C2HNO3",
+      "mass_difference": 86.995643,
+      "modified_monomers": [
+        "NAc-3NO2-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NAc-bOMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CBrO-H",
+      "mass_difference": 105.905427,
+      "modified_monomers": [
+        "NFo-Br-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CClO-H",
+      "mass_difference": 61.955942,
+      "modified_monomers": [
+        "NFo-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CClO2-H",
+      "mass_difference": 77.950857,
+      "modified_monomers": [
+        "NFo-bOH-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "NMe-bOH-Tyr",
+        "bOMe-Tyr",
+        "bbOMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CHBr",
+      "mass_difference": 91.926163,
+      "modified_monomers": [
+        "D-Br-NMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CHCl",
+      "mass_difference": 47.976678,
+      "modified_monomers": [
+        "Cl-NMe-Tyr",
+        "D-Cl-NMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CHClO",
+      "mass_difference": 63.971592,
+      "modified_monomers": [
+        "NMe-bOH-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CHI",
+      "mass_difference": 139.912293,
+      "modified_monomers": [
+        "D-I-NMe-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CHNO2",
+      "mass_difference": 59.000728,
+      "modified_monomers": [
+        "NMe-3NO2-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CNO3-H",
+      "mass_difference": 72.979993,
+      "modified_monomers": [
+        "NFo-3NO2-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-bOH-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+Cl-H",
+      "mass_difference": 33.961028,
+      "modified_monomers": [
+        "Cl-Tyr",
+        "bCl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+ClO-H",
+      "mass_difference": 49.955942,
+      "modified_monomers": [
+        "bOH-Cl-Tyr",
+        "bbOH-Cl-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+NO2-H",
+      "mass_difference": 44.985078,
+      "modified_monomers": [
+        "3NO2-Tyr",
+        "b3NO2-Tyr"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "bOH-Tyr",
+        "bbOH-Tyr"
+      ]
+    }
+  ],
+  "Val": [
+    {
+      "formula_difference": "+C2H2O",
+      "mass_difference": 42.010565,
+      "modified_monomers": [
+        "Ac-Val"
+      ]
+    },
+    {
+      "formula_difference": "+C2H2O2",
+      "mass_difference": 58.005479,
+      "modified_monomers": [
+        "NAc-bOH-Val"
+      ]
+    },
+    {
+      "formula_difference": "+C3H4O2",
+      "mass_difference": 72.021129,
+      "modified_monomers": [
+        "NOMe-Ac-Val"
+      ]
+    },
+    {
+      "formula_difference": "+C4H6",
+      "mass_difference": 54.04695,
+      "modified_monomers": [
+        "NMe-hv-Val"
+      ]
+    },
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-NMe-Val"
+      ]
+    },
+    {
+      "formula_difference": "+CH2O",
+      "mass_difference": 30.010565,
+      "modified_monomers": [
+        "bOH-NMe-Val",
+        "gOH-NMe-Val"
+      ]
+    },
+    {
+      "formula_difference": "+CO",
+      "mass_difference": 27.994915,
+      "modified_monomers": [
+        "NFo-Val"
+      ]
+    },
+    {
+      "formula_difference": "+CO2",
+      "mass_difference": 43.989829,
+      "modified_monomers": [
+        "NFo-bOH-Val"
+      ]
+    },
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "D-bOH-Val",
+        "bOH-Val"
+      ]
+    }
+  ],
+  "aIle": [
+    {
+      "formula_difference": "+CH2",
+      "mass_difference": 14.01565,
+      "modified_monomers": [
+        "D-NMe-aIle"
+      ]
+    }
+  ],
+  "bAla": [
+    {
+      "formula_difference": "+C4H3NS",
+      "mass_difference": 96.99862,
+      "modified_monomers": [
+        "OMe-bAla-Thz"
+      ]
+    }
+  ],
+  "bLys": [
+    {
+      "formula_difference": "+O",
+      "mass_difference": 15.994915,
+      "modified_monomers": [
+        "OH-bLys"
+      ]
+    }
+  ]
+}

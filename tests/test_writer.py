@@ -13,7 +13,7 @@ from kakapo.io.writer import (
     write_spectra,
     write_structures,
 )
-from kakapo.models import MatchResult, Peak, Spectrum, Tolerance
+from kakapo.models import MatchResult, MonomerModification, Peak, Spectrum, Tolerance
 
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
@@ -40,9 +40,16 @@ def sample_results() -> list[MatchResult]:
             monomer_count=7,
             unmodified_monomer_mass_vector=(110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0),
             matched_peaks=[],
-            modified_monomer_idx=None,
-            mass_mod=0.01,
-            initial_modified_monomer_mass=None,
+            modifications=(
+                MonomerModification(
+                    monomer_idx=0,
+                    initial_monomer_name="Ala",
+                    mass_difference=0.01,
+                    new_monomer_name=None,
+                    formula_difference=None,
+                    initial_monomer_mass=110.0,
+                ),
+            ),
         ),
         MatchResult(
             structure_id="NRP_002",
@@ -57,9 +64,16 @@ def sample_results() -> list[MatchResult]:
             monomer_count=8,
             unmodified_monomer_mass_vector=(110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0),
             matched_peaks=[],
-            modified_monomer_idx=3,
-            mass_mod=-0.02,
-            initial_modified_monomer_mass=120.0,
+            modifications=(
+                MonomerModification(
+                    monomer_idx=3,
+                    initial_monomer_name="Val",
+                    mass_difference=-0.02,
+                    new_monomer_name=None,
+                    formula_difference=None,
+                    initial_monomer_mass=120.0,
+                ),
+            ),
         ),
     ]
 
@@ -88,9 +102,7 @@ class TestWriterCsvFormatting:
         assert rows[0]["score"] == "12.346"
         assert int(rows[0]["matched_peaks_count"]) == 5
         assert int(rows[0]["experimental_peaks_count"]) == 15
-        assert rows[0]["modified_monomer_idx"] == ""
-        assert float(rows[0]["mass_mod"]) == 0.01
-        assert rows[0]["initial_modified_monomer_mass"] == ""
+        assert "Ala[0]" in rows[0]["modifications"]
 
         assert rows[1]["structure_id"] == "NRP_002"
         assert rows[1]["spectrum_id"] == "spec_102"
@@ -98,9 +110,60 @@ class TestWriterCsvFormatting:
         assert float(rows[1]["spectrum_mass"]) == 950.48
         assert int(rows[1]["experimental_peaks_count"]) == 20
         assert int(rows[1]["monomer_count"]) == 8
-        assert int(rows[1]["modified_monomer_idx"]) == 3
-        assert float(rows[1]["mass_mod"]) == -0.02
-        assert float(rows[1]["initial_modified_monomer_mass"]) == 120.0
+        assert "Val[3]" in rows[1]["modifications"]
+
+    def test_format_with_known_modifications(self) -> None:
+        """Test formatting results with known modification names and chemical formulas."""
+        import json
+
+        mod_known = MonomerModification(
+            monomer_idx=1,
+            initial_monomer_name="Ala",
+            initial_monomer_mass=100.0,
+            mass_difference=42.010565,
+            new_monomer_name="NAc-Ala",
+            formula_difference="+C2H2O",
+        )
+        mod_x = MonomerModification(
+            monomer_idx=2,
+            initial_monomer_name="Xle",
+            initial_monomer_mass=120.0,
+            mass_difference=15.0,
+            new_monomer_name=None,
+            formula_difference=None,
+        )
+        result = MatchResult(
+            structure_id="NRP_MOD",
+            spectrum_id="SPEC_MOD",
+            structure_mass=500.0,
+            spectrum_mass=557.010565,
+            tolerance=Tolerance(0.02),
+            score=10.0,
+            matched_peaks_count=4,
+            theoretical_peaks_count=8,
+            experimental_peaks_count=12,
+            monomer_count=3,
+            unmodified_monomer_mass_vector=(100.0, 100.0, 120.0),
+            matched_peaks=[],
+            modifications=(mod_known, mod_x),
+        )
+
+        csv_str = format_as_csv([result])
+        assert "Ala[1]->NAc-Ala (+42.0106, +C2H2O)" in csv_str
+        assert "Xle[2] (+15.0000)" in csv_str
+
+        table_str = format_as_table([result])
+        assert "Ala[1]->NAc-Ala (+42.0106, +C2H2O)" in table_str
+
+        json_str = format_as_json([result])
+        data = json.loads(json_str)
+        mods = data[0]["modifications"]
+        assert len(mods) == 2
+        assert mods[0]["new_monomer_name"] == "NAc-Ala"
+        assert mods[0]["formula_difference"] == "+C2H2O"
+        assert mods[0]["initial_monomer_mass"] == 100.0
+        assert mods[1]["monomer_idx"] == 2
+        assert mods[1]["initial_monomer_mass"] == 120.0
 
 
 class TestWriterTableFormatting:
@@ -123,10 +186,8 @@ class TestWriterTableFormatting:
         assert "Structure ID" in table_str
         assert "Experimental Peaks" in table_str
         assert "Monomer Count" in table_str
-        assert "Modified Monomer Index" in table_str
-        assert "Mass Mod" in table_str
-        assert "Initial Modified Monomer Mass" in table_str
-        assert "120" in table_str
+        assert "Modifications" in table_str
+        assert "Ala[0]" in table_str
 
 
 class TestWriterJsonFormatting:
@@ -165,9 +226,7 @@ class TestWriterJsonFormatting:
                     theoretical_fragment_mask=5,
                 )
             ],
-            modified_monomer_idx=sample_results[0].modified_monomer_idx,
-            mass_mod=sample_results[0].mass_mod,
-            initial_modified_monomer_mass=sample_results[0].initial_modified_monomer_mass,
+            modifications=sample_results[0].modifications,
         )
 
         json_str = format_as_json(sample_results)
@@ -182,9 +241,13 @@ class TestWriterJsonFormatting:
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
         assert data[0]["matched_peaks"][0]["experimental_peak_idx"] == 2
+        assert data[0]["modifications"][0]["initial_monomer_name"] == "Ala"
 
         assert data[1]["structure_id"] == "NRP_002"
         assert data[1]["score"] == 0.0
+        assert data[1]["monomer_count"] == 8
+        assert data[1]["modifications"][0]["monomer_idx"] == 3
+
         assert data[1]["monomer_count"] == 8
         assert data[1]["unmodified_monomer_mass_vector"] == [
             110.0,

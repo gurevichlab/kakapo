@@ -13,6 +13,8 @@ from pathlib import Path
 CONSTANTS_DIR = Path(__file__).parent / "constants"
 ELEMENT_LIST_PATH = CONSTANTS_DIR / "element_list.txt"
 SCORING_WEIGHTS_PATH = CONSTANTS_DIR / "scoring_weights.json"
+RESIDUE_MODIFICATIONS_PATH = CONSTANTS_DIR / "residue_modifications.json"
+
 
 
 def load_atomic_masses(path: Path) -> dict[str, float]:
@@ -118,3 +120,20 @@ try:
 except Exception as e:
     print(f"Error loading scoring weights: {e}", file=sys.stderr)
     SCORING_WEIGHTS = {}
+
+
+def load_residue_modifications(path: Path) -> dict[str, list[dict]]:
+    """Parse residue modifications configuration from residue_modifications.json."""
+    if not path.exists():
+        raise FileNotFoundError(f"Residue modifications file not found at {path}")
+
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+try:
+    RESIDUE_MODIFICATIONS = load_residue_modifications(RESIDUE_MODIFICATIONS_PATH)
+except Exception as e:
+    print(f"Error loading residue modifications: {e}", file=sys.stderr)
+    RESIDUE_MODIFICATIONS = {}
+

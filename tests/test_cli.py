@@ -732,16 +732,19 @@ class TestCliMainFunction:
         assert tol.unit == "ppm"
         assert tol.min_tolerance == 0.005
 
-    def test_cli_parser_x_mode(self) -> None:
-        """Verify that --x-mode CLI flag is parsed correctly."""
+    def test_cli_parser_mode(self) -> None:
+        """Verify that --mode / -m CLI flags are parsed correctly."""
         from kakapo.cli import create_parser
 
         parser = create_parser()
-        args = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json", "--x-mode"])
-        assert args.x_mode is True
+        args = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json", "--mode", "x-mod"])
+        assert args.mode == "x-mod"
+
+        args_short = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json", "-m", "two-mod"])
+        assert args_short.mode == "two-mod"
 
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
-        assert args_default.x_mode is False
+        assert args_default.mode == "free-mod"
 
     def test_cli_parser_scoring(self) -> None:
         """Verify that --scoring CLI flag is parsed correctly."""

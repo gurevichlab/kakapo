@@ -6,6 +6,7 @@ from kakapo.models import (
     MatchedPeak,
     MatchResult,
     Molecule,
+    MonomerModification,
     Peak,
     Spectrum,
     TheoreticalIonWithMass,
@@ -289,9 +290,35 @@ class TestModelsValidation:
                 unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
             )
 
-    def test_match_result_negative_initial_modified_monomer_mass(self):
-        """MatchResult validates that initial modified monomer mass is non-negative."""
-        with pytest.raises(ValueError, match="Initial modified monomer mass must be non-negative"):
+    def test_monomer_modification_validation(self):
+        """MonomerModification validates fields correctly."""
+        with pytest.raises(ValueError, match="monomer_idx must be a non-negative integer"):
+            MonomerModification(
+                monomer_idx=-1,
+                initial_monomer_name="Ala",
+                initial_monomer_mass=100.0,
+                mass_difference=1.0,
+            )
+
+        with pytest.raises(ValueError, match="initial_monomer_name cannot be empty"):
+            MonomerModification(
+                monomer_idx=0,
+                initial_monomer_name="",
+                initial_monomer_mass=100.0,
+                mass_difference=1.0,
+            )
+
+        with pytest.raises(ValueError, match="initial_monomer_mass must be non-negative"):
+            MonomerModification(
+                monomer_idx=0,
+                initial_monomer_name="Ala",
+                mass_difference=1.0,
+                initial_monomer_mass=-5.0,
+            )
+
+    def test_match_result_invalid_modifications(self):
+        """MatchResult validates modifications type."""
+        with pytest.raises(TypeError, match="modifications must be a tuple"):
             MatchResult(
                 structure_id="mol_1",
                 spectrum_id="spec_1",
@@ -303,7 +330,7 @@ class TestModelsValidation:
                 experimental_peaks_count=15,
                 monomer_count=3,
                 unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-                initial_modified_monomer_mass=-1.0,
+                modifications=[1, 2],  # type: ignore
             )
 
     def test_match_result_invalid_monomer_mass_vector_type(self):

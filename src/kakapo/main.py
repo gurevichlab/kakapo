@@ -5,14 +5,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, Union
 
-from kakapo.config import DEFAULT_SCORING_MODE
+from kakapo.config import DEFAULT_MODIFICATION_MODE, DEFAULT_SCORING_MODE
 from kakapo.constants import DEFAULT_RULES, FragmentationRule
 from kakapo.core.fragmenter import generate_theoretical_spectrum
 from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_rban_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
 from kakapo.io.yaml_parser import parse_rban_yaml_batch
-from kakapo.models import MatchResult, Molecule, ScoringMode, Spectrum, Tolerance
+from kakapo.models import MatchResult, ModificationMode, Molecule, ScoringMode, Spectrum, Tolerance
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ def run_pipeline(  # noqa: C901
     rules: Optional[tuple[FragmentationRule, ...]],
     use_cache: bool,
     cache_dir: Path,
-    x_mode: bool = False,
+    mode: ModificationMode = ModificationMode(DEFAULT_MODIFICATION_MODE),  # noqa: B008
     scoring: ScoringMode = ScoringMode(DEFAULT_SCORING_MODE),  # noqa: B008
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
@@ -42,6 +42,10 @@ def run_pipeline(  # noqa: C901
         apply_filters: Whether to clean up experimental spectra using matchms filters.
         min_peaks: Minimum number of peaks required to include an experimental spectrum.
         rules: Fragmentation rules to apply.
+        use_cache: Whether to use caching.
+        cache_dir: Path to cache directory.
+        mode: ModificationMode configuration.
+        scoring: Scoring mode.
 
     Returns:
         A tuple of:
@@ -59,7 +63,7 @@ def run_pipeline(  # noqa: C901
     logger.info(
         "Running pipeline with parameters: spectra_files=%s, structure_files=%s, "
         "tolerance=%s, apply_filters=%s, min_peaks=%s, rules=%s, use_cache=%s, cache_dir=%s, "
-        "scoring=%s",
+        "mode=%s, scoring=%s",
         spectra_files,
         structure_files,
         tolerance,
@@ -68,6 +72,7 @@ def run_pipeline(  # noqa: C901
         rules,
         use_cache,
         cache_dir,
+        mode,
         scoring,
     )
 
@@ -174,9 +179,10 @@ def run_pipeline(  # noqa: C901
         theoretical_spectra=theoretical_spectra,
         tolerance=tolerance,
         min_shared_peaks=min_peaks,
-        x_mode=x_mode,
+        mode=mode,
         scoring=scoring,
     )
+
     duration_match = time.perf_counter() - start_match
     logger.info(
         "Matched spectra in %.4f seconds",

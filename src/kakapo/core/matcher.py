@@ -1,17 +1,21 @@
 """Spectrum scoring engine for matching experimental against theoretical data."""
 
 import bisect
+import itertools
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, replace
 
 from tqdm import tqdm
 
 from kakapo.config import DEFAULT_MIN_PEAKS, MAX_TOTAL_MASS_DIFFERENCE
-from kakapo.constants import MAX_CHARGE, PROTON_MASS, SCORING_WEIGHTS
+from kakapo.constants import MAX_CHARGE, PROTON_MASS, RESIDUE_MODIFICATIONS, SCORING_WEIGHTS
 from kakapo.models import (
     MatchedPeak,
     MatchResult,
+    ModificationHypothesis,
+    ModificationMode,
+    MonomerModification,
     Peak,
     ScoringMode,
     Spectrum,
@@ -293,118 +297,126 @@ def _calculate_score(
     return matched_peaks_count
 
 
-def _match_spectrum_unmodified(
+def _generate_unmodified_hypotheses(
+    theoretical_spectrum: TheoreticalSpectrum,
+) -> Iterator[ModificationHypothesis]:
+    """Generate the single hypothesis for unmodified spectrum matching."""
+    yield ModificationHypothesis(
+        updated_monomer_masses=list(theoretical_spectrum.monomer_mass_vector),
+        modifications=(),
+    )
+
+
+def _generate_single_mod_hypotheses(
+    theoretical_spectrum: TheoreticalSpectrum,
+    mass_mod: float,
+    x_mode_only: bool,
+) -> Iterator[ModificationHypothesis]:
+    """Generate candidate hypotheses for single-modification matching."""
+    monomer_masses = theoretical_spectrum.monomer_mass_vector
+    for i in range(len(monomer_masses)):
+        monomer = theoretical_spectrum.monomers.get(i)
+        norine_name = monomer.norine_name if monomer is not None else f"Mon_{i}"
+
+        if x_mode_only and not norine_name.startswith("X"):
+            continue
+
+        updated_masses = list(monomer_masses)
+        updated_masses[i] += mass_mod
+        if updated_masses[i] < 0:
+            continue
+
+        mod = MonomerModification(
+            monomer_idx=i,
+            initial_monomer_name=norine_name,
+            initial_monomer_mass=monomer_masses[i],
+            mass_difference=mass_mod,
+            new_monomer_name=None,
+            formula_difference=None,
+        )
+        yield ModificationHypothesis(updated_monomer_masses=updated_masses, modifications=(mod,))
+
+
+def _generate_two_mod_hypotheses(
+    theoretical_spectrum: TheoreticalSpectrum,
+    mass_mod: float,
+) -> Iterator[ModificationHypothesis]:
+    """Generate candidate hypotheses for two-modification matching (known mod + residual on X)."""
+
+    monomer_masses = theoretical_spectrum.monomer_mass_vector
+    monomers = theoretical_spectrum.monomers
+
+    for j, monomer_j in monomers.items():
+        norine_name = monomer_j.norine_name
+        known_mods = RESIDUE_MODIFICATIONS.get(norine_name, [])
+        if not known_mods:
+            continue
+
+        for mod_entry in known_mods:
+            known_mod_mass = float(mod_entry["mass_difference"])
+            residual_mass = mass_mod - known_mod_mass
+
+            for k, monomer_k in monomers.items():
+                if not monomer_k.norine_name.startswith("X"):
+                    continue
+
+                updated_masses = list(monomer_masses)
+                updated_masses[j] += known_mod_mass
+                updated_masses[k] += residual_mass
+
+                if updated_masses[j] < 0 or updated_masses[k] < 0:
+                    continue
+
+                new_name_1 = (
+                    mod_entry["modified_monomers"][0]
+                    if mod_entry.get("modified_monomers")
+                    else None
+                )
+                mod1 = MonomerModification(
+                    monomer_idx=j,
+                    initial_monomer_name=monomer_j.norine_name,
+                    initial_monomer_mass=monomer_masses[j],
+                    mass_difference=known_mod_mass,
+                    new_monomer_name=new_name_1,
+                    formula_difference=mod_entry.get("formula_difference"),
+                )
+                mod2 = MonomerModification(
+                    monomer_idx=k,
+                    initial_monomer_name=monomer_k.norine_name,
+                    initial_monomer_mass=monomer_masses[k],
+                    mass_difference=residual_mass,
+                    new_monomer_name=None,
+                    formula_difference=None,
+                )
+                yield ModificationHypothesis(
+                    updated_monomer_masses=updated_masses, modifications=(mod1, mod2)
+                )
+
+
+def _evaluate_hypotheses(
     spectrum: Spectrum,
     theoretical_spectrum: TheoreticalSpectrum,
+    hypotheses: Iterable[ModificationHypothesis],
     tolerance: Tolerance,
-    mass_mod: float,
     scoring: ScoringMode,
 ) -> MatchResult:
-    """Helper to match spectrum using unmodified monomer masses."""
-    # Sort to ensure reproducible greedy matching
+    """Evaluate candidate modification hypotheses and return the best scoring MatchResult.
+
+    Returns:
+        A MatchResult instance for the optimal hypothesis.
+    """
     exp_peaks = sorted(spectrum.peaks, key=lambda p: p.mass)
-    monomer_masses = theoretical_spectrum.monomer_mass_vector
-    max_charge = spectrum.charge if spectrum.charge else MAX_CHARGE
-
-    logger.debug(
-        "Spectrum '%s' peaks: %d. Theoretical spectrum '%s' ions: %d. Max charge: %d. "
-        "Precursor: %f, Structure: %f, mass_mod: %f",
-        spectrum.spectrum_id,
-        len(exp_peaks),
-        theoretical_spectrum.structure_id,
-        len(theoretical_spectrum.ions),
-        max_charge,
-        spectrum.precursor_mass,
-        theoretical_spectrum.structure_mass,
-        mass_mod,
-    )
-
-    theory_ions_with_mass = _calculate_theory_ions_with_mass(
-        theoretical_spectrum, monomer_masses, max_charge
-    )
-
-    if scoring == ScoringMode.INTENCITY:
-        score, matched_peaks = _match_peaks_intencity(
-            exp_peaks, theory_ions_with_mass, max_charge, tolerance
-        )
-        matched_peaks_count = len(matched_peaks)
-    else:
-        matched_peaks_count, matched_peaks = _match_peaks(
-            exp_peaks, theory_ions_with_mass, max_charge, tolerance
-        )
-        score = _calculate_score(scoring, matched_peaks, matched_peaks_count)
-
-    logger.debug(
-        "Matching complete for '%s' vs '%s': matched %d peaks (unmodified).",
-        spectrum.spectrum_id,
-        theoretical_spectrum.structure_id,
-        matched_peaks_count,
-    )
-
-    return MatchResult(
-        structure_id=theoretical_spectrum.structure_id,
-        spectrum_id=spectrum.spectrum_id,
-        structure_mass=theoretical_spectrum.structure_mass,
-        spectrum_mass=spectrum.precursor_mass,
-        tolerance=tolerance,
-        matched_peaks_count=matched_peaks_count,
-        theoretical_peaks_count=len(theoretical_spectrum.ions),
-        experimental_peaks_count=len(spectrum.peaks),
-        monomer_count=theoretical_spectrum.monomer_count,
-        unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
-        score=score,
-        matched_peaks=matched_peaks,
-        modified_monomer_idx=None,
-        mass_mod=mass_mod,
-        initial_modified_monomer_mass=None,
-    )
-
-
-def _match_spectrum_with_mod(
-    spectrum: Spectrum,
-    theoretical_spectrum: TheoreticalSpectrum,
-    tolerance: Tolerance,
-    mass_mod: float,
-    scoring: ScoringMode,
-    x_mode: bool = False,
-) -> MatchResult:
-    """Helper to match spectrum using modification-tolerant monomer mass updates."""
-    # Sort to ensure reproducible greedy matching
-    exp_peaks = sorted(spectrum.peaks, key=lambda p: p.mass)
-    monomer_masses = theoretical_spectrum.monomer_mass_vector
-    max_charge = spectrum.charge if spectrum.charge else MAX_CHARGE
-
-    logger.debug(
-        "Spectrum '%s' peaks: %d. Theoretical spectrum '%s' ions: %d. Max charge: %d. "
-        "Precursor: %f, Structure: %f, mass_mod: %f",
-        spectrum.spectrum_id,
-        len(exp_peaks),
-        theoretical_spectrum.structure_id,
-        len(theoretical_spectrum.ions),
-        max_charge,
-        spectrum.precursor_mass,
-        theoretical_spectrum.structure_mass,
-        mass_mod,
-    )
+    max_charge = spectrum.charge if spectrum.charge is not None else MAX_CHARGE
 
     max_score = float("-inf")
     max_matched_count = 0
-    best_matched_peaks = []
-    best_i = None
+    best_matched_peaks: list[MatchedPeak] = []
+    best_modifications: tuple[MonomerModification, ...] = ()
+    found_any = False
 
-    for i in range(len(monomer_masses)):
-        if x_mode:
-            monomer = theoretical_spectrum.monomers.get(i)
-            if monomer is None or not monomer.norine_name.startswith("X"):
-                continue
-
-        updated_monomer_masses = list(monomer_masses)
-        updated_monomer_masses[i] += mass_mod
-        if updated_monomer_masses[i] < 0:
-            continue
-
+    for hypothesis in hypotheses:
         theory_ions_with_mass = _calculate_theory_ions_with_mass(
-            theoretical_spectrum, updated_monomer_masses, max_charge
+            theoretical_spectrum, hypothesis.updated_monomer_masses, max_charge
         )
 
         if scoring == ScoringMode.INTENCITY:
@@ -418,23 +430,15 @@ def _match_spectrum_with_mod(
             )
             score = float(_calculate_score(scoring, matched_peaks, matched_peaks_count))
 
-        if matched_peaks_count > 0:
-            if best_i is None or score > max_score:
+        if matched_peaks_count > 0 or scoring == ScoringMode.INTENCITY:
+            if not found_any or score > max_score:
+                found_any = True
                 max_score = score
                 max_matched_count = matched_peaks_count
                 best_matched_peaks = matched_peaks
-                best_i = i
+                best_modifications = hypothesis.modifications
 
-    logger.debug(
-        "Matching complete for '%s' vs '%s': max matched %d peaks (best monomer index: %s).",
-        spectrum.spectrum_id,
-        theoretical_spectrum.structure_id,
-        max_matched_count,
-        str(best_i),
-    )
-
-    initial_modified_monomer_mass = monomer_masses[best_i] if best_i is not None else None
-    final_score = max_score if best_i is not None else 0.0
+    final_score = max_score if found_any else 0.0
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
@@ -446,12 +450,10 @@ def _match_spectrum_with_mod(
         theoretical_peaks_count=len(theoretical_spectrum.ions),
         experimental_peaks_count=len(spectrum.peaks),
         monomer_count=theoretical_spectrum.monomer_count,
-        unmodified_monomer_mass_vector=monomer_masses,
-        matched_peaks=best_matched_peaks,
-        modified_monomer_idx=best_i,
-        mass_mod=mass_mod,
-        initial_modified_monomer_mass=initial_modified_monomer_mass,
+        unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
         score=final_score,
+        matched_peaks=best_matched_peaks,
+        modifications=best_modifications,
     )
 
 
@@ -460,28 +462,26 @@ def match_spectrum(
     theoretical_spectrum: TheoreticalSpectrum,
     tolerance: Tolerance,
     scoring: ScoringMode,
-    x_mode: bool = False,
+    mode: ModificationMode = ModificationMode.FREE_MOD,
 ) -> MatchResult:
-    """Match an experimental spectrum to a theoretical spectrum.
-
-    If the precursor mass of the spectrum matches the structure mass within tolerance,
-    it runs the unmodified matching algorithm without searching for modifications.
-    Otherwise, it runs the modification-tolerant match algorithm, searching for
-    the best monomer to modify by mass_mod = precursor - structure mass.
+    """Match an experimental spectrum to a theoretical spectrum according to mode.
 
     Args:
         spectrum: The experimental Spectrum instance.
         theoretical_spectrum: The TheoreticalSpectrum instance.
         tolerance: The Tolerance configuration allowed for a match.
+        scoring: Scoring mode.
+        mode: ModificationMode configuration.
 
     Returns:
         A MatchResult instance containing matching metrics.
     """
     logger.debug(
-        "Matching experimental spectrum '%s' against structure '%s' (tolerance: %s)",
+        "Matching experimental spectrum '%s' against structure '%s' (tolerance: %s, mode: %s)",
         spectrum.spectrum_id,
         theoretical_spectrum.structure_id,
         tolerance,
+        mode,
     )
 
     precursor_neutral_mass = spectrum.get_neutral_mass()
@@ -493,20 +493,28 @@ def match_spectrum(
     precursor_neutral_tolerance = charge * precursor_tol
 
     if abs(mass_mod) <= precursor_neutral_tolerance:
-        logger.debug(
-            "Precursor neutral mass (%f) matches structure mass (%f) within tolerance (%f). "
-            "Running unmodified matching.",
-            precursor_neutral_mass,
-            theoretical_spectrum.structure_mass,
-            precursor_neutral_tolerance,
+        hypotheses: Iterable[ModificationHypothesis] = _generate_unmodified_hypotheses(
+            theoretical_spectrum
         )
-        return _match_spectrum_unmodified(
-            spectrum, theoretical_spectrum, tolerance, mass_mod, scoring
+    elif mode == ModificationMode.NO_MOD:
+        hypotheses = ()
+    elif mode == ModificationMode.FREE_MOD:
+        hypotheses = _generate_single_mod_hypotheses(
+            theoretical_spectrum, mass_mod, x_mode_only=False
         )
+    elif mode == ModificationMode.X_MOD:
+        hypotheses = _generate_single_mod_hypotheses(
+            theoretical_spectrum, mass_mod, x_mode_only=True
+        )
+    elif mode == ModificationMode.TWO_MOD:
+        hypotheses = itertools.chain(
+            _generate_single_mod_hypotheses(theoretical_spectrum, mass_mod, x_mode_only=True),
+            _generate_two_mod_hypotheses(theoretical_spectrum, mass_mod),
+        )
+    else:
+        raise ValueError(f"Unsupported modification mode: {mode}")
 
-    return _match_spectrum_with_mod(
-        spectrum, theoretical_spectrum, tolerance, mass_mod, scoring, x_mode=x_mode
-    )
+    return _evaluate_hypotheses(spectrum, theoretical_spectrum, hypotheses, tolerance, scoring)
 
 
 @dataclass
@@ -660,7 +668,7 @@ def match_spectra(
     tolerance: Tolerance,
     scoring: ScoringMode,
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
-    x_mode: bool = False,
+    mode: ModificationMode = ModificationMode.FREE_MOD,
 ) -> list[MatchResult]:
     """Match each experimental spectrum to each theoretical spectrum pairwise.
 
@@ -668,8 +676,10 @@ def match_spectra(
         spectra: An iterable of experimental Spectrum instances.
         theoretical_spectra: An iterable of TheoreticalSpectrum instances.
         tolerance: The Tolerance configuration.
+        scoring: Scoring mode.
         min_shared_peaks: Minimum shared peak count for candidate filtering
             (defaults to DEFAULT_MIN_PEAKS).
+        mode: ModificationMode configuration.
 
     Returns:
         A list of MatchResult instances for all pairwise matches.
@@ -724,9 +734,13 @@ def match_spectra(
                 ):
                     spec_with_charge = replace(spec, charge=z)
                     result = match_spectrum(
-                        spec_with_charge, theo, tolerance, scoring, x_mode=x_mode
+                        spec_with_charge,
+                        theo,
+                        tolerance,
+                        scoring,
+                        mode=mode,
                     )
-                    if result.matched_peaks_count > 0:
+                    if result.matched_peaks_count >= min_shared_peaks:
                         results.append(result)
 
     logger.info(

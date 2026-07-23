@@ -30,6 +30,22 @@ class ScoringMode(str, Enum):
     INTENCITY = "intencity"
 
 
+class ModificationMode(str, Enum):
+    """Modes for handling monomer mass modifications during spectrum matching.
+
+    Attributes:
+        NO_MOD: No modifications allowed (unmodified matching only).
+        FREE_MOD: Single modification allowed on any monomer.
+        X_MOD: Single modification allowed only on monomers starting with 'X'.
+        TWO_MOD: Two modifications (known base monomer mod + residual shift on X monomer).
+    """
+
+    NO_MOD = "no-mod"
+    FREE_MOD = "free-mod"
+    X_MOD = "x-mod"
+    TWO_MOD = "two-mod"
+
+
 @dataclass(frozen=True)
 class Tolerance:
     """Represents a mass tolerance window, which can be absolute (Da) or relative (ppm).
@@ -536,13 +552,55 @@ class MatchedPeak:
 
 
 @dataclass(frozen=True)
+class MonomerModification:
+    """Represents a chemical modification applied to a monomer in a match.
+
+    Attributes:
+        monomer_idx: The 0-based index of the modified monomer.
+        initial_monomer_name: Original NORINE name of the monomer before modification.
+        initial_monomer_mass: The original mass of the monomer before modification.
+        mass_difference: Mass shift applied to the monomer in Daltons.
+        new_monomer_name: Modified monomer name if known (e.g. 'NAc-Ala').
+        formula_difference: Chemical formula difference string if known (e.g. '+C2H2O').
+    """
+
+    monomer_idx: int
+    initial_monomer_name: str
+    initial_monomer_mass: float
+    mass_difference: float
+    new_monomer_name: str | None = None
+    formula_difference: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.monomer_idx, int) or self.monomer_idx < 0:
+            raise ValueError("monomer_idx must be a non-negative integer")
+        if not self.initial_monomer_name:
+            raise ValueError("initial_monomer_name cannot be empty")
+        if self.initial_monomer_mass < 0:
+            raise ValueError("initial_monomer_mass must be non-negative")
+
+
+@dataclass(frozen=True)
+class ModificationHypothesis:
+    """Represents a candidate monomer mass vector and its associated modifications.
+
+    Attributes:
+        updated_monomer_masses: List of updated monomer masses in Daltons.
+        modifications: Tuple of MonomerModification instances applied.
+    """
+
+    updated_monomer_masses: list[float]
+    modifications: tuple[MonomerModification, ...] = ()
+
+
+
+@dataclass(frozen=True)
 class MatchResult:
     """Result of matching a spectrum to a molecule.
 
     Attributes:
         structure_id: ID of the matched molecule.
         spectrum_id: ID of the matched spectrum.
-        cleaned_spectrum: Cleaned experimental spectrum used for matching.
         structure_mass: Exact mass of the matched molecule.
         spectrum_mass: Precursor mass of the matched spectrum.
         tolerance: Tolerance configuration used for matching.
@@ -553,10 +611,7 @@ class MatchResult:
         unmodified_monomer_mass_vector: Precalculated unmodified vector of monomer masses.
         score: The match score calculated based on the selected scoring mode.
         matched_peaks: List of matched peaks.
-        modified_monomer_idx: The 0-based index of the modified monomer in the best match.
-        mass_mod: The calculated mass difference (precursor - structure) for the match.
-        initial_modified_monomer_mass: The mass of the modified monomer before the mass
-            modification was applied.
+        modifications: Tuple of MonomerModification instances applied to monomers.
     """
 
     structure_id: str
@@ -571,9 +626,7 @@ class MatchResult:
     unmodified_monomer_mass_vector: tuple[float, ...]
     score: float = 0.0
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
-    modified_monomer_idx: int | None = None
-    mass_mod: float | None = None
-    initial_modified_monomer_mass: float | None = None
+    modifications: tuple[MonomerModification, ...] = ()
 
     def __post_init__(self):  # noqa: C901
         if self.structure_mass < 0:
@@ -598,8 +651,7 @@ class MatchResult:
             raise ValueError("All monomer masses in vector must be non-negative numbers")
         if len(self.unmodified_monomer_mass_vector) != self.monomer_count:
             raise ValueError("Unmodified monomer mass vector length must match monomer count")
-        if (
-            self.initial_modified_monomer_mass is not None
-            and self.initial_modified_monomer_mass < 0
-        ):
-            raise ValueError("Initial modified monomer mass must be non-negative")
+        if not isinstance(self.modifications, tuple):
+            raise TypeError("modifications must be a tuple")
+        if any(not isinstance(m, MonomerModification) for m in self.modifications):
+            raise TypeError("All items in modifications must be MonomerModification instances")

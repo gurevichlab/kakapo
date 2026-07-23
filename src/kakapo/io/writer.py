@@ -19,6 +19,21 @@ from kakapo.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _format_modifications_str(modifications: tuple) -> str:
+    """Format a tuple of MonomerModification instances into a human-readable string."""
+    if not modifications:
+        return ""
+    parts = []
+    for mod in modifications:
+        new_name_str = f"->{mod.new_monomer_name}" if mod.new_monomer_name else ""
+        formula_str = f", {mod.formula_difference}" if mod.formula_difference else ""
+        parts.append(
+            f"{mod.initial_monomer_name}[{mod.monomer_idx}]{new_name_str} "
+            f"({mod.mass_difference:+.4f}{formula_str})"
+        )
+    return "; ".join(parts)
+
+
 def format_as_csv(results: list[MatchResult]) -> str:
     """Format a list of MatchResult objects into a standard CSV string.
 
@@ -32,7 +47,6 @@ def format_as_csv(results: list[MatchResult]) -> str:
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
 
-    # Header columns matching MatchResult attributes
     headers = [
         "structure_id",
         "spectrum_id",
@@ -44,9 +58,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
         "theoretical_peaks_count",
         "experimental_peaks_count",
         "monomer_count",
-        "modified_monomer_idx",
-        "mass_mod",
-        "initial_modified_monomer_mass",
+        "modifications",
     ]
     writer.writerow(headers)
 
@@ -63,9 +75,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
                 result.theoretical_peaks_count,
                 result.experimental_peaks_count,
                 result.monomer_count,
-                result.modified_monomer_idx,
-                result.mass_mod,
-                result.initial_modified_monomer_mass,
+                _format_modifications_str(result.modifications),
             ]
         )
 
@@ -94,9 +104,7 @@ def format_as_table(results: list[MatchResult]) -> str:
         "Theoretical Peaks",
         "Experimental Peaks",
         "Monomer Count",
-        "Modified Monomer Index",
-        "Mass Mod",
-        "Initial Modified Monomer Mass",
+        "Modifications",
     ]
 
     data = [
@@ -111,9 +119,7 @@ def format_as_table(results: list[MatchResult]) -> str:
             result.theoretical_peaks_count,
             result.experimental_peaks_count,
             result.monomer_count,
-            result.modified_monomer_idx,
-            result.mass_mod,
-            result.initial_modified_monomer_mass,
+            _format_modifications_str(result.modifications),
         ]
         for result in results
     ]
@@ -161,6 +167,18 @@ def format_as_json(results: list[MatchResult]) -> str:
                 }
             )
 
+        modifications_data = [
+            {
+                "monomer_idx": mod.monomer_idx,
+                "initial_monomer_name": mod.initial_monomer_name,
+                "new_monomer_name": mod.new_monomer_name,
+                "mass_difference": mod.mass_difference,
+                "formula_difference": mod.formula_difference,
+                "initial_monomer_mass": mod.initial_monomer_mass,
+            }
+            for mod in r.modifications
+        ]
+
         serialized.append(
             {
                 "structure_id": r.structure_id,
@@ -175,9 +193,7 @@ def format_as_json(results: list[MatchResult]) -> str:
                 "monomer_count": r.monomer_count,
                 "unmodified_monomer_mass_vector": list(r.unmodified_monomer_mass_vector),
                 "matched_peaks": matched_peaks_data,
-                "modified_monomer_idx": r.modified_monomer_idx,
-                "mass_mod": r.mass_mod,
-                "initial_modified_monomer_mass": r.initial_modified_monomer_mass,
+                "modifications": modifications_data,
             }
         )
 

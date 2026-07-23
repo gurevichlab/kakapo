@@ -12,6 +12,7 @@ from kakapo.core.matcher import (
 )
 from kakapo.models import (
     Chirality,
+    ModificationMode,
     Monomer,
     Peak,
     RuleShift,
@@ -452,7 +453,45 @@ class TestSpectrumMatcher:
         )
         assert len(results) == 1
         assert results[0].matched_peaks_count == 1
-        assert results[0].modified_monomer_idx == 0
+        assert len(results[0].modifications) == 1
+        assert results[0].modifications[0].monomer_idx == 0
+
+    def test_match_spectra_min_shared_peaks_filtering(self):
+        """Verify that match_spectra filters out results where matched_peaks_count < min_shared_peaks."""
+        theo = make_theoretical_spectrum(
+            [100.0 - PROTON_MASS, 200.0 - PROTON_MASS],
+            structure_id="struct_min_shared",
+            structure_mass=300.0,
+            monomer_count=2,
+        )
+
+        spec = make_spectrum(
+            [(100.0, 1.0), (999.0, 1.0)],
+            precursor_mass=300.0 + PROTON_MASS,
+            charge=1,
+            spectrum_id="spec_min_shared",
+        )
+
+        # min_shared_peaks=1 -> match returned
+        results_1 = match_spectra(
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=1,
+        )
+        assert len(results_1) == 1
+        assert results_1[0].matched_peaks_count == 1
+
+        # min_shared_peaks=2 -> match filtered out
+        results_2 = match_spectra(
+            [spec],
+            [theo],
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            min_shared_peaks=2,
+        )
+        assert len(results_2) == 0
 
     def test_build_structure_index_and_filtering(self):
         """Test building structure index and filtering candidate structures."""
@@ -697,12 +736,14 @@ class TestSpectrumMatcher:
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
         )
         assert result.matched_peaks_count == expected_matched
-        assert result.mass_mod == pytest.approx(expected_mod)
-        assert result.modified_monomer_idx == expected_idx
         if expected_idx is None:
-            assert result.initial_modified_monomer_mass is None
+            assert len(result.modifications) == 0
         else:
-            assert result.initial_modified_monomer_mass == monomer_masses[expected_idx]
+            assert len(result.modifications) == 1
+            mod = result.modifications[0]
+            assert mod.mass_difference == pytest.approx(expected_mod)
+            assert mod.monomer_idx == expected_idx
+            assert mod.initial_monomer_mass == monomer_masses[expected_idx]
 
     def test_x_mode_matching_unambiguous(self) -> None:
         """Verify that x_mode=True only permits modifications on monomers starting with 'X'."""
@@ -762,20 +803,79 @@ class TestSpectrumMatcher:
             charge=1,
         )
 
-        # In x_mode=False, it should successfully match (modifying Ala, idx 1, to get peak 110.0)
+        # In FREE_MOD mode, it should successfully match (modifying Ala, idx 1, to get peak 110.0)
         res_normal = match_spectrum(
-            spec_ala, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS, x_mode=False
+            spec_ala,
+            theo,
+            tolerance=Tolerance(0.02),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.FREE_MOD,
         )
         assert res_normal.matched_peaks_count == 1
-        assert res_normal.modified_monomer_idx == 1
+        assert len(res_normal.modifications) == 1
+        assert res_normal.modifications[0].monomer_idx == 1
 
-        # In x_mode=True, it should NOT match since Ala doesn't start with X,
+        # In X_MOD mode, it should NOT match since Ala doesn't start with X,
         # and modifying X0 (idx 0) doesn't produce peak 110.0 (it produces 115.0 and 100.0)
         res_x = match_spectrum(
-            spec_ala, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS, x_mode=True
+            spec_ala,
+            theo,
+            tolerance=Tolerance(0.02),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.X_MOD,
         )
         assert res_x.matched_peaks_count == 0
-        assert res_x.modified_monomer_idx is None
+        assert len(res_x.modifications) == 0
+
+    def test_no_mod_mode(self) -> None:
+        """Verify that NO_MOD mode skips modification search and returns 0 matches when precursor mass differs."""
+        monomers = {
+            0: Monomer(
+                norine_name="Ala",
+                residue="A",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+        }
+        ions = frozenset([TheoreticalIon(fragment_id="frag_0", mask=1)])
+        theo = TheoreticalSpectrum(
+            structure_id="struct_nomod",
+            ions=ions,
+            structure_mass=100.0,
+            monomer_count=1,
+            monomer_mass_vector=(100.0,),
+            monomers=monomers,
+        )
+
+        # Spectrum with precursor mass = 120.0 (mass_mod = +20.0 > tolerance)
+        spec = Spectrum(
+            spectrum_id="spec_nomod",
+            source_file_path="test.mgf",
+            peaks=frozenset([Peak(120.0 + 1.0078, 1.0)]),
+            precursor_mass=120.0 + 1.0078,
+            charge=1,
+        )
+
+        res_no_mod = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.02),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.NO_MOD,
+        )
+        assert res_no_mod.matched_peaks_count == 0
+        assert len(res_no_mod.modifications) == 0
+
+        res_free_mod = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.02),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.FREE_MOD,
+        )
+        assert res_free_mod.matched_peaks_count == 1
+        assert len(res_free_mod.modifications) == 1
 
     def test_scoring_modes(self):
         """Test all-peaks and exp-peaks scoring modes."""
@@ -955,3 +1055,195 @@ class TestSpectrumMatcher:
         res2 = match_spectrum(spec, theo_separated, tolerance=tol, scoring=ScoringMode.INTENCITY)
         assert res2.matched_peaks_count == 0
         assert res2.score == pytest.approx(-0.337 * 2)
+
+    def test_two_mod_matching_success(self) -> None:
+        """Test two-modification matching with a known base monomer modification and X monomer residual shift."""
+        monomers = {
+            0: Monomer(
+                norine_name="Ala",
+                residue="A",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+            1: Monomer(
+                norine_name="Xle",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=120.0,
+            ),
+        }
+
+        # Unmodified structure mass = 220.0
+        # Known mod on Ala: NAc-Ala (+C2H2O, mass_difference = 42.010565)
+        # Expected Ala mass = 142.010565
+        # Desired residual shift on Xle = +20.0 -> Xle mass = 140.0
+        # Precursor neutral mass = 220.0 + 42.010565 + 20.0 = 282.010565
+
+        ions = frozenset(
+            [
+                TheoreticalIon(
+                    fragment_id="frag_0", mask=1, rules_shifts=(RuleShift("PEPTIDE", 0.0),)
+                ),
+                TheoreticalIon(
+                    fragment_id="frag_1", mask=2, rules_shifts=(RuleShift("PEPTIDE", 0.0),)
+                ),
+            ]
+        )
+
+        theo = TheoreticalSpectrum(
+            structure_id="struct_two_mod",
+            ions=ions,
+            structure_mass=220.0,
+            monomer_count=2,
+            monomer_mass_vector=(100.0, 120.0),
+            monomers=monomers,
+        )
+
+        # Experimental spectrum with peaks matching 142.010565 + 1.007276 and 140.0 + 1.007276
+        spec_peaks = frozenset(
+            [
+                Peak(mass=142.010565 + 1.007276, intensity=100.0),
+                Peak(mass=140.0 + 1.007276, intensity=100.0),
+            ]
+        )
+        spec = Spectrum(
+            spectrum_id="spec_two_mod",
+            source_file_path="test.mgf",
+            peaks=spec_peaks,
+            precursor_mass=282.010565 + 1.007276,
+            charge=1,
+        )
+
+        result = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.TWO_MOD,
+        )
+
+        assert result.matched_peaks_count == 2
+        assert len(result.modifications) == 2
+
+        mod1 = result.modifications[0]
+        assert mod1.monomer_idx == 0
+        assert mod1.initial_monomer_name == "Ala"
+        assert mod1.mass_difference == pytest.approx(42.010565)
+        assert mod1.new_monomer_name == "NAc-Ala"
+        assert mod1.formula_difference == "+C2H2O"
+        assert mod1.initial_monomer_mass == 100.0
+
+        mod2 = result.modifications[1]
+        assert mod2.monomer_idx == 1
+        assert mod2.initial_monomer_name == "Xle"
+        assert mod2.mass_difference == pytest.approx(20.0)
+        assert mod2.new_monomer_name is None
+        assert mod2.initial_monomer_mass == 120.0
+
+    def test_two_mod_matching_no_x_monomers(self) -> None:
+        """Verify that two-modification mode produces 0 matches if no X monomers exist in structure."""
+        monomers = {
+            0: Monomer(
+                norine_name="Ala",
+                residue="A",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+            1: Monomer(
+                norine_name="Val",
+                residue="V",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=120.0,
+            ),
+        }
+
+        ions = frozenset([TheoreticalIon(fragment_id="frag_0", mask=1)])
+        theo = TheoreticalSpectrum(
+            structure_id="struct_no_x",
+            ions=ions,
+            structure_mass=220.0,
+            monomer_count=2,
+            monomer_mass_vector=(100.0, 120.0),
+            monomers=monomers,
+        )
+
+        spec = Spectrum(
+            spectrum_id="spec_test",
+            source_file_path="test.mgf",
+            peaks=frozenset([Peak(mass=150.0, intensity=10.0)]),
+            precursor_mass=280.0,
+            charge=1,
+        )
+
+        result = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.TWO_MOD,
+        )
+
+        assert result.matched_peaks_count == 0
+        assert len(result.modifications) == 0
+
+    def test_two_mod_matching_includes_single_mod(self) -> None:
+        """Verify that TWO_MOD mode can match a single-modification hypothesis if optimal."""
+        monomers = {
+            0: Monomer(
+                norine_name="Xle",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=100.0,
+            ),
+            1: Monomer(
+                norine_name="Val",
+                residue="V",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=120.0,
+            ),
+        }
+
+        ions = frozenset(
+            [
+                TheoreticalIon(
+                    fragment_id="frag_0", mask=1, rules_shifts=(RuleShift("PEPTIDE", 0.0),)
+                )
+            ]
+        )
+        theo = TheoreticalSpectrum(
+            structure_id="struct_single_mod_in_two_mod",
+            ions=ions,
+            structure_mass=220.0,
+            monomer_count=2,
+            monomer_mass_vector=(100.0, 120.0),
+            monomers=monomers,
+        )
+
+        # Precursor neutral mass = 220.0 + 50.0 = 270.0
+        # Peak matching Ala (+50.0) + proton = 150.0 + 1.007276
+        spec = Spectrum(
+            spectrum_id="spec_test",
+            source_file_path="test.mgf",
+            peaks=frozenset([Peak(mass=150.0 + PROTON_MASS, intensity=100.0)]),
+            precursor_mass=270.0 + PROTON_MASS,
+            charge=1,
+        )
+
+        result = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.ALL_PEAKS,
+            mode=ModificationMode.TWO_MOD,
+        )
+
+        assert result.matched_peaks_count == 1
+        assert len(result.modifications) == 1
+        assert result.modifications[0].monomer_idx == 0
+        assert result.modifications[0].mass_difference == pytest.approx(50.0)

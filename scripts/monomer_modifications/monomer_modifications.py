@@ -320,7 +320,12 @@ def process_row(
         )
         return
 
-    if not isinstance(modifications, list) or not modifications or modifications == ["E"]:
+    if (
+        not isinstance(modifications, list)
+        or not modifications
+        or modifications == ["E"]
+        or modifications == ["MT"]
+    ):
         return
 
     res = resolve_monomer_entries(row, line_num, monomers_db)

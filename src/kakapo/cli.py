@@ -17,14 +17,14 @@ from kakapo.config import (
     DEFAULT_MASS_TOLERANCE,
     DEFAULT_MIN_PEAKS,
     DEFAULT_MIN_TOLERANCE,
+    DEFAULT_MODIFICATION_MODE,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_SCORING_MODE,
     DEFAULT_USE_CACHE,
-    DEFAULT_X_MODE,
 )
 from kakapo.io.writer import write_results, write_spectra, write_structures
 from kakapo.main import run_pipeline
-from kakapo.models import ScoringMode, Tolerance
+from kakapo.models import ModificationMode, ScoringMode, Tolerance
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -121,7 +121,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--min-peaks",
         type=int,
         default=DEFAULT_MIN_PEAKS,
-        help="Minimum number of peaks required to include an experimental spectrum (default: 1).",
+        help="Minimum number of peaks required to include an experimental spectrum (default: 5).",
     )
     parser.add_argument(
         "--no-filters",
@@ -144,10 +144,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Directory where parsed/cleaned experimental spectra are cached.",
     )
     parser.add_argument(
-        "--x-mode",
-        action="store_true",
-        default=DEFAULT_X_MODE,
-        help="Only apply modifications to monomers whose NORINE name starts with 'X'.",
+        "--mode",
+        "-m",
+        choices=[m.value for m in ModificationMode],
+        default=DEFAULT_MODIFICATION_MODE,
+        help=(
+            "Modification matching mode (default: free-mod). "
+            "Choices: no-mod (unmodified only), "
+            "free-mod (single modification on any monomer), "
+            "x-mod (single modification only on X monomers), "
+            "two-mod (known modification on base monomer + residual on X monomer)."
+        ),
     )
     parser.add_argument(
         "--scoring",
@@ -364,7 +371,7 @@ def main(args: Optional[list[str]] = None) -> int:
             rules=DEFAULT_FRAGMENTATION_RULES,
             use_cache=parsed_args.use_cache,
             cache_dir=Path(parsed_args.cache_dir),
-            x_mode=parsed_args.x_mode,
+            mode=ModificationMode(parsed_args.mode),
             scoring=ScoringMode(parsed_args.scoring),
         )
 

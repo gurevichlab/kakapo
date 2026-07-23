@@ -16,9 +16,10 @@ DEFAULT_MASS_TOLERANCE = "0.02da"
 DEFAULT_USE_CACHE = True
 DEFAULT_CACHE_DIR = Path(".kakapo_cache")
 
-MAX_TOTAL_MASS_DIFFERENCE = 300
-DEFAULT_X_MODE = False
+MAX_TOTAL_MASS_DIFFERENCE = 250
+DEFAULT_MODIFICATION_MODE = "free-mod"
 DEFAULT_SCORING_MODE = "all-peaks"
+
 
 DEFAULT_FILTERS = [
     (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),
