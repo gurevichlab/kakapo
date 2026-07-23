@@ -1,7 +1,8 @@
-"""YAML parser for full Parsed_rBAN_Record structures.
+"""YAML parser for rBAN molecular structures.
 
-This module loads atom-level rBAN records serialized by nerpa-ms and converts
-them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
+Provides functions to parse single or batch YAML files containing rBAN structure
+records, converting them into Kakapo's native Molecule domain models with dynamic
+bond classification, exact monomer mass calculation, parallel parsing, and disk caching.
 """
 
 import hashlib
@@ -12,7 +13,6 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import yaml
-from rban_parsing.rban_parser import AtomInfo, MonomerInfo, NRP_metadata, Parsed_rBAN_Record
 from yaml import CSafeLoader as SafeLoader
 
 from kakapo.constants import ATOMIC_MASSES
@@ -24,6 +24,7 @@ from kakapo.models import (
     Bond,
     BondSubtype,
     Chirality,
+    Metadata,
     Molecule,
     Monomer,
 )
@@ -41,9 +42,7 @@ def _serialize_molecule(mol: Molecule) -> dict:
     """Serialize a Molecule object into a JSON-serializable dictionary."""
     return {
         "structure_id": mol.structure_id,
-        "compound_id": mol.source_parsed_record.compound_id
-        if mol.source_parsed_record
-        else mol.structure_id,
+        "compound_id": mol.structure_id,
         "monomers": {
             str(k): {
                 "norine_name": v.norine_name,
@@ -126,15 +125,7 @@ def _deserialize_molecule(data: dict) -> Molecule:
         AtomicEdge(edge[0], edge[1]): AtomicBond(arity=ab["arity"], bond_type=ab["bond_type"])
         for edge, ab in data.get("atomic_bonds", [])
     }
-    metadata = None
-    if mdata := data.get("metadata"):
-        metadata = NRP_metadata(
-            name=mdata.get("name"),
-            smiles=mdata.get("smiles"),
-            origin=mdata.get("origin"),
-            inchikey=mdata.get("inchikey"),
-            source=mdata.get("source"),
-        )
+    metadata = Metadata.from_dict(data.get("metadata"))
     return Molecule(
         structure_id=data["structure_id"],
         monomers=monomers,
@@ -143,20 +134,22 @@ def _deserialize_molecule(data: dict) -> Molecule:
         atoms=atoms,
         atomic_bonds=atomic_bonds,
         metadata=metadata,
-        source_parsed_record=None,
     )
 
 
 def _calculate_monomer_exact_mass(
-    monomer_info: MonomerInfo, atoms_dict: dict[int, AtomInfo]
+    monomer_atoms: tuple[int, ...] | list[int],
+    monomer_name: str,
+    atoms_dict: dict[int, Atom],
 ) -> float | None:
     """Calculate the exact monoisotopic mass of a monomer from its atomic formula.
 
     Sums the exact isotopic masses of all non-hydrogen and hydrogen atoms belonging to the monomer.
 
     Args:
-        monomer_info: The MonomerRecord parsing structure from the rBAN parser.
-        atoms_dict: A dictionary mapping atom IDs to AtomRecord instances.
+        monomer_atoms: Iterable of atom IDs belonging to the monomer.
+        monomer_name: Name of the monomer for logging.
+        atoms_dict: A dictionary mapping atom IDs to Atom instances.
 
     Returns:
         The precalculated exact monoisotopic mass of the monomer, or None if the mass is zero.
@@ -164,25 +157,25 @@ def _calculate_monomer_exact_mass(
     Raises:
         ValueError: If an unknown chemical element is encountered.
     """
-    logger.debug("Calculating exact mass for monomer '%s'", monomer_info.name)
+    logger.debug("Calculating exact mass for monomer '%s'", monomer_name)
     total_mass = 0.0
-    for atom_id in monomer_info.atoms:
-        atom_info = atoms_dict.get(atom_id)
-        if atom_info is not None:
-            symbol = atom_info.name
+    for atom_id in monomer_atoms:
+        atom = atoms_dict.get(atom_id)
+        if atom is not None:
+            symbol = atom.name
             if symbol in ATOMIC_MASSES:
                 total_mass += ATOMIC_MASSES[symbol]
             else:
                 logger.error("Unknown element '%s' for atom %d", symbol, atom_id)
                 raise ValueError(f"Unknown element '{symbol}' for atom {atom_id}")
-            if atom_info.hydrogens > 0:
-                total_mass += atom_info.hydrogens * ATOMIC_MASSES.get("H", 1.007825)
-    logger.debug("Calculated mass for monomer '%s': %s", monomer_info.name, total_mass)
+            if atom.hydrogens > 0:
+                total_mass += atom.hydrogens * ATOMIC_MASSES.get("H", 1.007825)
+    logger.debug("Calculated mass for monomer '%s': %s", monomer_name, total_mass)
     return total_mass if total_mass > 0 else None
 
 
 def _map_and_classify_bonds(
-    record: Parsed_rBAN_Record,
+    monomer_bonds_data: list | dict,
     monomers: dict[int, Monomer],
     atoms: dict[int, Atom],
     atomic_bonds: dict[AtomicEdge, AtomicBond],
@@ -190,7 +183,7 @@ def _map_and_classify_bonds(
     """Map monomer bonds and dynamically classify their subtypes directly using loaded rules.
 
     Args:
-        record: The source Parsed_rBAN_Record.
+        monomer_bonds_data: Raw monomer_bonds data from YAML/JSON payload.
         monomers: Dictionary mapping monomer IDs to Monomer instances.
         atoms: Dictionary mapping atom IDs to Atom instances.
         atomic_bonds: Dictionary mapping AtomicEdge instances to AtomicBond instances.
@@ -199,15 +192,28 @@ def _map_and_classify_bonds(
         List of Bond instances with classified subtypes.
     """
     bonds = []
-    logger.debug("Mapping and classifying %d monomer bonds", len(record.monomer_bonds))
-    for (u, v), bond_info_list in record.monomer_bonds.items():
-        for bond_info in bond_info_list:
-            bond_type = bond_info.atomic_edge.bond_type
+    bond_items = []
+    if isinstance(monomer_bonds_data, dict):
+        bond_items = list(monomer_bonds_data.items())
+    elif isinstance(monomer_bonds_data, list):
+        for item in monomer_bonds_data:
+            if isinstance(item, list) and len(item) == 2:
+                u_v, edge_data = item
+                bond_items.append((tuple(u_v), edge_data))
 
-            # Get the connecting atoms mapped to their monomer IDs
-            mon_to_atom = bond_info.monomer_to_atom
+    logger.debug("Mapping and classifying %d monomer bonds", len(bond_items))
+    for (u, v), edge_data in bond_items:
+        u, v = int(u), int(v)
+        edge_info_list = edge_data if isinstance(edge_data, list) else [edge_data]
+        for bond_info in edge_info_list:
+            if isinstance(bond_info, dict):
+                monomer_to_atom_raw = bond_info.get("monomer_to_atom", {})
+                mon_to_atom = {int(mk): int(av) for mk, av in monomer_to_atom_raw.items()}
+                atomic_edge_info = bond_info.get("atomic_edge", bond_info)
+                bond_type = atomic_edge_info.get("bond_type")
+            else:
+                continue
 
-            # Call the classifier method directly
             subtypes = classify_single_bond(
                 source_monomer_idx=u,
                 target_monomer_idx=v,
@@ -229,70 +235,105 @@ def _map_and_classify_bonds(
     return bonds
 
 
-def _build_molecule_from_parsed_record(
-    record: Parsed_rBAN_Record, structure_id: str | None = None
+def _build_molecule_from_dict(  # noqa: C901
+    data: dict, structure_id: str | None = None
 ) -> Molecule:
-    """Convert a Parsed_rBAN_Record into a kakapo Molecule instance.
+    """Convert a raw rBAN record dictionary into a kakapo Molecule instance.
 
-    Maps the parsed record's atoms, monomers, and atomic bonds to Molecule components,
+    Maps the record's atoms, monomers, and atomic bonds to Molecule components,
     precalculates the exact monoisotopic mass of each monomer using the atomic composition, and
     dynamically classifies inter-monomer bond subtypes using subgraph isomorphism.
 
     Args:
-        record: The source Parsed_rBAN_Record parsed from YAML.
+        data: The raw dictionary parsed from YAML or JSON.
         structure_id: Optional string to override the record's default compound_id.
 
     Returns:
         A fully constructed Molecule instance with enriched properties and classified bonds.
+
+    Raises:
+        ValueError: If mandatory fields are missing or invalid.
     """
+    final_id = str(structure_id or data.get("compound_id") or "")
+    if not final_id:
+        raise ValueError("Record is missing mandatory 'compound_id'")
+
     # 1. Map atoms to Atom
-    atoms = {
-        atom_id: Atom(name=atom_info.name, hydrogens=atom_info.hydrogens)
-        for atom_id, atom_info in record.atoms.items()
-    }
+    atoms = {}
+    raw_atoms = data.get("atoms")
+    if raw_atoms is None:
+        raise ValueError("Record is missing mandatory 'atoms' section")
+
+    for atom_id_raw, atom_info in raw_atoms.items():
+        atom_id = int(atom_id_raw)
+        atoms[atom_id] = Atom(
+            name=atom_info.get("name", "C"),
+            hydrogens=int(atom_info.get("hydrogens", 0)),
+        )
 
     # 2. Map monomers to Monomer using original keys
+    raw_monomers = data.get("monomers")
+    if raw_monomers is None:
+        raise ValueError("Record is missing mandatory 'monomers' section")
+    if len(raw_monomers) == 0:
+        raise ValueError("Record must contain at least one monomer")
+
     monomers = {}
-    for mon_idx, mon_info in record.monomers.items():
-        residue = (
-            str(mon_info.nerpa_core) if mon_info.nerpa_core is not None else str(mon_info.name)
-        )
-        is_methylated = bool(mon_info.methylated) if mon_info.methylated is not None else False
+    for mon_idx_raw, mon_info in raw_monomers.items():
+        mon_idx = int(mon_idx_raw)
+        norine_name = str(mon_info.get("name", ""))
+        nerpa_core = mon_info.get("nerpa_core")
+        residue = str(nerpa_core) if nerpa_core is not None else norine_name
+        is_methylated = bool(mon_info.get("methylated", False))
+
+        chirality_str = str(mon_info.get("chirality", "UNKNOWN"))
+        if chirality_str not in Chirality.__members__:
+            raise KeyError(f"Invalid chirality: '{chirality_str}'")
+        chirality = Chirality[chirality_str]
+
+        atom_ids = tuple(int(a) for a in mon_info.get("atoms", []))
 
         # Calculate exact mass from atomic composition
         try:
-            mass = _calculate_monomer_exact_mass(mon_info, record.atoms)
+            mass = _calculate_monomer_exact_mass(atom_ids, norine_name, atoms)
         except ValueError as e:
             logger.warning(
                 "Failed to calculate exact mass for monomer %s: %s",
-                mon_info.name,
+                norine_name,
                 e,
             )
             mass = None
 
         monomers[mon_idx] = Monomer(
-            norine_name=str(mon_info.name),
+            norine_name=norine_name,
             residue=residue,
             is_methylated=is_methylated,
-            chirality=Chirality[mon_info.chirality.name],
-            atoms=tuple(mon_info.atoms),
+            chirality=chirality,
+            atoms=atom_ids,
             mass=mass,
         )
 
     # 3. Map atomic bonds
     atomic_bonds = {}
-    for (u, v), edge_info in record.atomic_bonds.items():
-        atomic_bonds[AtomicEdge(u, v)] = AtomicBond(
-            arity=edge_info.arity,
-            bond_type=edge_info.bond_type,
-        )
+    raw_atomic_bonds = data.get("atomic_bonds", [])
+    for bond_entry in raw_atomic_bonds:
+        if isinstance(bond_entry, (list, tuple)) and len(bond_entry) == 2:
+            (u, v), edge_info = bond_entry
+            arity = str(edge_info.get("arity", "1"))
+            bond_type = edge_info.get("bond_type")
+            atomic_bonds[AtomicEdge(int(u), int(v))] = AtomicBond(
+                arity=arity,
+                bond_type=bond_type,
+            )
 
     # 4. Map monomer bonds and dynamically classify subtypes directly
-    bonds = _map_and_classify_bonds(record, monomers, atoms, atomic_bonds)
+    bonds = _map_and_classify_bonds(data.get("monomer_bonds", []), monomers, atoms, atomic_bonds)
+
+    metadata = Metadata.from_dict(data.get("metadata"))
 
     logger.debug(
         "Molecule %s built: %d atoms, %d monomers, %d atomic bonds, %d monomer bonds",
-        record.compound_id,
+        final_id,
         len(atoms),
         len(monomers),
         len(atomic_bonds),
@@ -301,14 +342,13 @@ def _build_molecule_from_parsed_record(
 
     # 5. Return the final Molecule
     return Molecule(
-        structure_id=structure_id if structure_id is not None else record.compound_id,
+        structure_id=final_id,
         monomers=monomers,
         bonds=tuple(bonds),
-        smiles=record.metadata.smiles if record.metadata else None,
+        smiles=metadata.smiles if metadata else None,
         atoms=atoms,
         atomic_bonds=atomic_bonds,
-        metadata=record.metadata,
-        source_parsed_record=record,
+        metadata=metadata,
     )
 
 
@@ -343,10 +383,10 @@ def _parse_yaml_content_parallel(content: str) -> list[dict]:
 def parse_rban_yaml(  # noqa: C901
     yaml_path: str | Path, id_counts: dict[str, int] | None = None
 ) -> Molecule | dict[str, Molecule]:
-    """Parse a Parsed_rBAN_Record YAML file and return a kakapo Molecule or a dict of Molecules.
+    """Parse an rBAN record YAML file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
-        yaml_path: Path to a YAML file containing one Parsed_rBAN_Record dict or a list of them.
+        yaml_path: Path to a YAML file containing one rBAN record dict or a list of them.
         id_counts: Optional tracker dictionary mapping compound IDs to their occurrence count
             for suffix-based deduplication.
 
@@ -358,7 +398,7 @@ def parse_rban_yaml(  # noqa: C901
     Raises:
         FileNotFoundError: If the YAML file does not exist.
         yaml.YAMLError: If the file is not valid YAML.
-        ValueError: If the YAML is not a valid Parsed_rBAN_Record payload.
+        ValueError: If the YAML is not a valid rBAN record payload.
     """
     yaml_path = Path(yaml_path)
     logger.info("Parsing rBAN YAML from %s", yaml_path)
@@ -409,8 +449,12 @@ def parse_rban_yaml(  # noqa: C901
 
     for i, item in enumerate(records):
         try:
-            parsed_record = Parsed_rBAN_Record.from_dict(item)  # pyright: ignore[reportArgumentType]
-            base_id = parsed_record.compound_id
+            if not isinstance(item, dict):
+                raise ValueError(f"Expected dictionary item, got {type(item)}")
+            base_id = item.get("compound_id")
+            if not base_id:
+                raise ValueError("Record is missing mandatory 'compound_id'")
+            base_id = str(base_id)
             count = id_counts.get(base_id, 0)
             if count > 0:
                 unique_id = f"{base_id}_{count + 1}"
@@ -418,27 +462,24 @@ def parse_rban_yaml(  # noqa: C901
                 unique_id = base_id
             id_counts[base_id] = count + 1
 
-            molecule = _build_molecule_from_parsed_record(parsed_record, structure_id=unique_id)
+            molecule = _build_molecule_from_dict(item, structure_id=unique_id)
             molecules[unique_id] = molecule
         except (KeyError, ValueError, TypeError) as e:
             if is_list:
                 logger.warning("Index %d failed to parse in list from %s: %s", i, yaml_path, e)
                 errors.append(f"Index {i}: {e}")
             else:
-                logger.error("Failed to parse Parsed_rBAN_Record from %s: %s", yaml_path, e)
-                raise ValueError(
-                    f"Failed to parse Parsed_rBAN_Record from {yaml_path}. Error: {e}"
-                ) from e
+                logger.error("Failed to parse rBAN record from %s: %s", yaml_path, e)
+                raise ValueError(f"Failed to parse rBAN record from {yaml_path}. Error: {e}") from e
 
     if errors:
         logger.error(
-            "Failed to parse some Parsed_rBAN_Records from %s: %s",
+            "Failed to parse some rBAN records from %s: %s",
             yaml_path,
             errors,
         )
         raise ValueError(
-            f"Failed to parse Parsed_rBAN_Record list from {yaml_path}. Errors:\n"
-            + "\n".join(errors)
+            f"Failed to parse rBAN record list from {yaml_path}. Errors:\n" + "\n".join(errors)
         )
 
     if is_list:

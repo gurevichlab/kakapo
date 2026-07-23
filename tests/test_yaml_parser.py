@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from rban_parsing.rban_parser import AtomId, AtomInfo, Chirality, MonomerInfo, NorineMonomerName
 
 from kakapo.io.bond_classifier import make_rule
 from kakapo.io.yaml_parser import (
@@ -14,7 +13,7 @@ from kakapo.io.yaml_parser import (
     parse_rban_yaml,
     parse_rban_yaml_batch,
 )
-from kakapo.models import Molecule
+from kakapo.models import Atom, Molecule
 
 
 class TestYamlParserBasic:
@@ -78,8 +77,7 @@ atomic_bonds:
             assert molecule.structure_id == "NRP_PARSED_1"
             assert molecule.smiles == "NCC(=O)O"
             assert len(molecule.monomers) == 1
-            assert molecule.source_parsed_record is not None
-            assert len(molecule.source_parsed_record.atomic_bonds) == 4
+            assert len(molecule.atomic_bonds) == 4
 
             # Verify monomer mass calculation check (alanine residue expected)
             ala = molecule.monomers[0]
@@ -336,60 +334,43 @@ atomic_bonds: []
             assert "invalid.yaml" in str(excinfo.value)
 
 
-class TestYamlParserMonomerMassCalculations:
+class TestCalculateMonomerExactMass:
     """Unit tests for _calculate_monomer_exact_mass helper."""
 
     def test_calculate_mass_valid(self):
         """Should correctly sum atomic masses with implicit hydrogens."""
-        monomer = MonomerInfo(
-            name=NorineMonomerName("mock"),
-            atoms=[AtomId(0), AtomId(1)],
-            chirality=Chirality.L,
-        )
+        atom_ids = (0, 1)
         atoms = {
-            0: AtomInfo(name="C", hydrogens=3),
-            1: AtomInfo(name="O", hydrogens=1),
+            0: Atom(name="C", hydrogens=3),
+            1: Atom(name="O", hydrogens=1),
         }
         # C (12.0) + O (15.994915) + 4 * H (1.007825) = 32.026215
         expected_mass = 12.0 + 15.994915 + 4 * 1.007825
-        mass = _calculate_monomer_exact_mass(monomer, atoms)
+        mass = _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
         assert mass == pytest.approx(expected_mass)
 
     def test_calculate_mass_unknown_element(self):
         """Should raise ValueError for unknown elements."""
-        monomer = MonomerInfo(
-            name=NorineMonomerName("mock"),
-            atoms=[AtomId(0)],
-            chirality=Chirality.L,
-        )
+        atom_ids = (0,)
         atoms = {
-            0: AtomInfo(name="Xx", hydrogens=0),
+            0: Atom(name="Xx", hydrogens=0),
         }
         with pytest.raises(ValueError, match="Unknown element 'Xx'"):
-            _calculate_monomer_exact_mass(monomer, atoms)
+            _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
 
     def test_calculate_mass_missing_atom_id(self):
         """Should ignore missing atom IDs in the dictionary."""
-        monomer = MonomerInfo(
-            name=NorineMonomerName("mock"),
-            atoms=[AtomId(0), AtomId(999)],
-            chirality=Chirality.L,
-        )
+        atom_ids = (0, 999)
         atoms = {
-            0: AtomInfo(name="C", hydrogens=0),
+            0: Atom(name="C", hydrogens=0),
         }
         # 999 is missing, should only calculate for atom 0
-        mass = _calculate_monomer_exact_mass(monomer, atoms)
+        mass = _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
         assert mass == pytest.approx(12.0)
 
     def test_calculate_mass_empty_atoms(self):
         """Should return None if total mass is zero or no atoms are present."""
-        monomer = MonomerInfo(
-            name=NorineMonomerName("mock"),
-            atoms=[],
-            chirality=Chirality.L,
-        )
-        assert _calculate_monomer_exact_mass(monomer, {}) is None
+        assert _calculate_monomer_exact_mass((), "mock", {}) is None
 
 
 class TestYamlParserEdgeCases:
@@ -420,7 +401,7 @@ atomic_bonds: []
             yaml_path = f.name
 
         try:
-            with pytest.raises(ValueError, match="Failed to parse Parsed_rBAN_Record"):
+            with pytest.raises(ValueError, match="Failed to parse rBAN record"):
                 parse_rban_yaml(yaml_path)
         finally:
             os.unlink(yaml_path)
@@ -448,9 +429,7 @@ atomic_bonds: []
             yaml_path = f.name
 
         try:
-            with pytest.raises(
-                ValueError, match="Failed to parse Parsed_rBAN_Record list"
-            ) as excinfo:
+            with pytest.raises(ValueError, match="Failed to parse rBAN record list") as excinfo:
                 parse_rban_yaml(yaml_path)
             assert "Index 1:" in str(excinfo.value)
             assert "at least one monomer" in str(excinfo.value)
@@ -651,9 +630,8 @@ def test_parse_rban_yaml_parallel_and_cached():
         mols2 = parse_rban_yaml_batch([yaml_file], cache_dir=cache_dir, use_cache=True)
         assert len(mols2) == 6
 
-        # Verify contents are identical (except source_parsed_record which is not cached)
+        # Verify contents are identical
         for k in mols1:
             assert mols1[k].structure_id == mols2[k].structure_id
             assert mols1[k].monomers == mols2[k].monomers
             assert mols1[k].bonds == mols2[k].bonds
-            assert mols2[k].source_parsed_record is None

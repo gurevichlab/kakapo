@@ -13,10 +13,9 @@ from typing import Any, NoReturn
 
 import orjson
 from pydantic import BaseModel, Field, RootModel
-from rban_parsing.rban_parser import Parsed_rBAN_Record
 
 from kakapo.io.yaml_parser import (
-    _build_molecule_from_parsed_record,
+    _build_molecule_from_dict,
     _deserialize_molecule,
     _serialize_molecule,
 )
@@ -128,8 +127,7 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
 def _process_single_record(args: tuple[dict, str]) -> Molecule:
     """Helper function to parse a single record in parallel."""
     item, unique_id = args
-    parsed_record = Parsed_rBAN_Record.from_dict(item)
-    return _build_molecule_from_parsed_record(parsed_record, structure_id=unique_id)
+    return _build_molecule_from_dict(item, structure_id=unique_id)
 
 
 def parse_rban_json(  # noqa: C901

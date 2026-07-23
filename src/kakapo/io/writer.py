@@ -267,9 +267,7 @@ def _serialize_molecule(mol: Molecule) -> dict:
         A dictionary representation of the Molecule.
     """
     return {
-        "input_compound_id": (
-            mol.source_parsed_record.compound_id if mol.source_parsed_record else mol.structure_id
-        ),
+        "input_compound_id": mol.structure_id,
         "monomers": {
             str(k): {
                 "norine_name": v.norine_name,

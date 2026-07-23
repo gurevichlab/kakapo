@@ -81,8 +81,7 @@ class TestJsonParserBasic:
             assert molecule.structure_id == "NRP_PARSED_1"
             assert molecule.smiles == "NCC(=O)O"
             assert len(molecule.monomers) == 1
-            assert molecule.source_parsed_record is not None
-            assert len(molecule.source_parsed_record.atomic_bonds) == 4
+            assert len(molecule.atomic_bonds) == 4
 
             # Verify monomer mass calculation check (alanine residue expected)
             ala = molecule.monomers[0]

@@ -6,9 +6,9 @@ and explicit contracts between modules.
 
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
+from typing import Any
 
 import networkx as nx
-from rban_parsing.rban_parser import NRP_metadata, Parsed_rBAN_Record
 
 from kakapo.config import DEFAULT_MIN_TOLERANCE
 from kakapo.constants import PROTON_MASS
@@ -347,11 +347,11 @@ class AtomicBond:
 
     Attributes:
         arity: The bond order or arity (e.g., '1' for single, '2' for double, 'ar' for aromatic).
-        bond_type: The qualitative chemical bond type or classification.
+        bond_type: The qualitative chemical bond type or classification, or None if unspecified.
     """
 
     arity: str
-    bond_type: str
+    bond_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -370,7 +370,7 @@ class BondSubtype:
     """
 
     name: str
-    reversed: bool
+    reversed: bool = False
 
 
 @dataclass(frozen=True)
@@ -410,13 +410,13 @@ class Bond:
     Attributes:
         source_idx: Index of the source monomer in the parent Molecule's monomers dict.
         target_idx: Index of the target monomer in the parent Molecule's monomers dict.
-        bond_type: String describing the bond type (e.g., 'AMINO', 'ESTER', 'THIOETHER').
+        bond_type: String describing the bond type (e.g., 'AMINO', 'ESTER', 'THIOETHER') or None.
         subtypes: Tuple of classified bond subtypes (e.g., 'amide_1').
     """
 
     source_idx: int
     target_idx: int
-    bond_type: str
+    bond_type: str | None = None
     subtypes: tuple[BondSubtype, ...] = ()
 
     def __post_init__(self):
@@ -424,8 +424,37 @@ class Bond:
             raise ValueError("Bond indices must be non-negative")
         if self.source_idx == self.target_idx:
             raise ValueError("Bond cannot connect a monomer to itself")
-        if not self.bond_type:
-            raise ValueError("Bond type cannot be empty")
+
+
+@dataclass(frozen=True)
+class Metadata:
+    """Metadata for a molecule record.
+
+    Attributes:
+        name: Compound name.
+        smiles: SMILES representation.
+        origin: Biological or chemical origin.
+        inchikey: InChIKey string.
+        source: Database or provenance source.
+    """
+
+    name: str | None = None
+    smiles: str | None = None
+    origin: str | None = None
+    inchikey: str | None = None
+    source: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "Metadata | None":
+        """Construct a Metadata instance from a raw dictionary."""
+        if not data or not isinstance(data, dict):
+            return None
+        fields = cls.__dataclass_fields__.keys()
+        class_data = dict.fromkeys(fields, None)
+        for key, value in data.items():
+            if key.lower() in fields:
+                class_data[key.lower()] = value
+        return cls(**class_data)
 
 
 @dataclass(frozen=True)
@@ -443,7 +472,6 @@ class Molecule:
         atoms: Mapping of atom IDs to Atom instances.
         atomic_bonds: Mapping of atomic edges to AtomicBond instances.
         metadata: Optional metadata.
-        source_parsed_record: Optional original Parsed_rBAN_Record payload.
     """
 
     structure_id: str
@@ -452,8 +480,7 @@ class Molecule:
     smiles: str | None = None
     atoms: dict[int, Atom] = field(default_factory=dict)
     atomic_bonds: dict[AtomicEdge, AtomicBond] = field(default_factory=dict)
-    metadata: NRP_metadata | None = None
-    source_parsed_record: Parsed_rBAN_Record | None = None
+    metadata: Metadata | None = None
 
     def __post_init__(self):
         if not self.structure_id:
