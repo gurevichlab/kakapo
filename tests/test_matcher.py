@@ -5,8 +5,11 @@ import pytest
 
 from kakapo.constants import PROTON_MASS
 from kakapo.core.matcher import (
+    ExperimentalSpectrumIndex,
     _build_structure_index,
     _filter_candidates_with_index,
+    build_experimental_spectrum_index,
+    get_matching_range,
     match_spectra,
     match_spectrum,
 )
@@ -1247,3 +1250,84 @@ class TestSpectrumMatcher:
         assert len(result.modifications) == 1
         assert result.modifications[0].monomer_idx == 0
         assert result.modifications[0].mass_difference == pytest.approx(50.0)
+
+
+class TestExperimentalSpectrumIndex:
+    """Granular unit tests for ExperimentalSpectrumIndex creation and range querying."""
+
+    def test_spectrum_index_creation_and_ranks(self) -> None:
+        """Verify index creation, peak sorting, and precalculated intensity ranks."""
+        # 3 peaks out of order with varying intensities
+        peaks = [(300.0, 50.0), (100.0, 200.0), (200.0, 100.0)]
+        spec = make_spectrum(peaks)
+        index = build_experimental_spectrum_index(spec, bin_width=0.5)
+
+        assert isinstance(index, ExperimentalSpectrumIndex)
+        assert len(index.sorted_peaks) == 3
+        # Sorted peaks should be ordered by mass ascending
+        assert [p.mass for p in index.sorted_peaks] == [100.0, 200.0, 300.0]
+        assert index.masses == (100.0, 200.0, 300.0)
+
+        # Intensity ranks: peak at 100.0 (intensity 200) -> rank 0
+        # peak at 200.0 (intensity 100) -> rank 1
+        # peak at 300.0 (intensity 50) -> rank 2
+        assert index.ranks == (0, 1, 2)
+
+    def test_get_matching_range_da_tolerance(self) -> None:
+        """Verify get_matching_range returns exact index slice for Da tolerance."""
+        peaks = [(100.0, 1.0), (100.01, 1.0), (100.05, 1.0), (200.0, 1.0)]
+        spec = make_spectrum(peaks)
+        index = build_experimental_spectrum_index(spec, bin_width=0.5)
+
+        # Query 100.0 with 0.02 Da tolerance window [99.98, 100.02]
+        tol_da = Tolerance(0.02, unit="da")
+        left, right = get_matching_range(index, 100.0, tol_da)
+        assert (left, right) == (0, 2)
+        assert [p.mass for p in index.sorted_peaks[left:right]] == [100.0, 100.01]
+
+    def test_get_matching_range_ppm_tolerance(self) -> None:
+        """Verify get_matching_range returns exact index slice for ppm tolerance."""
+        # At 500.0 Da, 20 ppm = 0.01 Da window [499.99, 500.01]
+        peaks = [(499.98, 1.0), (499.995, 1.0), (500.0, 1.0), (500.005, 1.0), (500.02, 1.0)]
+        spec = make_spectrum(peaks)
+        index = build_experimental_spectrum_index(spec, bin_width=0.5)
+
+        tol_ppm = Tolerance(20.0, unit="ppm", min_tolerance=0.001)
+        left, right = get_matching_range(index, 500.0, tol_ppm)
+        assert [p.mass for p in index.sorted_peaks[left:right]] == [499.995, 500.0, 500.005]
+
+    def test_get_matching_range_out_of_bounds(self) -> None:
+        """Verify out of bounds queries return empty range (0, 0)."""
+        peaks = [(100.0, 1.0), (200.0, 1.0)]
+        spec = make_spectrum(peaks)
+        index = build_experimental_spectrum_index(spec, bin_width=0.5)
+        tol = Tolerance(0.01)
+
+        # Query below min mass
+        assert get_matching_range(index, 50.0, tol) == (0, 0)
+        # Query above max mass
+        assert get_matching_range(index, 300.0, tol) == (0, 0)
+
+    def test_indexed_vs_direct_matching_equivalence(self) -> None:
+        """Verify that matching with a pre-built spec_index produces identical MatchResult."""
+        peaks = [(100.01, 10.0), (200.02, 20.0), (300.03, 30.0), (400.04, 40.0)]
+        spec = make_spectrum(peaks, precursor_mass=500.0)
+        theo = make_theoretical_spectrum(
+            [100.0 - PROTON_MASS, 200.0 - PROTON_MASS], structure_mass=500.0, monomer_count=2
+        )
+
+        res_direct = match_spectrum(
+            spec, theo, tolerance=Tolerance(0.05), scoring=ScoringMode.INTENCITY
+        )
+        spec_idx = build_experimental_spectrum_index(spec)
+        res_indexed = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.05),
+            scoring=ScoringMode.INTENCITY,
+            spec_index=spec_idx,
+        )
+
+        assert res_direct.matched_peaks_count == res_indexed.matched_peaks_count
+        assert res_direct.score == pytest.approx(res_indexed.score)
+        assert len(res_direct.matched_peaks) == len(res_indexed.matched_peaks)
