@@ -88,7 +88,7 @@ class BGCVariantItem(BaseModel):
     bgc_variant_id: dict[str, Any] = Field(default_factory=dict)
     compound_id: str | None = None
     original_score: float | None = None
-    new_variants: list[NewVariant] = Field(default_factory=list)
+    new_variants: dict[str, NewVariant] = Field(default_factory=dict)
 
 
 class BGCVariantsFile(RootModel[list[BGCVariantItem]]):
@@ -104,23 +104,30 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
     safely extract the nested new_record dicts.
 
     Args:
-        json_data: Parsed JSON data, either a single BGC dict or a list of BGC dicts.
+        json_data: Parsed JSON data, either a single BGC dict or, a list of BGC dicts,
+    or a dictionary of BGC dicts indexed by IDs.
 
     Returns:
         A tuple containing:
             - A list of record dictionaries.
             - A boolean indicating if the input root was a list (for return type selection).
     """
-    is_list = isinstance(json_data, list)
-    if is_list:
-        parsed_data = BGCVariantsFile.model_validate(json_data).root
+    if isinstance(json_data, list):
+        generated_candidates = BGCVariantsFile.model_validate(json_data).root
+    elif isinstance(json_data, dict) == True:
+        generated_candidates = [
+            BGCVariantItem.model_validate(item)
+            for item in json_data.values()
+        ]
     else:
-        parsed_data = [BGCVariantItem.model_validate(json_data)]
+        raise TypeError(f"Expected list or dict, got {type(json_data).__name__}")
 
     records = []
-    for item in parsed_data:
-        for variant in item.new_variants:
+    for item in generated_candidates:
+        for _new_variant_id, variant in item.new_variants.items():
             records.append(variant.new_record)
+
+    is_list = len(generated_candidates) > 1  # I hope, that was the intention
     return records, is_list
 
 
