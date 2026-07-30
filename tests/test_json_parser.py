@@ -30,8 +30,8 @@ class TestJsonParserBasic:
             },
             "compound_id": "NRP_PARSED_1",
             "original_score": 10.0,
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "score": 10.0,
                     "rank": 0,
                     "original_id": "NRP_PARSED_1",
@@ -68,7 +68,7 @@ class TestJsonParserBasic:
                         ],
                     },
                 }
-            ],
+            },
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(json_data, f)
@@ -94,8 +94,8 @@ class TestJsonParserBasic:
         """Parse a JSON file containing a list of BGC variant items."""
         json_data = [
             {
-                "new_variants": [
-                    {
+                "new_variants": {
+                    "variant_0": {
                         "new_record": {
                             "compound_id": "NRP_PARSED_LIST_1",
                             "metadata": {
@@ -118,11 +118,11 @@ class TestJsonParserBasic:
                             "atomic_bonds": [],
                         }
                     }
-                ]
+                }
             },
             {
-                "new_variants": [
-                    {
+                "new_variants": {
+                    "variant_0": {
                         "new_record": {
                             "compound_id": "NRP_PARSED_LIST_2",
                             "metadata": {
@@ -145,7 +145,7 @@ class TestJsonParserBasic:
                             "atomic_bonds": [],
                         }
                     }
-                ]
+                }
             },
         ]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -170,8 +170,8 @@ class TestJsonParserBasic:
         """Parse list with duplicate compound IDs and apply suffixes."""
         json_data = [
             {
-                "new_variants": [
-                    {
+                "new_variants": {
+                    "variant_0": {
                         "new_record": {
                             "compound_id": "NRP_DUP",
                             "metadata": {"name": "A", "smiles": "N"},
@@ -181,11 +181,11 @@ class TestJsonParserBasic:
                             "atomic_bonds": [],
                         }
                     }
-                ]
+                }
             },
             {
-                "new_variants": [
-                    {
+                "new_variants": {
+                    "variant_0": {
                         "new_record": {
                             "compound_id": "NRP_DUP",
                             "metadata": {"name": "B", "smiles": "N"},
@@ -195,7 +195,7 @@ class TestJsonParserBasic:
                             "atomic_bonds": [],
                         }
                     }
-                ]
+                }
             },
         ]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -248,14 +248,14 @@ class TestJsonParserErrors:
     def test_parse_missing_required_fields(self):
         """Should raise ValueError when Parsed_rBAN_Record fields are missing."""
         json_data = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP005",
                         "metadata": {"smiles": "NCC(=O)O"},
                     }
                 }
-            ]
+            }
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(json_data, f)
@@ -270,8 +270,8 @@ class TestJsonParserErrors:
     def test_parse_missing_monomers(self):
         """Should raise ValueError when Parsed_rBAN_Record has no monomers."""
         json_data = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP006",
                         "metadata": {
@@ -287,7 +287,7 @@ class TestJsonParserErrors:
                         "monomers": {},
                     }
                 }
-            ]
+            }
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(json_data, f)
@@ -306,8 +306,8 @@ class TestJsonParserBatch:
     def test_parse_batch_multiple_files(self):
         """Parse multiple JSON files at once."""
         json_data_1 = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP_A",
                         "metadata": {"name": None, "smiles": "N"},
@@ -317,11 +317,11 @@ class TestJsonParserBatch:
                         "atomic_bonds": [],
                     }
                 }
-            ]
+            }
         }
         json_data_2 = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP_B",
                         "metadata": {"name": None, "smiles": "N"},
@@ -331,7 +331,7 @@ class TestJsonParserBatch:
                         "atomic_bonds": [],
                     }
                 }
-            ]
+            }
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_a.json")
@@ -353,8 +353,8 @@ class TestJsonParserBatch:
     def test_parse_batch_with_error(self):
         """Batch parsing should report all errors."""
         json_data_1 = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP_A",
                         "metadata": {"name": None, "smiles": "N"},
@@ -364,7 +364,7 @@ class TestJsonParserBatch:
                         "atomic_bonds": [],
                     }
                 }
-            ]
+            }
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_a.json")
@@ -381,8 +381,8 @@ class TestJsonParserBatch:
     def test_parse_batch_with_caching(self):
         """Parse multiple files with and without cache hits."""
         json_data_1 = {
-            "new_variants": [
-                {
+            "new_variants": {
+                "variant_0": {
                     "new_record": {
                         "compound_id": "NRP_C",
                         "metadata": {"name": None, "smiles": "N"},
@@ -392,7 +392,7 @@ class TestJsonParserBatch:
                         "atomic_bonds": [],
                     }
                 }
-            ]
+            }
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             json_path_1 = os.path.join(tmpdir, "nrp_c.json")

@@ -104,8 +104,8 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
     safely extract the nested new_record dicts.
 
     Args:
-        json_data: Parsed JSON data, either a single BGC dict or, a list of BGC dicts,
-    or a dictionary of BGC dicts indexed by IDs.
+        json_data: Parsed JSON data, either a single BGC dict or a list of BGC dicts,
+            or a dictionary of BGC dicts indexed by IDs.
 
     Returns:
         A tuple containing:
@@ -114,11 +114,17 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
     """
     if isinstance(json_data, list):
         generated_candidates = BGCVariantsFile.model_validate(json_data).root
-    elif isinstance(json_data, dict) == True:
-        generated_candidates = [
-            BGCVariantItem.model_validate(item)
-            for item in json_data.values()
-        ]
+        is_list = True
+    elif isinstance(json_data, dict):
+        if "new_variants" in json_data:
+            generated_candidates = [BGCVariantItem.model_validate(json_data)]
+            is_list = False
+        else:
+            generated_candidates = [
+                BGCVariantItem.model_validate(item)
+                for item in json_data.values()
+            ]
+            is_list = len(generated_candidates) > 1
     else:
         raise TypeError(f"Expected list or dict, got {type(json_data).__name__}")
 
@@ -127,7 +133,6 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
         for _new_variant_id, variant in item.new_variants.items():
             records.append(variant.new_record)
 
-    is_list = len(generated_candidates) > 1  # I hope, that was the intention
     return records, is_list
 
 
