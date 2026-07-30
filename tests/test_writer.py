@@ -97,7 +97,8 @@ class TestWriterCsvFormatting:
         assert len(rows) == 2
         assert rows[0]["structure_id"] == "NRP_001"
         assert rows[0]["spectrum_id"] == "spec_101"
-        assert float(rows[0]["structure_mass"]) == 800.45
+        assert rows[0]["structure_mass"] == "800.45000"
+        assert rows[1]["structure_mass"] == "950.50000"
         assert rows[0]["tolerance"] == "0.02da"
         assert rows[0]["score"] == "12.346"
         assert int(rows[0]["matched_peaks_count"]) == 5
@@ -180,8 +181,10 @@ class TestWriterTableFormatting:
         table_str = format_as_table(sample_results)
         assert "NRP_001" in table_str
         assert "spec_101" in table_str
+        assert "800.45000" in table_str
         assert "NRP_002" in table_str
         assert "spec_102" in table_str
+        assert "950.50000" in table_str
         # Check table headers are present
         assert "Structure ID" in table_str
         assert "Experimental Peaks" in table_str
@@ -235,6 +238,8 @@ class TestWriterJsonFormatting:
         assert len(data) == 2
         assert data[0]["structure_id"] == "NRP_001"
         assert data[0]["spectrum_id"] == "spec_101"
+        assert data[0]["structure_mass"] == 800.45
+        assert data[1]["structure_mass"] == 950.5
         assert data[0]["tolerance"] == "0.02da"
         assert data[0]["score"] == 12.346
 

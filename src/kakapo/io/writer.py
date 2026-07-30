@@ -67,7 +67,7 @@ def format_as_csv(results: list[MatchResult]) -> str:
             [
                 result.structure_id,
                 result.spectrum_id,
-                result.structure_mass,
+                f"{result.structure_mass:.5f}",
                 result.spectrum_mass,
                 str(result.tolerance),
                 f"{result.score:.3f}",
@@ -111,7 +111,7 @@ def format_as_table(results: list[MatchResult]) -> str:
         [
             result.structure_id,
             result.spectrum_id,
-            result.structure_mass,
+            f"{result.structure_mass:.5f}",
             result.spectrum_mass,
             str(result.tolerance),
             f"{result.score:.3f}",
@@ -124,7 +124,12 @@ def format_as_table(results: list[MatchResult]) -> str:
         for result in results
     ]
 
-    return tabulate(data, headers=headers, tablefmt="simple")
+    return tabulate(
+        data,
+        headers=headers,
+        tablefmt="simple",
+        disable_numparse=[2] if data else False,
+    )
 
 
 def mask_to_reversed_binary_string(mask: int, length: int) -> str:
@@ -183,7 +188,7 @@ def format_as_json(results: list[MatchResult]) -> str:
             {
                 "structure_id": r.structure_id,
                 "spectrum_id": r.spectrum_id,
-                "structure_mass": r.structure_mass,
+                "structure_mass": round(r.structure_mass, 5),
                 "spectrum_mass": r.spectrum_mass,
                 "tolerance": str(r.tolerance),
                 "score": round(r.score, 3),
