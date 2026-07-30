@@ -11,7 +11,7 @@ from typing import Any
 import networkx as nx
 
 from kakapo.config import DEFAULT_MIN_TOLERANCE
-from kakapo.constants import PROTON_MASS
+from kakapo.constants import MAX_CHARGE, PROTON_MASS
 
 
 class Chirality(Enum):
@@ -217,12 +217,14 @@ class TheoreticalIon:
         mask: Bitmask representing the monomers in this fragment.
         rules_shifts: Tuple of RuleShift instances applied to generate this ion.
         total_shift_mass: Sum of rules_shifts.shift.
+        unmodified_mass: Precomputed unmodified mass of this ion in Daltons.
     """
 
     fragment_id: str
     mask: int
     rules_shifts: tuple[RuleShift, ...] = ()
     total_shift_mass: float = field(init=False)
+    unmodified_mass: float = field(default=0.0, init=False, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.fragment_id:
@@ -234,7 +236,6 @@ class TheoreticalIon:
         object.__setattr__(self, "total_shift_mass", sum(item.shift for item in self.rules_shifts))
 
 
-@dataclass(frozen=True)
 class TheoreticalIonWithMass:
     """A theoretical ion with its mass calculated for a specific monomer mass vector.
 
@@ -242,21 +243,44 @@ class TheoreticalIonWithMass:
         fragment_id: Unique identifier for the fragment.
         mass: Calculated exact mass of this ion.
         mask: Bitmask representing the monomers in this fragment.
+        charge: Charge state of this ion.
+        mz: Calculated m/z value.
     """
 
-    fragment_id: str
-    mass: float
-    mask: int
-    charge: int = 1
-    mz: float = 0.0
+    __slots__ = ("fragment_id", "mass", "mask", "charge", "mz")
 
-    def __post_init__(self):
-        if not self.fragment_id:
+    def __init__(
+        self,
+        fragment_id: str,
+        mass: float,
+        mask: int,
+        charge: int = 1,
+        mz: float = 0.0,
+    ) -> None:
+        """Initialize a TheoreticalIonWithMass instance with validation.
+
+        Args:
+            fragment_id: Unique identifier for the fragment.
+            mass: Calculated exact mass of this ion.
+            mask: Bitmask representing the monomers in this fragment.
+            charge: Charge state of this ion.
+            mz: Calculated m/z value.
+
+        Raises:
+            ValueError: If fragment_id is empty, mask <= 0, or charge <= 0.
+        """
+        if not fragment_id:
             raise ValueError("Fragment ID cannot be empty")
-        if self.mask <= 0:
+        if mask <= 0:
             raise ValueError("Mask must be positive")
-        if self.charge <= 0:
+        if charge <= 0:
             raise ValueError("Charge must be positive")
+
+        self.fragment_id = fragment_id
+        self.mass = mass
+        self.mask = mask
+        self.charge = charge
+        self.mz = mz
 
 
 @dataclass(frozen=True)
@@ -277,6 +301,9 @@ class TheoreticalSpectrum:
     monomer_count: int
     monomer_mass_vector: tuple[float, ...]
     monomers: dict[int, "Monomer"]
+    unmodified_ions_with_mass_by_charge: dict[int, tuple[TheoreticalIonWithMass, ...]] = field(
+        init=False, repr=False
+    )
 
     def __post_init__(self):  # noqa: C901
         if not self.structure_id:
@@ -301,6 +328,39 @@ class TheoreticalSpectrum:
             raise TypeError("Monomer keys must be integers and values must be Monomer instances")
         if len(self.monomers) != self.monomer_count:
             raise ValueError("Monomers dictionary length must match monomer count")
+
+        # Precompute unmodified masses for ions
+        for ion in self.ions:
+            total = 0.0
+            mask = ion.mask
+            for val in self.monomer_mass_vector:
+                if not mask:
+                    break
+                if mask & 1:
+                    total += val
+                mask >>= 1
+            object.__setattr__(ion, "unmodified_mass", total + ion.total_shift_mass)
+
+        # Precompute sorted unmodified ions with mass for charges up to MAX_CHARGE
+        unmodified_ions_by_charge = {}
+        for c in range(1, MAX_CHARGE + 1):
+            ions_list = []
+            for ion in self.ions:
+                mass = ion.unmodified_mass
+                for charge in range(1, c + 1):
+                    mz = (mass + PROTON_MASS * charge) / charge
+                    ions_list.append(
+                        TheoreticalIonWithMass(
+                            fragment_id=ion.fragment_id,
+                            mass=mass,
+                            mask=ion.mask,
+                            charge=charge,
+                            mz=mz,
+                        )
+                    )
+            ions_list.sort(key=lambda item: item.mz)
+            unmodified_ions_by_charge[c] = tuple(ions_list)
+        object.__setattr__(self, "unmodified_ions_with_mass_by_charge", unmodified_ions_by_charge)
 
 
 @dataclass(frozen=True)

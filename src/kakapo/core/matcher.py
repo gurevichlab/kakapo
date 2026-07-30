@@ -28,26 +28,6 @@ from kakapo.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _fast_dot_product(vector: Iterable[float], mask: int) -> float:
-    """Fast dot product of a float vector and a bitmask.
-
-    Args:
-        vector: An iterable of floats (e.g. monomer masses).
-        mask: An integer bitmask representing which monomers are present.
-
-    Returns:
-        The sum of the masses of the active monomers.
-    """
-    total = 0.0
-    for val in vector:
-        if not mask:
-            break
-        if mask & 1:
-            total += val
-        mask >>= 1
-    return total
-
-
 @dataclass
 class ExperimentalSpectrumIndex:
     """Search index for an experimental spectrum to enable fast peak matching.
@@ -371,14 +351,27 @@ def _match_peaks_intencity(
 
 def _calculate_theory_ions_with_mass(
     theoretical_spectrum: TheoreticalSpectrum,
-    monomer_masses: Iterable[float],
     max_charge: int,
+    modifications: Iterable[MonomerModification] = (),
 ) -> list[TheoreticalIonWithMass]:
-    """Calculate and sort theoretical ion masses based on monomer masses and charges."""
+    """Calculate and sort theoretical ion masses based on monomer masses and charges.
+
+    Uses precomputed unmodified masses to update mass in O(1) for modified monomers.
+    """
+    # Extract active modifications from the modifications parameter
+    active_mods = [(mod.monomer_idx, mod.mass_difference) for mod in modifications]
+
+    # Fast path: if no modifications and charge is <= MAX_CHARGE, return cached list
+    if not active_mods and max_charge <= MAX_CHARGE:
+        return list(theoretical_spectrum.unmodified_ions_with_mass_by_charge[max_charge])
+
     ions = []
     for charge in range(1, max_charge + 1):
         for ion in theoretical_spectrum.ions:
-            mass = _fast_dot_product(monomer_masses, ion.mask) + ion.total_shift_mass
+            mass = ion.unmodified_mass
+            for monomer_idx, diff in active_mods:
+                if ion.mask & (1 << monomer_idx):
+                    mass += diff
             mz = (mass + PROTON_MASS * charge) / charge
             ions.append(
                 TheoreticalIonWithMass(
@@ -524,7 +517,7 @@ def _evaluate_hypotheses(
 
     for hypothesis in hypotheses:
         theory_ions_with_mass = _calculate_theory_ions_with_mass(
-            theoretical_spectrum, hypothesis.updated_monomer_masses, max_charge
+            theoretical_spectrum, max_charge, hypothesis.modifications
         )
 
         if scoring == ScoringMode.INTENCITY:
@@ -669,7 +662,7 @@ def _build_structure_index(
     """
     flat_peaks: list[tuple[float, str]] = []
     for theo in theoretical_spectra:
-        ions = _calculate_theory_ions_with_mass(theo, theo.monomer_mass_vector, 1)
+        ions = _calculate_theory_ions_with_mass(theo, 1)
         for ion in ions:
             flat_peaks.append((ion.mass, theo.structure_id))
 
