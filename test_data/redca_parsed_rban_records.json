@@ -1,0 +1,155 @@
+[
+  {
+    "compound_id": "RE001",
+    "new_variants": {
+      "var0": {
+        "new_record": {
+          "compound_id": "RE001",
+          "monomers": {
+            "1": {
+              "name": "Asp",
+              "atoms": [20, 21, 22, 26, 27, 23, 24, 25],
+              "chirality": "L",
+              "is_pks_hybrid": false,
+              "nerpa_core": "Asp",
+              "methylated": false,
+              "mon_code": 60
+            },
+            "2": {
+              "name": "Glu",
+              "atoms": [11, 12, 13, 18, 14, 19, 15, 16, 17],
+              "chirality": "L",
+              "is_pks_hybrid": false,
+              "nerpa_core": "Glu",
+              "methylated": false,
+              "mon_code": 120
+            },
+            "3": {
+              "name": "Arg",
+              "atoms": [0, 1, 2, 9, 3, 10, 4, 5, 6, 7, 8],
+              "chirality": "L",
+              "is_pks_hybrid": false,
+              "nerpa_core": "Arg",
+              "methylated": false,
+              "mon_code": 36
+            },
+            "4": {
+              "name": "Cys",
+              "atoms": [32, 29, 33, 28, 30, 31],
+              "chirality": "L",
+              "is_pks_hybrid": false,
+              "nerpa_core": "Cys",
+              "methylated": false,
+              "mon_code": 84
+            },
+            "5": {
+              "name": "Ala",
+              "atoms": [37, 35, 38, 34, 36],
+              "chirality": "L",
+              "is_pks_hybrid": false,
+              "nerpa_core": "Ala",
+              "methylated": false,
+              "mon_code": 24
+            }
+          },
+          "monomer_bonds": [
+            [[2, 3], [{"monomer_to_atom": {"2": 11, "3": 9}, "atomic_edge": {"arity": "1", "bond_type": "AMINO"}}]],
+            [[1, 2], [{"monomer_to_atom": {"1": 20, "2": 18}, "atomic_edge": {"arity": "1", "bond_type": "AMINO"}}]],
+            [[1, 4], [{"monomer_to_atom": {"1": 26, "4": 28}, "atomic_edge": {"arity": "1", "bond_type": "AMINO"}}]],
+            [[4, 5], [{"monomer_to_atom": {"4": 32, "5": 34}, "atomic_edge": {"arity": "1", "bond_type": "AMINO"}}]],
+            [[3, 5], [{"monomer_to_atom": {"3": 0, "5": 37}, "atomic_edge": {"arity": "1", "bond_type": "AMINO"}}]]
+          ],
+          "atoms": {
+            "0": {"name": "N", "hydrogens": 1},
+            "1": {"name": "C", "hydrogens": 1},
+            "2": {"name": "C", "hydrogens": 2},
+            "3": {"name": "C", "hydrogens": 2},
+            "4": {"name": "C", "hydrogens": 2},
+            "5": {"name": "N", "hydrogens": 1},
+            "6": {"name": "C", "hydrogens": 0},
+            "7": {"name": "N", "hydrogens": 1},
+            "8": {"name": "N", "hydrogens": 2},
+            "9": {"name": "C", "hydrogens": 0},
+            "10": {"name": "O", "hydrogens": 0},
+            "11": {"name": "N", "hydrogens": 1},
+            "12": {"name": "C", "hydrogens": 1},
+            "13": {"name": "C", "hydrogens": 2},
+            "14": {"name": "C", "hydrogens": 2},
+            "15": {"name": "C", "hydrogens": 0},
+            "16": {"name": "O", "hydrogens": 0},
+            "17": {"name": "O", "hydrogens": 1},
+            "18": {"name": "C", "hydrogens": 0},
+            "19": {"name": "O", "hydrogens": 0},
+            "20": {"name": "N", "hydrogens": 1},
+            "21": {"name": "C", "hydrogens": 1},
+            "22": {"name": "C", "hydrogens": 2},
+            "23": {"name": "C", "hydrogens": 0},
+            "24": {"name": "O", "hydrogens": 0},
+            "25": {"name": "O", "hydrogens": 1},
+            "26": {"name": "C", "hydrogens": 0},
+            "27": {"name": "O", "hydrogens": 0},
+            "28": {"name": "N", "hydrogens": 1},
+            "29": {"name": "C", "hydrogens": 1},
+            "30": {"name": "C", "hydrogens": 2},
+            "31": {"name": "S", "hydrogens": 1},
+            "32": {"name": "C", "hydrogens": 0},
+            "33": {"name": "O", "hydrogens": 0},
+            "34": {"name": "N", "hydrogens": 1},
+            "35": {"name": "C", "hydrogens": 1},
+            "36": {"name": "C", "hydrogens": 3},
+            "37": {"name": "C", "hydrogens": 0},
+            "38": {"name": "O", "hydrogens": 0}
+          },
+          "atomic_bonds": [
+            [[0, 1], {"arity": "1", "bond_type": null}],
+            [[1, 2], {"arity": "1", "bond_type": null}],
+            [[2, 3], {"arity": "1", "bond_type": null}],
+            [[3, 4], {"arity": "1", "bond_type": null}],
+            [[4, 5], {"arity": "1", "bond_type": null}],
+            [[5, 6], {"arity": "1", "bond_type": null}],
+            [[6, 7], {"arity": "2", "bond_type": null}],
+            [[6, 8], {"arity": "1", "bond_type": null}],
+            [[1, 9], {"arity": "1", "bond_type": null}],
+            [[9, 10], {"arity": "2", "bond_type": null}],
+            [[9, 11], {"arity": "1", "bond_type": "AMINO"}],
+            [[11, 12], {"arity": "1", "bond_type": null}],
+            [[12, 13], {"arity": "1", "bond_type": null}],
+            [[13, 14], {"arity": "1", "bond_type": null}],
+            [[14, 15], {"arity": "1", "bond_type": null}],
+            [[15, 16], {"arity": "2", "bond_type": null}],
+            [[15, 17], {"arity": "1", "bond_type": null}],
+            [[12, 18], {"arity": "1", "bond_type": null}],
+            [[18, 19], {"arity": "2", "bond_type": null}],
+            [[18, 20], {"arity": "1", "bond_type": "AMINO"}],
+            [[20, 21], {"arity": "1", "bond_type": null}],
+            [[21, 22], {"arity": "1", "bond_type": null}],
+            [[22, 23], {"arity": "1", "bond_type": null}],
+            [[23, 24], {"arity": "2", "bond_type": null}],
+            [[23, 25], {"arity": "1", "bond_type": null}],
+            [[21, 26], {"arity": "1", "bond_type": null}],
+            [[26, 27], {"arity": "2", "bond_type": null}],
+            [[26, 28], {"arity": "1", "bond_type": "AMINO"}],
+            [[28, 29], {"arity": "1", "bond_type": null}],
+            [[29, 30], {"arity": "1", "bond_type": null}],
+            [[30, 31], {"arity": "1", "bond_type": null}],
+            [[29, 32], {"arity": "1", "bond_type": null}],
+            [[32, 33], {"arity": "2", "bond_type": null}],
+            [[32, 34], {"arity": "1", "bond_type": "AMINO"}],
+            [[34, 35], {"arity": "1", "bond_type": null}],
+            [[35, 36], {"arity": "1", "bond_type": null}],
+            [[35, 37], {"arity": "1", "bond_type": null}],
+            [[0, 37], {"arity": "1", "bond_type": "AMINO"}],
+            [[37, 38], {"arity": "2", "bond_type": null}]
+          ],
+          "metadata": {
+            "name": "Redca",
+            "smiles": "N1[C@@]([H])(CCCNC(=N)N)C(=O)N[C@@]([H])(CCC(=O)O)C(=O)N[C@@]([H])(CC(=O)O)C(=O)N[C@@]([H])(CS)C(=O)N[C@@]([H])(C)C1(=O)",
+            "origin": null,
+            "inchikey": null,
+            "source": null
+          }
+        }
+      }
+    }
+  }
+]

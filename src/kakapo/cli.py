@@ -100,7 +100,7 @@ def create_parser() -> argparse.ArgumentParser:
         "-str",
         nargs="+",
         required=True,
-        help="Path(s) to rBAN YAML/JSON structure files or directories containing them.",
+        help="Path(s) to BGC variant JSON structure files or directories containing them.",
     )
 
     # Parameters
@@ -342,7 +342,7 @@ def main(args: Optional[list[str]] = None) -> int:
     # 2. Resolve input paths
     try:
         spectra_files = resolve_paths(parsed_args.spectra, [".mgf"])
-        structure_files = resolve_paths(parsed_args.structures, [".yaml", ".yml", ".json"])
+        structure_files = resolve_paths(parsed_args.structures, [".json"])
     except FileNotFoundError as e:
         logger.error("Path validation failed: %s", e)
         print(f"Error: {e}", file=sys.stderr)
@@ -353,9 +353,9 @@ def main(args: Optional[list[str]] = None) -> int:
         print("Error: No spectra files (.mgf) resolved from inputs.", file=sys.stderr)
         return 1
     if not structure_files:
-        logger.error("No valid structure files (.yaml, .yml, .json) resolved from inputs.")
+        logger.error("No valid structure files (.json) resolved from inputs.")
         print(
-            "Error: No structure files (.yaml, .yml, .json) resolved from inputs.",
+            "Error: No structure files (.json) resolved from inputs.",
             file=sys.stderr,
         )
         return 1

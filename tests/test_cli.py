@@ -32,16 +32,10 @@ def temp_io_structure(tmp_path: Path):
     spec_file2.write_text("BEGIN IONS\nPEPMASS=200.0\n200.0 50.0\nEND IONS", encoding="utf-8")
 
     # Create dummy structure files
-    struct_file1 = struct_dir / "struct1.yaml"
-    struct_file1.write_text(
-        "compound_id: struct1\nmonomers:\n  0: {name: Ala, atoms: [0]}\natomic_bonds: []",
-        encoding="utf-8",
-    )
-    struct_file2 = struct_dir / "struct2.YML"  # test uppercase extension
-    struct_file2.write_text(
-        "compound_id: struct2\nmonomers:\n  0: {name: Gly, atoms: [0]}\natomic_bonds: []",
-        encoding="utf-8",
-    )
+    struct_file1 = struct_dir / "struct1.json"
+    struct_file1.write_text("{}", encoding="utf-8")
+    struct_file2 = struct_dir / "struct2.JSON"  # test uppercase extension
+    struct_file2.write_text("{}", encoding="utf-8")
 
     # Create empty directory
     empty_dir = tmp_path / "empty"
@@ -78,7 +72,7 @@ def test_resolve_paths_directory(temp_io_structure) -> None:
     assert temp_io_structure["spec_file1"] in resolved_spec
     assert temp_io_structure["spec_file2"] in resolved_spec
 
-    resolved_struct = resolve_paths([str(temp_io_structure["struct_dir"])], [".yaml", ".yml"])
+    resolved_struct = resolve_paths([str(temp_io_structure["struct_dir"])], [".json"])
     assert len(resolved_struct) == 2
     assert temp_io_structure["struct_file1"] in resolved_struct
     assert temp_io_structure["struct_file2"] in resolved_struct
@@ -91,7 +85,7 @@ def test_resolve_paths_json(temp_io_structure) -> None:
 
     resolved_struct = resolve_paths(
         [str(temp_io_structure["struct_dir"])],
-        [".yaml", ".yml", ".json"],
+        [".json"],
     )
     assert len(resolved_struct) == 3
     assert json_file in resolved_struct
@@ -179,7 +173,7 @@ class TestCliMainFunction:
             "-s",
             "dummy.mgf",
             "-str",
-            "dummy.yaml",
+            "dummy.json",
             "-t",
             "0.5",
         ]

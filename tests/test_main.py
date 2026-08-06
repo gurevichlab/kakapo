@@ -1,5 +1,6 @@
 """Unit tests for the main pipeline orchestration in main.py."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -30,86 +31,115 @@ END IONS
     mgf_file = tmp_path / "test_spectra.mgf"
     mgf_file.write_text(mgf_content, encoding="utf-8")
 
-    # 2. Create sample rBAN YAML structures
+    # 2. Create sample rBAN JSON structures
     # A single alanine molecule
-    yaml_ala = """
-compound_id: "Ala_structure"
-metadata:
-  name: "Ala"
-  smiles: "CC(N)C(=O)O"
-atoms:
-  0: {name: "N", hydrogens: 2}
-  1: {name: "C", hydrogens: 1}
-  2: {name: "C", hydrogens: 0}
-  3: {name: "O", hydrogens: 0}
-  4: {name: "O", hydrogens: 1}
-monomers:
-  0: {name: "Ala", atoms: [0, 1, 2, 3, 4], chirality: "L", is_pks_hybrid: false}
-monomer_bonds: []
-atomic_bonds:
-  - - [0, 1]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [1, 2]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [2, 3]
-    - {arity: "2", bond_type: "DOUBLE"}
-  - - [2, 4]
-    - {arity: "1", bond_type: "SINGLE"}
-"""
-    yaml_ala_file = tmp_path / "ala.yaml"
-    yaml_ala_file.write_text(yaml_ala, encoding="utf-8")
+    json_ala = [
+        {
+            "compound_id": "Ala_structure",
+            "new_variants": {
+                "var0": {
+                    "new_record": {
+                        "compound_id": "Ala_structure",
+                        "metadata": {"name": "Ala", "smiles": "CC(N)C(=O)O"},
+                        "atoms": {
+                            "0": {"name": "N", "hydrogens": 2},
+                            "1": {"name": "C", "hydrogens": 1},
+                            "2": {"name": "C", "hydrogens": 0},
+                            "3": {"name": "O", "hydrogens": 0},
+                            "4": {"name": "O", "hydrogens": 1},
+                        },
+                        "monomers": {
+                            "0": {
+                                "name": "Ala",
+                                "atoms": [0, 1, 2, 3, 4],
+                                "chirality": "L",
+                                "is_pks_hybrid": False,
+                            }
+                        },
+                        "monomer_bonds": [],
+                        "atomic_bonds": [
+                            [[0, 1], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[1, 2], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[2, 3], {"arity": "2", "bond_type": "DOUBLE"}],
+                            [[2, 4], {"arity": "1", "bond_type": "SINGLE"}],
+                        ],
+                    }
+                }
+            },
+        }
+    ]
+    json_ala_file = tmp_path / "ala.json"
+    json_ala_file.write_text(json.dumps(json_ala), encoding="utf-8")
 
     # An Ala-Ala dimer
-    yaml_ala_dimer = """
-compound_id: "Ala_Dimer_structure"
-metadata:
-  name: "Ala_Dimer"
-  smiles: "CC(N)C(=O)NC(C)C(=O)O"
-atoms:
-  0: {name: "N", hydrogens: 2}
-  1: {name: "C", hydrogens: 1}
-  2: {name: "C", hydrogens: 0}
-  3: {name: "O", hydrogens: 0}
-  4: {name: "O", hydrogens: 1}
-  5: {name: "N", hydrogens: 1}
-  6: {name: "C", hydrogens: 1}
-  7: {name: "C", hydrogens: 0}
-  8: {name: "O", hydrogens: 0}
-  9: {name: "O", hydrogens: 1}
-monomers:
-  0: {name: "Ala", atoms: [0, 1, 2, 3, 4], chirality: "L", is_pks_hybrid: false}
-  1: {name: "Ala", atoms: [5, 6, 7, 8, 9], chirality: "L", is_pks_hybrid: false}
-monomer_bonds:
-  - - [0, 1]
-    - - monomer_to_atom: {0: 2, 1: 5}
-        atomic_edge: {arity: "1", bond_type: "AMINO"}
-atomic_bonds:
-  - - [0, 1]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [1, 2]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [2, 3]
-    - {arity: "2", bond_type: "DOUBLE"}
-  - - [2, 4]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [5, 6]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [6, 7]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [7, 8]
-    - {arity: "2", bond_type: "DOUBLE"}
-  - - [7, 9]
-    - {arity: "1", bond_type: "SINGLE"}
-  - - [2, 5]
-    - {arity: "1", bond_type: "AMINO"}
-"""
-    yaml_dimer_file = tmp_path / "dimer.yaml"
-    yaml_dimer_file.write_text(yaml_ala_dimer, encoding="utf-8")
+    json_ala_dimer = [
+        {
+            "compound_id": "Ala_Dimer_structure",
+            "new_variants": {
+                "var0": {
+                    "new_record": {
+                        "compound_id": "Ala_Dimer_structure",
+                        "metadata": {"name": "Ala_Dimer", "smiles": "CC(N)C(=O)NC(C)C(=O)O"},
+                        "atoms": {
+                            "0": {"name": "N", "hydrogens": 2},
+                            "1": {"name": "C", "hydrogens": 1},
+                            "2": {"name": "C", "hydrogens": 0},
+                            "3": {"name": "O", "hydrogens": 0},
+                            "4": {"name": "O", "hydrogens": 1},
+                            "5": {"name": "N", "hydrogens": 1},
+                            "6": {"name": "C", "hydrogens": 1},
+                            "7": {"name": "C", "hydrogens": 0},
+                            "8": {"name": "O", "hydrogens": 0},
+                            "9": {"name": "O", "hydrogens": 1},
+                        },
+                        "monomers": {
+                            "0": {
+                                "name": "Ala",
+                                "atoms": [0, 1, 2, 3, 4],
+                                "chirality": "L",
+                                "is_pks_hybrid": False,
+                            },
+                            "1": {
+                                "name": "Ala",
+                                "atoms": [5, 6, 7, 8, 9],
+                                "chirality": "L",
+                                "is_pks_hybrid": False,
+                            },
+                        },
+                        "monomer_bonds": [
+                            [
+                                [0, 1],
+                                [
+                                    {
+                                        "monomer_to_atom": {"0": 2, "1": 5},
+                                        "atomic_edge": {"arity": "1", "bond_type": "AMINO"},
+                                    }
+                                ],
+                            ]
+                        ],
+                        "atomic_bonds": [
+                            [[0, 1], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[1, 2], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[2, 3], {"arity": "2", "bond_type": "DOUBLE"}],
+                            [[2, 4], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[5, 6], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[6, 7], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[7, 8], {"arity": "2", "bond_type": "DOUBLE"}],
+                            [[7, 9], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[2, 5], {"arity": "1", "bond_type": "AMINO"}],
+                        ],
+                    }
+                }
+            },
+        }
+    ]
+    json_dimer_file = tmp_path / "dimer.json"
+    json_dimer_file.write_text(json.dumps(json_ala_dimer), encoding="utf-8")
 
     return {
         "mgf": mgf_file,
-        "ala_yaml": yaml_ala_file,
-        "dimer_yaml": yaml_dimer_file,
+        "ala_json": json_ala_file,
+        "dimer_json": json_dimer_file,
         "tmp_path": tmp_path,
     }
 
@@ -121,7 +151,7 @@ class TestPipelineOrchestration:
         """Test running pipeline with single paths for spectra and structures."""
         results, molecules, spectra = run_pipeline(
             spectra_files=temp_files["mgf"],
-            structure_files=temp_files["ala_yaml"],
+            structure_files=temp_files["ala_json"],
             tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
@@ -146,7 +176,7 @@ class TestPipelineOrchestration:
         """Test running pipeline with lists of paths for multiple structures."""
         results, molecules, spectra = run_pipeline(
             spectra_files=[temp_files["mgf"]],
-            structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
+            structure_files=[temp_files["ala_json"], temp_files["dimer_json"]],
             tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
@@ -168,7 +198,7 @@ class TestPipelineOrchestration:
         """Test sorting of results: descending matched peaks, then ascending IDs."""
         results, _, _ = run_pipeline(
             spectra_files=temp_files["mgf"],
-            structure_files=[temp_files["ala_yaml"], temp_files["dimer_yaml"]],
+            structure_files=[temp_files["ala_json"], temp_files["dimer_json"]],
             tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
@@ -209,7 +239,7 @@ END IONS
         # Match with custom rules (AMINO is breakable)
         results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
-            structure_files=temp_files["dimer_yaml"],
+            structure_files=temp_files["dimer_json"],
             tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
@@ -225,7 +255,7 @@ END IONS
         # Match with default rules (AMINO is NOT breakable, yields 0 matches and gets excluded)
         default_results, _, _ = run_pipeline(
             spectra_files=custom_mgf_file,
-            structure_files=temp_files["dimer_yaml"],
+            structure_files=temp_files["dimer_json"],
             tolerance=Tolerance(0.5),
             apply_filters=False,
             min_peaks=1,
@@ -240,7 +270,7 @@ END IONS
         with pytest.raises(ValueError, match="No spectra files"):
             run_pipeline(
                 spectra_files=[],
-                structure_files=["dummy.yaml"],
+                structure_files=["dummy.json"],
                 tolerance=Tolerance(0.1),
                 apply_filters=True,
                 min_peaks=1,
@@ -266,7 +296,7 @@ END IONS
         with pytest.raises(FileNotFoundError):
             run_pipeline(
                 spectra_files="nonexistent.mgf",
-                structure_files="nonexistent.yaml",
+                structure_files="nonexistent.json",
                 tolerance=Tolerance(0.1),
                 apply_filters=True,
                 min_peaks=1,

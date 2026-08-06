@@ -263,7 +263,7 @@ def write_results(
 
 
 def _serialize_molecule(mol: Molecule) -> dict:
-    """Serialize a Molecule object into a JSON-serializable dictionary.
+    """Serialize a Molecule object into a JSON-serializable dictionary for structure output writing.
 
     Args:
         mol: The Molecule instance to serialize.

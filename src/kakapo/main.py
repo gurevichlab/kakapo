@@ -11,7 +11,6 @@ from kakapo.core.fragmenter import generate_theoretical_spectrum
 from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_rban_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
-from kakapo.io.yaml_parser import parse_rban_yaml_batch
 from kakapo.models import MatchResult, ModificationMode, Molecule, ScoringMode, Spectrum, Tolerance
 from kakapo.utils.logger import get_logger
 
@@ -132,18 +131,12 @@ def run_pipeline(  # noqa: C901
     logger.info("Loading structures from %d file(s)", len(struct_paths))
     start_load_structures = time.perf_counter()
 
-    yaml_paths = [p for p in struct_paths if p.suffix.lower() in (".yaml", ".yml")]
     json_paths = [p for p in struct_paths if p.suffix.lower() == ".json"]
+    if not json_paths:
+        logger.error("No valid JSON structure files found among provided paths")
+        raise ValueError("No valid JSON structure files provided")
 
-    molecules = {}
-    if yaml_paths:
-        molecules.update(
-            parse_rban_yaml_batch(yaml_paths, cache_dir=cache_dir, use_cache=use_cache)
-        )
-    if json_paths:
-        molecules.update(
-            parse_rban_json_batch(json_paths, cache_dir=cache_dir, use_cache=use_cache)
-        )
+    molecules = parse_rban_json_batch(json_paths, cache_dir=cache_dir, use_cache=use_cache)
 
     duration_load_structures = time.perf_counter() - start_load_structures
     logger.info(

@@ -409,3 +409,117 @@ class TestJsonParserBatch:
             molecules2 = parse_rban_json_batch([json_path_1], cache_dir=cache_dir, use_cache=True)
             assert "NRP_C" in molecules2
             assert molecules2["NRP_C"].structure_id == "NRP_C"
+
+
+class TestCalculateMonomerExactMass:
+    """Unit tests for _calculate_monomer_exact_mass helper."""
+
+    def test_calculate_mass_valid(self):
+        """Should correctly sum atomic masses with implicit hydrogens."""
+        from kakapo.io.json_parser import _calculate_monomer_exact_mass
+        from kakapo.models import Atom
+
+        atom_ids = (0, 1)
+        atoms = {
+            0: Atom(name="C", hydrogens=3),
+            1: Atom(name="O", hydrogens=1),
+        }
+        # C (12.0) + O (15.994915) + 4 * H (1.007825) = 32.026215
+        expected_mass = 12.0 + 15.994915 + 4 * 1.007825
+        mass = _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
+        assert mass == pytest.approx(expected_mass)
+
+    def test_calculate_mass_unknown_element(self):
+        """Should raise ValueError for unknown elements."""
+        from kakapo.io.json_parser import _calculate_monomer_exact_mass
+        from kakapo.models import Atom
+
+        atom_ids = (0,)
+        atoms = {
+            0: Atom(name="Xx", hydrogens=0),
+        }
+        with pytest.raises(ValueError, match="Unknown element 'Xx'"):
+            _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
+
+    def test_calculate_mass_missing_atom_id(self):
+        """Should ignore missing atom IDs in the dictionary."""
+        from kakapo.io.json_parser import _calculate_monomer_exact_mass
+        from kakapo.models import Atom
+
+        atom_ids = (0, 999)
+        atoms = {
+            0: Atom(name="C", hydrogens=0),
+        }
+        # 999 is missing, should only calculate for atom 0
+        mass = _calculate_monomer_exact_mass(atom_ids, "mock", atoms)
+        assert mass == pytest.approx(12.0)
+
+    def test_calculate_mass_empty_atoms(self):
+        """Should return None if total mass is zero or no atoms are present."""
+        from kakapo.io.json_parser import _calculate_monomer_exact_mass
+
+        assert _calculate_monomer_exact_mass((), "mock", {}) is None
+
+
+class TestGenerateSmilesFromAtoms:
+    """Unit tests for generate_smiles_from_atoms helper."""
+
+    def test_generate_smiles_empty(self):
+        """Should return None if atoms dictionary is empty."""
+        from kakapo.io.json_parser import generate_smiles_from_atoms
+
+        assert generate_smiles_from_atoms({}, {}) is None
+
+    def test_generate_smiles_simple_molecule(self):
+        """Should generate canonical SMILES for simple glycine molecule."""
+        from kakapo.io.json_parser import generate_smiles_from_atoms
+        from kakapo.models import Atom, AtomicBond, AtomicEdge
+
+        atoms = {
+            0: Atom(name="N", hydrogens=2),
+            1: Atom(name="C", hydrogens=2),
+            2: Atom(name="C", hydrogens=0),
+            3: Atom(name="O", hydrogens=0),
+            4: Atom(name="O", hydrogens=1),
+        }
+        atomic_bonds = {
+            AtomicEdge(0, 1): AtomicBond(arity="1", bond_type="SINGLE"),
+            AtomicEdge(1, 2): AtomicBond(arity="1", bond_type="SINGLE"),
+            AtomicEdge(2, 3): AtomicBond(arity="2", bond_type="DOUBLE"),
+            AtomicEdge(2, 4): AtomicBond(arity="1", bond_type="SINGLE"),
+        }
+        smiles = generate_smiles_from_atoms(atoms, atomic_bonds)
+        assert smiles == "NCC(=O)O"
+
+
+class TestCacheSerializationRoundtrip:
+    """Unit tests for cache serialization and deserialization helpers."""
+
+    def test_cache_serialization_roundtrip(self):
+        """Test roundtrip caching of a Molecule."""
+        from kakapo.io.json_parser import (
+            _deserialize_molecule_from_cache,
+            _serialize_molecule_for_cache,
+        )
+        from kakapo.models import Chirality, Molecule, Monomer
+
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        dummy_mol = Molecule(
+            structure_id="Ala_structure_cache",
+            monomers={0: monomer},
+            bonds=(),
+        )
+
+        serialized = _serialize_molecule_for_cache(dummy_mol)
+        assert serialized["structure_id"] == "Ala_structure_cache"
+        assert serialized["compound_id"] == "Ala_structure_cache"
+
+        restored = _deserialize_molecule_from_cache(serialized)
+        assert restored.structure_id == "Ala_structure_cache"
+        assert restored.monomers[0].norine_name == "Ala"
+
