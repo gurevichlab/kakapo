@@ -86,6 +86,69 @@ atomic_bonds:
         finally:
             os.unlink(yaml_path)
 
+    def test_generate_smiles_from_atoms_and_preserve_metadata(self):
+        """Verify SMILES is dynamically calculated from atom graph and metadata SMILES is kept."""
+        yaml_data = """
+compound_id: "NRP_PARSED_SMILES_1"
+metadata:
+  name: "RecordWithDifferentMetadataSmiles"
+  smiles: "SOME_ORIGINAL_PROVENANCE_SMILES"
+  origin: null
+  inchikey: null
+  source: null
+atoms:
+  0:
+    name: "N"
+    hydrogens: 2
+  1:
+    name: "C"
+    hydrogens: 2
+  2:
+    name: "C"
+    hydrogens: 0
+  3:
+    name: "O"
+    hydrogens: 0
+  4:
+    name: "O"
+    hydrogens: 1
+monomers:
+  0:
+    name: "Gly"
+    atoms: [0, 1, 2, 3, 4]
+    chirality: "L"
+    is_pks_hybrid: false
+monomer_bonds: []
+atomic_bonds:
+  - - [0, 1]
+    - arity: "1"
+      bond_type: "SINGLE"
+  - - [1, 2]
+    - arity: "1"
+      bond_type: "SINGLE"
+  - - [2, 3]
+    - arity: "2"
+      bond_type: "DOUBLE"
+  - - [2, 4]
+    - arity: "1"
+      bond_type: "SINGLE"
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_data)
+            yaml_path = f.name
+
+        try:
+            molecule = parse_rban_yaml(yaml_path)
+
+            assert isinstance(molecule, Molecule)
+            # Calculated SMILES from atom graph
+            assert molecule.smiles == "NCC(=O)O"
+            # Original metadata SMILES preserved as is
+            assert molecule.metadata is not None
+            assert molecule.metadata.smiles == "SOME_ORIGINAL_PROVENANCE_SMILES"
+        finally:
+            os.unlink(yaml_path)
+
     def test_parse_parsed_rban_record_list(self):
         """Parse a YAML file containing a list of Parsed_rBAN_Record and return a dictionary of
         Molecules."""

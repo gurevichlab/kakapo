@@ -13,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import yaml
+from rdkit import Chem
 from yaml import CSafeLoader as SafeLoader
 
 from kakapo.constants import ATOMIC_MASSES
@@ -126,15 +127,71 @@ def _deserialize_molecule(data: dict) -> Molecule:
         for edge, ab in data.get("atomic_bonds", [])
     }
     metadata = Metadata.from_dict(data.get("metadata"))
+    smiles = data.get("smiles")
+    if smiles is None and atoms:
+        smiles = generate_smiles_from_atoms(atoms, atomic_bonds)
     return Molecule(
         structure_id=data["structure_id"],
         monomers=monomers,
         bonds=bonds,
-        smiles=data.get("smiles"),
+        smiles=smiles,
         atoms=atoms,
         atomic_bonds=atomic_bonds,
         metadata=metadata,
     )
+
+
+def generate_smiles_from_atoms(
+    atoms: dict[int, Atom],
+    atomic_bonds: dict[AtomicEdge, AtomicBond],
+) -> str | None:
+    """Generate a canonical SMILES string from atomic nodes and bond edges using RDKit.
+
+    Args:
+        atoms: Dictionary mapping atom IDs to Atom instances.
+        atomic_bonds: Dictionary mapping AtomicEdge instances to AtomicBond instances.
+
+    Returns:
+        Canonical SMILES string if atoms are present, or None if atoms dictionary is empty.
+    """
+    if not atoms:
+        return None
+
+    rw_mol = Chem.RWMol()
+    id_to_rdkit_idx = {}
+
+    for atom_id in sorted(atoms.keys()):
+        atom = atoms[atom_id]
+        rd_atom = Chem.Atom(atom.name)
+        if atom.hydrogens > 0:
+            rd_atom.SetNumExplicitHs(atom.hydrogens)
+        idx = rw_mol.AddAtom(rd_atom)
+        id_to_rdkit_idx[atom_id] = idx
+
+    for edge, ab in atomic_bonds.items():
+        idx_u = id_to_rdkit_idx.get(edge.atom1)
+        idx_v = id_to_rdkit_idx.get(edge.atom2)
+        if idx_u is not None and idx_v is not None:
+            b_type = Chem.BondType.SINGLE
+            bond_type_str = str(ab.bond_type).upper() if ab.bond_type else ""
+            arity_str = str(ab.arity)
+
+            if bond_type_str == "DOUBLE" or arity_str == "2":
+                b_type = Chem.BondType.DOUBLE
+            elif bond_type_str == "TRIPLE" or arity_str == "3":
+                b_type = Chem.BondType.TRIPLE
+            elif bond_type_str == "AROMATIC" or arity_str in ("ar", "1.5"):
+                b_type = Chem.BondType.AROMATIC
+
+            rw_mol.AddBond(idx_u, idx_v, b_type)
+
+    mol = rw_mol.GetMol()
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception as e:
+        logger.warning("Failed to sanitize molecule for SMILES generation: %s", e)
+
+    return Chem.MolToSmiles(mol)
 
 
 def _calculate_monomer_exact_mass(
@@ -330,6 +387,7 @@ def _build_molecule_from_dict(  # noqa: C901
     bonds = _map_and_classify_bonds(data.get("monomer_bonds", []), monomers, atoms, atomic_bonds)
 
     metadata = Metadata.from_dict(data.get("metadata"))
+    smiles = generate_smiles_from_atoms(atoms, atomic_bonds)
 
     logger.debug(
         "Molecule %s built: %d atoms, %d monomers, %d atomic bonds, %d monomer bonds",
@@ -345,7 +403,7 @@ def _build_molecule_from_dict(  # noqa: C901
         structure_id=final_id,
         monomers=monomers,
         bonds=tuple(bonds),
-        smiles=metadata.smiles if metadata else None,
+        smiles=smiles,
         atoms=atoms,
         atomic_bonds=atomic_bonds,
         metadata=metadata,
