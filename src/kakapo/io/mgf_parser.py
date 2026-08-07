@@ -164,6 +164,7 @@ def load_mgf(  # noqa: C901
     apply_filters: bool = True,
     min_peaks: int = 1,
     use_cache: bool = True,
+    num_workers: int | None = None,
 ) -> list[Spectrum]:
     """Load and parse MGF file into kakapo Spectrum objects.
 
@@ -231,8 +232,10 @@ def load_mgf(  # noqa: C901
 
     # Convert and process matchms spectra to kakapo models
     num_spectra = len(matchms_spectra)
-    if num_spectra > 100:
+    if num_workers is None:
         num_workers = min(4, os.cpu_count() or 1)
+
+    if num_spectra > 100 and num_workers > 1:
         chunk_size = max(100, num_spectra // (num_workers * 4))
         chunks = [matchms_spectra[i : i + chunk_size] for i in range(0, num_spectra, chunk_size)]
 
@@ -304,6 +307,7 @@ def load_mgf_batch(
     apply_filters: bool = True,
     min_peaks: int = 1,
     use_cache: bool = True,
+    num_workers: int | None = None,
 ) -> list[Spectrum]:
     """Load and parse multiple MGF files into a single list of Spectrum objects.
 
@@ -339,6 +343,7 @@ def load_mgf_batch(
                 apply_filters=apply_filters,
                 min_peaks=min_peaks,
                 use_cache=use_cache,
+                num_workers=num_workers,
             )
             all_spectra.extend(spectra)
         except (ValueError, FileNotFoundError, RuntimeError) as e:

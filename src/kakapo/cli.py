@@ -163,6 +163,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="Scoring mode to use for matching (default: all-peaks). "
         "Choices: all-peaks, exp-peaks, intencity.",
     )
+    parser.add_argument(
+        "--num-workers",
+        "-j",
+        type=int,
+        default=None,
+        help=(
+            "Number of worker processes for parallel processing (default: auto). "
+            "Use 1 for sequential execution."
+        ),
+    )
 
     # Output options
     parser.add_argument(
@@ -326,6 +336,8 @@ def main(args: Optional[list[str]] = None) -> int:
     # Validate arguments
     if parsed_args.top_n is not None and parsed_args.top_n <= 0:
         parser.error("--top-n must be positive.")
+    if parsed_args.num_workers is not None and parsed_args.num_workers <= 0:
+        parser.error("--num-workers must be positive.")
 
     try:
         tolerance = Tolerance.from_string(
@@ -373,6 +385,7 @@ def main(args: Optional[list[str]] = None) -> int:
             cache_dir=Path(parsed_args.cache_dir),
             mode=ModificationMode(parsed_args.mode),
             scoring=ScoringMode(parsed_args.scoring),
+            num_workers=parsed_args.num_workers,
         )
 
         # 5. Write results (one file per requested format)

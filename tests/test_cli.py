@@ -161,6 +161,64 @@ class TestCliMainFunction:
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
 
+    @patch("kakapo.cli.run_pipeline")
+    @patch("kakapo.cli.write_results")
+    @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
+    def test_main_num_workers(
+        self,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test that --num-workers passes the correct value to run_pipeline."""
+        mock_run_pipeline.return_value = ([], [], [])
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--stdout",
+            "--num-workers",
+            "2",
+        ]
+
+        exit_code = main(args)
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once()
+        kwargs = mock_run_pipeline.call_args[1]
+        assert kwargs.get("num_workers") == 2
+
+    def test_main_num_workers_invalid(self, temp_io_structure) -> None:
+        """Test that invalid --num-workers values raise errors."""
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--num-workers",
+            "0",
+        ]
+        with pytest.raises(SystemExit):
+            main(args)
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--num-workers",
+            "-5",
+        ]
+        with pytest.raises(SystemExit):
+            main(args)
+
     def test_main_missing_arguments(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that missing required arguments raises SystemExit from argparse."""
         with pytest.raises(SystemExit):

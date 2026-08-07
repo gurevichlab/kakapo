@@ -578,11 +578,13 @@ def _parse_tasks(
     tasks: list[tuple[dict, NerpaMSData | None, str]],
     is_list: bool,
     json_path: Path,
+    num_workers: int | None = None,
 ) -> dict[str, Molecule]:
     """Parse list of tasks sequentially or in parallel depending on task count."""
     molecules: dict[str, Molecule] = {}
     errors: list[str] = []
-    num_workers = min(4, os.cpu_count() or 1)
+    if num_workers is None:
+        num_workers = min(4, os.cpu_count() or 1)
 
     if len(tasks) > 5 and num_workers > 1:
         logger.info("Parsing JSON records in parallel using %d workers", num_workers)
@@ -667,7 +669,9 @@ def _deduplicate_molecules(molecules: dict[str, Molecule]) -> dict[str, Molecule
 
 
 def parse_nerpa_json(
-    json_path: str | Path, id_counts: dict[str, int] | None = None
+    json_path: str | Path,
+    id_counts: dict[str, int] | None = None,
+    num_workers: int | None = None,
 ) -> Molecule | dict[str, Molecule]:
     """Parse a Nerpa record JSON file and return a kakapo Molecule or a dict of Molecules.
 
@@ -703,7 +707,7 @@ def parse_nerpa_json(
         )
 
     tasks = _create_parsing_tasks(records, id_counts)
-    molecules = _parse_tasks(tasks, is_list, json_path)
+    molecules = _parse_tasks(tasks, is_list, json_path, num_workers=num_workers)
     molecules = _deduplicate_molecules(molecules)
 
     if is_list:
@@ -719,6 +723,7 @@ def parse_nerpa_json_batch(  # noqa: C901
     json_paths: Iterable[str | Path],
     cache_dir: Path | None = None,
     use_cache: bool = True,
+    num_workers: int | None = None,
 ) -> dict[str, Molecule]:
     """Parse multiple nerpa JSON files.
 
@@ -778,7 +783,7 @@ def parse_nerpa_json_batch(  # noqa: C901
 
         # 2. Parse JSON from scratch
         try:
-            result = parse_nerpa_json(json_path, id_counts=id_counts)
+            result = parse_nerpa_json(json_path, id_counts=id_counts, num_workers=num_workers)
             if isinstance(result, dict):
                 parsed_dict = result
                 molecules.update(result)

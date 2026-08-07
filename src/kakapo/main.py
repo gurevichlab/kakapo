@@ -28,6 +28,7 @@ def run_pipeline(  # noqa: C901
     cache_dir: Path,
     mode: ModificationMode = ModificationMode(DEFAULT_MODIFICATION_MODE),  # noqa: B008
     scoring: ScoringMode = ScoringMode(DEFAULT_SCORING_MODE),  # noqa: B008
+    num_workers: int | None = None,
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -45,6 +46,7 @@ def run_pipeline(  # noqa: C901
         cache_dir: Path to cache directory.
         mode: ModificationMode configuration.
         scoring: Scoring mode.
+        num_workers: Number of worker processes to use for parallel processing.
 
     Returns:
         A tuple of:
@@ -118,6 +120,7 @@ def run_pipeline(  # noqa: C901
         apply_filters=apply_filters,
         min_peaks=min_peaks,
         use_cache=use_cache,
+        num_workers=num_workers,
     )
     duration_load_spectra = time.perf_counter() - start_load_spectra
     logger.info(
@@ -136,7 +139,9 @@ def run_pipeline(  # noqa: C901
         logger.error("No valid JSON structure files found among provided paths")
         raise ValueError("No valid JSON structure files provided")
 
-    molecules = parse_nerpa_json_batch(json_paths, cache_dir=cache_dir, use_cache=use_cache)
+    molecules = parse_nerpa_json_batch(
+        json_paths, cache_dir=cache_dir, use_cache=use_cache, num_workers=num_workers
+    )
 
     duration_load_structures = time.perf_counter() - start_load_structures
     logger.info(
@@ -174,6 +179,7 @@ def run_pipeline(  # noqa: C901
         min_shared_peaks=min_peaks,
         mode=mode,
         scoring=scoring,
+        num_workers=num_workers,
     )
 
     duration_match = time.perf_counter() - start_match

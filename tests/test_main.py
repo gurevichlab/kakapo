@@ -18,12 +18,14 @@ def temp_files(tmp_path: Path):
 TITLE=spec_1
 PEPMASS=147.1128
 CHARGE=1+
+74.0237 10.0
 147.1128 100.0
 END IONS
 BEGIN IONS
 TITLE=spec_2
 PEPMASS=260.1972
 CHARGE=1+
+74.0237 10.0
 147.1128 50.0
 260.1972 100.0
 END IONS
@@ -32,7 +34,7 @@ END IONS
     mgf_file.write_text(mgf_content, encoding="utf-8")
 
     # 2. Create sample nerpa JSON structures
-    # A single alanine molecule
+    # Ala structure represented as dimer (monomers > 1) to pass pipeline filtering
     json_ala = [
         {
             "compound_id": "Ala_structure",
@@ -40,13 +42,17 @@ END IONS
                 "var0": {
                     "new_record": {
                         "compound_id": "Ala_structure",
-                        "metadata": {"name": "Ala", "smiles": "CC(N)C(=O)O"},
+                        "metadata": {"name": "Ala_Gly", "smiles": "CC(N)C(=O)NCC(=O)O"},
                         "atoms": {
                             "0": {"name": "N", "hydrogens": 2},
                             "1": {"name": "C", "hydrogens": 1},
                             "2": {"name": "C", "hydrogens": 0},
                             "3": {"name": "O", "hydrogens": 0},
                             "4": {"name": "O", "hydrogens": 1},
+                            "5": {"name": "N", "hydrogens": 1},
+                            "6": {"name": "C", "hydrogens": 1},
+                            "7": {"name": "C", "hydrogens": 0},
+                            "8": {"name": "O", "hydrogens": 0},
                         },
                         "monomers": {
                             "0": {
@@ -54,14 +60,34 @@ END IONS
                                 "atoms": [0, 1, 2, 3, 4],
                                 "chirality": "L",
                                 "is_pks_hybrid": False,
-                            }
+                            },
+                            "1": {
+                                "name": "Gly",
+                                "atoms": [5, 6, 7, 8],
+                                "chirality": "L",
+                                "is_pks_hybrid": False,
+                            },
                         },
-                        "monomer_bonds": [],
+                        "monomer_bonds": [
+                            [
+                                [0, 1],
+                                [
+                                    {
+                                        "monomer_to_atom": {"0": 2, "1": 5},
+                                        "atomic_edge": {"arity": "1", "bond_type": "AMINO"},
+                                    }
+                                ],
+                            ]
+                        ],
                         "atomic_bonds": [
                             [[0, 1], {"arity": "1", "bond_type": "SINGLE"}],
                             [[1, 2], {"arity": "1", "bond_type": "SINGLE"}],
                             [[2, 3], {"arity": "2", "bond_type": "DOUBLE"}],
                             [[2, 4], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[5, 6], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[6, 7], {"arity": "1", "bond_type": "SINGLE"}],
+                            [[7, 8], {"arity": "2", "bond_type": "DOUBLE"}],
+                            [[2, 5], {"arity": "1", "bond_type": "AMINO"}],
                         ],
                     }
                 }
@@ -187,12 +213,50 @@ class TestPipelineOrchestration:
 
         assert isinstance(spectra, list)
 
-        # 2 spectra * 2 structures = 4 combinations, but only 2 (with Ala_structure) have
-        # matching peaks > 0
-        assert len(results) == 2
+        # 2 spectra * 2 structures = 4 combinations
+        assert len(results) == 4
         assert len(molecules) == 2
         molecule_ids = {m.structure_id for m in molecules}
         assert molecule_ids == {"Ala_structure", "Ala_Dimer_structure"}
+
+    def test_run_pipeline_num_workers(self, temp_files):
+        """Test running pipeline with explicit num_workers set to 1 (sequential) and 2 (parallel)."""
+        # Run with num_workers=1 (sequential)
+        res_seq, mols_seq, specs_seq = run_pipeline(
+            spectra_files=[temp_files["mgf"]],
+            structure_files=[temp_files["ala_json"], temp_files["dimer_json"]],
+            tolerance=Tolerance(0.5),
+            apply_filters=False,
+            min_peaks=1,
+            rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache_seq",
+            num_workers=1,
+        )
+
+        # Run with num_workers=2 (parallel)
+        res_par, mols_par, specs_par = run_pipeline(
+            spectra_files=[temp_files["mgf"]],
+            structure_files=[temp_files["ala_json"], temp_files["dimer_json"]],
+            tolerance=Tolerance(0.5),
+            apply_filters=False,
+            min_peaks=1,
+            rules=None,
+            use_cache=False,
+            cache_dir=temp_files["tmp_path"] / ".kakapo_cache_par",
+            num_workers=2,
+        )
+
+        assert len(res_seq) == len(res_par) == 4
+        assert len(mols_seq) == len(mols_par) == 2
+        assert len(specs_seq) == len(specs_par) == 2
+
+        # Compare results
+        for r_seq, r_par in zip(res_seq, res_par):
+            assert r_seq.structure_id == r_par.structure_id
+            assert r_seq.spectrum_id == r_par.spectrum_id
+            assert r_seq.score == r_par.score
+            assert r_seq.matched_peaks_count == r_par.matched_peaks_count
 
     def test_run_pipeline_sorting_order(self, temp_files):
         """Test sorting of results: descending matched peaks, then ascending IDs."""

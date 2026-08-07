@@ -254,12 +254,11 @@ class TestSpectrumMatcher:
         spec2 = make_spectrum([(200.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_2")
 
         theo1 = make_theoretical_spectrum(
-            [100.0 - 1.007276], structure_mass=500.0, monomer_count=1, structure_id="struct_1"
+            [100.0 - 1.007276], structure_mass=500.0, monomer_count=2, structure_id="struct_1"
         )
         theo2 = make_theoretical_spectrum(
-            [200.0 - 1.007276], structure_mass=500.0, monomer_count=1, structure_id="struct_2"
+            [200.0 - 1.007276], structure_mass=500.0, monomer_count=2, structure_id="struct_2"
         )
-
         results = match_spectra(
             [spec1, spec2],
             [theo1, theo2],
@@ -272,7 +271,6 @@ class TestSpectrumMatcher:
 
         # Key results by (spectrum_id, structure_id)
         results_map = {(r.spectrum_id, r.structure_id): r for r in results}
-
         assert results_map[("spec_1", "struct_1")].matched_peaks_count == 1
         assert results_map[("spec_2", "struct_2")].matched_peaks_count == 1
 
@@ -286,7 +284,7 @@ class TestSpectrumMatcher:
         spec = replace(spec, precursor_mass=true_precursor_mz)
 
         theo = make_theoretical_spectrum(
-            [500.0 - PROTON_MASS], structure_mass=1000.0, monomer_count=1, structure_id="struct_1"
+            [500.0 - PROTON_MASS], structure_mass=1000.0, monomer_count=2, structure_id="struct_1"
         )
 
         results = match_spectra(
@@ -1331,3 +1329,61 @@ class TestExperimentalSpectrumIndex:
         assert res_direct.matched_peaks_count == res_indexed.matched_peaks_count
         assert res_direct.score == pytest.approx(res_indexed.score)
         assert len(res_direct.matched_peaks) == len(res_indexed.matched_peaks)
+
+    def test_parallel_vs_sequential_matching_equivalence(self, monkeypatch) -> None:
+        """Verify that parallel matching produces identical results to sequential matching."""
+        import os
+
+        from kakapo.models import ModificationMode
+
+        peaks_1 = [(100.01, 10.0), (200.02, 20.0), (300.03, 30.0)]
+        peaks_2 = [(150.01, 15.0), (250.02, 25.0), (350.03, 35.0)]
+        spectra = [
+            make_spectrum(peaks_1, precursor_mass=500.0, spectrum_id=f"spec_{i}")
+            if i % 2 == 0
+            else make_spectrum(peaks_2, precursor_mass=600.0, spectrum_id=f"spec_{i}")
+            for i in range(10)
+        ]
+
+        theo_spectra = [
+            make_theoretical_spectrum(
+                [100.0 - PROTON_MASS, 200.0 - PROTON_MASS],
+                structure_mass=500.0,
+                monomer_count=2,
+                structure_id=f"struct_{i}",
+            )
+            for i in range(5)
+        ]
+
+        # Force sequential execution path by mocking cpu_count to 1
+        monkeypatch.setattr(os, "cpu_count", lambda: 1)
+        res_seq = match_spectra(
+            spectra=spectra,
+            theoretical_spectra=theo_spectra,
+            tolerance=Tolerance(0.05),
+            scoring=ScoringMode.INTENCITY,
+            min_shared_peaks=1,
+            mode=ModificationMode.FREE_MOD,
+        )
+
+        # Force parallel execution path by mocking cpu_count to 4
+        monkeypatch.setattr(os, "cpu_count", lambda: 4)
+        res_para = match_spectra(
+            spectra=spectra,
+            theoretical_spectra=theo_spectra,
+            tolerance=Tolerance(0.05),
+            scoring=ScoringMode.INTENCITY,
+            min_shared_peaks=1,
+            mode=ModificationMode.FREE_MOD,
+        )
+
+        assert len(res_seq) == len(res_para)
+        res_seq_sorted = sorted(res_seq, key=lambda r: (r.spectrum_id, r.structure_id))
+        res_para_sorted = sorted(res_para, key=lambda r: (r.spectrum_id, r.structure_id))
+
+        for r_s, r_p in zip(res_seq_sorted, res_para_sorted):
+            assert r_s.spectrum_id == r_p.spectrum_id
+            assert r_s.structure_id == r_p.structure_id
+            assert r_s.matched_peaks_count == r_p.matched_peaks_count
+            assert r_s.score == pytest.approx(r_p.score)
+            assert len(r_s.matched_peaks) == len(r_p.matched_peaks)
