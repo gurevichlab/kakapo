@@ -297,7 +297,7 @@ def _write_all_formats(
     spectra_written = False
     for fmt in parsed_args.format:
         output_path = determine_output_path(parsed_args, fmt)
-        write_results(results, output_path=output_path, format_type=fmt)
+        write_results(results, output_path=output_path, format_type=fmt, molecules=used_molecules)
         if not structures_written and output_path is not None and str(output_path) != "-":
             write_structures(used_molecules, output_path=output_path)
             structures_written = True

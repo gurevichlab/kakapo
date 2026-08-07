@@ -1,6 +1,7 @@
 """Unit tests for the spectrum match results writer module."""
 
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,19 @@ from kakapo.io.writer import (
     write_spectra,
     write_structures,
 )
-from kakapo.models import MatchResult, MonomerModification, Peak, Spectrum, Tolerance
+from kakapo.models import (
+    Chirality,
+    MatchedPeak,
+    MatchResult,
+    Molecule,
+    Monomer,
+    MonomerModification,
+    MonomerOrigin,
+    NerpaMSData,
+    Peak,
+    Spectrum,
+    Tolerance,
+)
 
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
@@ -115,8 +128,6 @@ class TestWriterCsvFormatting:
 
     def test_format_with_known_modifications(self) -> None:
         """Test formatting results with known modification names and chemical formulas."""
-        import json
-
         mod_known = MonomerModification(
             monomer_idx=1,
             initial_monomer_name="Ala",
@@ -203,10 +214,6 @@ class TestWriterJsonFormatting:
 
     def test_format_as_json_values(self, sample_results: list[MatchResult]) -> None:
         """Test formatting a list of results and parsing back the values."""
-        import json
-
-        from kakapo.models import MatchedPeak
-
         # Let's add some peaks to NRP_001 matched_peaks for mask testing
         sample_results[0] = MatchResult(
             structure_id=sample_results[0].structure_id,
@@ -331,8 +338,6 @@ class TestWriterWriteStructures:
 
     def test_write_structures_stdout_or_none(self) -> None:
         """Test write_structures returns early with no files written for stdout/None."""
-        from kakapo.models import Chirality, Molecule, Monomer
-
         monomer = Monomer(
             norine_name="Ala",
             residue="Ala",
@@ -351,10 +356,6 @@ class TestWriterWriteStructures:
 
     def test_write_structures_to_directory(self, tmp_path: Path) -> None:
         """Test writing structures when output_path is a directory."""
-        import json
-
-        from kakapo.models import Chirality, Molecule, Monomer
-
         monomer = Monomer(
             norine_name="Ala",
             residue="Ala",
@@ -379,10 +380,6 @@ class TestWriterWriteStructures:
 
     def test_write_structures_to_file_path(self, tmp_path: Path) -> None:
         """Test writing structures when output_path is a specific file path."""
-        import json
-
-        from kakapo.models import Chirality, Molecule, Monomer
-
         monomer = Monomer(
             norine_name="Ala",
             residue="Ala",
@@ -417,8 +414,6 @@ class TestWriterWriteSpectra:
 
     def test_write_spectra_to_directory(self, tmp_path: Path) -> None:
         """Test writing spectra when output_path is a directory."""
-        import json
-
         write_spectra([DUMMY_SPEC], output_path=tmp_path)
         expected_file = tmp_path / "spectra.json"
         assert expected_file.exists()
@@ -429,8 +424,6 @@ class TestWriterWriteSpectra:
 
     def test_write_spectra_to_file_path(self, tmp_path: Path) -> None:
         """Test writing spectra when output_path is a specific file path."""
-        import json
-
         out_file = tmp_path / "subdir" / "results.csv"
         write_spectra([DUMMY_SPEC], output_path=out_file)
         expected_file = tmp_path / "subdir" / "spectra.json"
@@ -438,3 +431,102 @@ class TestWriterWriteSpectra:
 
         data = json.loads(expected_file.read_text(encoding="utf-8"))
         assert "spec_1" in data
+
+
+class TestWriterNerpaMSDataFormatting:
+    """Test suite for NERPA-MS data formatting in CSV, ASCII table, JSON, and structures."""
+
+    def _create_sample_nerpa_data(self) -> tuple[MatchResult, dict[str, Molecule]]:
+        nerpa_data = NerpaMSData(
+            rank=1,
+            score=45.678,
+            old_to_new_mon_map=((0, 0), (1, 2)),
+            monomer_origins=(
+                MonomerOrigin(compound_id="comp_1", monomer_name="D-Ala", monomer_idx=2),
+            ),
+        )
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        mol = Molecule(
+            structure_id="NRP_NERPA",
+            monomers={0: monomer},
+            bonds=(),
+            nerpa_ms_data=nerpa_data,
+        )
+        res = MatchResult(
+            structure_id="NRP_NERPA",
+            spectrum_id="SPEC_NERPA",
+            structure_mass=500.0,
+            spectrum_mass=500.0,
+            tolerance=Tolerance(0.02),
+            score=10.0,
+            matched_peaks_count=4,
+            theoretical_peaks_count=8,
+            experimental_peaks_count=12,
+            monomer_count=3,
+            unmodified_monomer_mass_vector=(100.0, 100.0, 120.0),
+            matched_peaks=[],
+            modifications=(),
+        )
+        return res, {mol.structure_id: mol}
+
+    def test_format_csv_with_nerpa_ms_data(self) -> None:
+        """Test formatting MatchResult into CSV with nerpa_ms_data present."""
+        res, mol_dict = self._create_sample_nerpa_data()
+        csv_str = format_as_csv([res], molecules=mol_dict)
+        assert "nerpa_score,nerpa_rank,nerpa_modifications_count" in csv_str
+        assert "45.678,1,2" in csv_str
+
+    def test_format_table_with_nerpa_ms_data(self) -> None:
+        """Test formatting MatchResult into ASCII table with nerpa_ms_data present."""
+        res, mol_dict = self._create_sample_nerpa_data()
+        table_str = format_as_table([res], molecules=mol_dict)
+        assert "NERPA Score" in table_str
+        assert "NERPA Rank" in table_str
+        assert "NERPA Modifications" in table_str
+        assert "45.678" in table_str
+        assert "1" in table_str
+        assert "2" in table_str
+
+    def test_format_json_with_nerpa_ms_data(self) -> None:
+        """Test formatting MatchResult into JSON with nerpa_ms_data present."""
+        res, mol_dict = self._create_sample_nerpa_data()
+        json_str = format_as_json([res], molecules=mol_dict)
+        data = json.loads(json_str)
+        assert data[0]["nerpa_score"] == 45.678
+        assert data[0]["nerpa_rank"] == 1
+        assert data[0]["nerpa_modifications_count"] == 2
+
+    def test_write_structures_with_nerpa_ms_data(self, tmp_path: Path) -> None:
+        """Test write_structures includes nerpa_ms_data in exported JSON."""
+        nerpa_data = NerpaMSData(
+            rank=2,
+            score=12.34,
+            old_to_new_mon_map=((0, 1),),
+            monomer_origins=(),
+        )
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        dummy_mol = Molecule(
+            structure_id="Nerpa_structure",
+            monomers={0: monomer},
+            bonds=(),
+            nerpa_ms_data=nerpa_data,
+        )
+
+        write_structures([dummy_mol], output_path=tmp_path)
+        expected_file = tmp_path / "structures.json"
+        assert expected_file.exists()
+
+        data = json.loads(expected_file.read_text(encoding="utf-8"))
+        assert "Nerpa_structure" in data
+        assert data["Nerpa_structure"]["nerpa_ms_data"]["rank"] == 2
+        assert data["Nerpa_structure"]["nerpa_ms_data"]["score"] == 12.34

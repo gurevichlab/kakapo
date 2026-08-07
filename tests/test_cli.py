@@ -156,6 +156,7 @@ class TestCliMainFunction:
             mock_run_pipeline.return_value[0],
             output_path=None,
             format_type="table",
+            molecules=[],
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -227,7 +228,7 @@ class TestCliMainFunction:
         exit_code = main(args)
         assert exit_code == 0
         mock_write_results.assert_called_with(
-            [], output_path=out_path / "res.csv", format_type="csv"
+            [], output_path=out_path / "res.csv", format_type="csv", molecules=[]
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "res.csv")
         mock_write_spectra.assert_called_with([], output_path=out_path / "res.csv")
@@ -248,7 +249,7 @@ class TestCliMainFunction:
         exit_code = main(args_dir)
         assert exit_code == 0
         mock_write_results.assert_called_with(
-            [], output_path=out_path / "results.txt", format_type="table"
+            [], output_path=out_path / "results.txt", format_type="table", molecules=[]
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "results.txt")
         mock_write_spectra.assert_called_with([], output_path=out_path / "results.txt")
@@ -280,7 +281,9 @@ class TestCliMainFunction:
         assert exit_code == 0
         # Should default to DEFAULT_OUTPUT_DIR / results.txt
         expected_out = DEFAULT_OUTPUT_DIR / "results.txt"
-        mock_write_results.assert_called_with([], output_path=expected_out, format_type="table")
+        mock_write_results.assert_called_with(
+            [], output_path=expected_out, format_type="table", molecules=[]
+        )
         mock_write_structures.assert_called_once_with([], output_path=expected_out)
         mock_write_spectra.assert_called_once_with([], output_path=expected_out)
 
@@ -310,7 +313,9 @@ class TestCliMainFunction:
         ]
         exit_code = main(args)
         assert exit_code == 0
-        mock_write_results.assert_called_with([], output_path="-", format_type="table")
+        mock_write_results.assert_called_with(
+            [], output_path="-", format_type="table", molecules=[]
+        )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
 
@@ -377,7 +382,7 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_setup_logging.assert_called_once_with(verbosity=0, log_file=log_file)
         mock_write_results.assert_called_once_with(
-            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt", format_type="table"
+            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt", format_type="table", molecules=[]
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
@@ -417,7 +422,7 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_setup_logging.assert_called_with(verbosity=0, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with(
-            [], output_path=out_dir / "results.txt", format_type="table"
+            [], output_path=out_dir / "results.txt", format_type="table", molecules=[]
         )
         mock_write_structures.assert_called_once_with([], output_path=out_dir / "results.txt")
         mock_write_spectra.assert_called_once_with([], output_path=out_dir / "results.txt")
@@ -453,7 +458,9 @@ class TestCliMainFunction:
         exit_code = main(args_file)
         assert exit_code == 0
         mock_setup_logging.assert_called_with(verbosity=0, log_file=out_dir / "kakapo.log")
-        mock_write_results.assert_called_once_with([], output_path=out_file, format_type="table")
+        mock_write_results.assert_called_once_with(
+            [], output_path=out_file, format_type="table", molecules=[]
+        )
         mock_write_structures.assert_called_once_with([], output_path=out_file)
         mock_write_spectra.assert_called_once_with([], output_path=out_file)
 
@@ -487,7 +494,7 @@ class TestCliMainFunction:
             verbosity=0, log_file=DEFAULT_OUTPUT_DIR / "kakapo.log"
         )
         mock_write_results.assert_called_once_with(
-            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt", format_type="table"
+            [], output_path=DEFAULT_OUTPUT_DIR / "results.txt", format_type="table", molecules=[]
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.txt"
@@ -559,6 +566,7 @@ class TestCliMainFunction:
             [results[0]],
             output_path=None,
             format_type="table",
+            molecules=[],
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()

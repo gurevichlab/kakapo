@@ -34,11 +34,15 @@ def _format_modifications_str(modifications: tuple) -> str:
     return "; ".join(parts)
 
 
-def format_as_csv(results: list[MatchResult]) -> str:
+def format_as_csv(
+    results: list[MatchResult],
+    molecules: Optional[dict[str, Molecule]] = None,
+) -> str:
     """Format a list of MatchResult objects into a standard CSV string.
 
     Args:
         results: A list of MatchResult instances to format.
+        molecules: Optional dictionary mapping structure IDs to Molecule objects.
 
     Returns:
         A standard RFC 4180 compliant CSV string representation.
@@ -59,10 +63,20 @@ def format_as_csv(results: list[MatchResult]) -> str:
         "experimental_peaks_count",
         "monomer_count",
         "modifications",
+        "nerpa_score",
+        "nerpa_rank",
+        "nerpa_modifications_count",
     ]
     writer.writerow(headers)
 
     for result in results:
+        mol = molecules.get(result.structure_id) if molecules else None
+        nerpa_data = mol.nerpa_ms_data if mol else None
+        nerpa_score_str = (
+            f"{nerpa_data.score:.3f}" if nerpa_data and nerpa_data.score is not None else ""
+        )
+        nerpa_rank_str = str(nerpa_data.rank) if nerpa_data and nerpa_data.rank is not None else ""
+        nerpa_mods_str = str(len(nerpa_data.old_to_new_mon_map)) if nerpa_data else ""
         writer.writerow(
             [
                 result.structure_id,
@@ -76,17 +90,24 @@ def format_as_csv(results: list[MatchResult]) -> str:
                 result.experimental_peaks_count,
                 result.monomer_count,
                 _format_modifications_str(result.modifications),
+                nerpa_score_str,
+                nerpa_rank_str,
+                nerpa_mods_str,
             ]
         )
 
     return output.getvalue()
 
 
-def format_as_table(results: list[MatchResult]) -> str:
+def format_as_table(
+    results: list[MatchResult],
+    molecules: Optional[dict[str, Molecule]] = None,
+) -> str:
     """Format a list of MatchResult objects into a pretty-printed ASCII table.
 
     Args:
         results: A list of MatchResult instances to format.
+        molecules: Optional dictionary mapping structure IDs to Molecule objects.
 
     Returns:
         A string containing the pretty-printed table.
@@ -105,24 +126,38 @@ def format_as_table(results: list[MatchResult]) -> str:
         "Experimental Peaks",
         "Monomer Count",
         "Modifications",
+        "NERPA Score",
+        "NERPA Rank",
+        "NERPA Modifications",
     ]
 
-    data = [
-        [
-            result.structure_id,
-            result.spectrum_id,
-            f"{result.structure_mass:.5f}",
-            result.spectrum_mass,
-            str(result.tolerance),
-            f"{result.score:.3f}",
-            result.matched_peaks_count,
-            result.theoretical_peaks_count,
-            result.experimental_peaks_count,
-            result.monomer_count,
-            _format_modifications_str(result.modifications),
-        ]
-        for result in results
-    ]
+    data = []
+    for result in results:
+        mol = molecules.get(result.structure_id) if molecules else None
+        nerpa_data = mol.nerpa_ms_data if mol else None
+        nerpa_score_str = (
+            f"{nerpa_data.score:.3f}" if nerpa_data and nerpa_data.score is not None else ""
+        )
+        nerpa_rank_str = str(nerpa_data.rank) if nerpa_data and nerpa_data.rank is not None else ""
+        nerpa_mods_str = str(len(nerpa_data.old_to_new_mon_map)) if nerpa_data else ""
+        data.append(
+            [
+                result.structure_id,
+                result.spectrum_id,
+                f"{result.structure_mass:.5f}",
+                result.spectrum_mass,
+                str(result.tolerance),
+                f"{result.score:.3f}",
+                result.matched_peaks_count,
+                result.theoretical_peaks_count,
+                result.experimental_peaks_count,
+                result.monomer_count,
+                _format_modifications_str(result.modifications),
+                nerpa_score_str,
+                nerpa_rank_str,
+                nerpa_mods_str,
+            ]
+        )
 
     return tabulate(
         data,
@@ -147,11 +182,15 @@ def mask_to_reversed_binary_string(mask: int, length: int) -> str:
     return "".join(chars)
 
 
-def format_as_json(results: list[MatchResult]) -> str:
+def format_as_json(
+    results: list[MatchResult],
+    molecules: Optional[dict[str, Molecule]] = None,
+) -> str:
     """Format a list of MatchResult objects into a standard JSON string.
 
     Args:
         results: A list of MatchResult instances to format.
+        molecules: Optional dictionary mapping structure IDs to Molecule objects.
 
     Returns:
         A standard JSON string representation with 2-space indentation.
@@ -184,6 +223,14 @@ def format_as_json(results: list[MatchResult]) -> str:
             for mod in r.modifications
         ]
 
+        mol = molecules.get(r.structure_id) if molecules else None
+        nerpa_data = mol.nerpa_ms_data if mol else None
+        nerpa_score_val = (
+            round(nerpa_data.score, 3) if nerpa_data and nerpa_data.score is not None else None
+        )
+        nerpa_rank_val = nerpa_data.rank if nerpa_data else None
+        nerpa_mods_val = len(nerpa_data.old_to_new_mon_map) if nerpa_data else None
+
         serialized.append(
             {
                 "structure_id": r.structure_id,
@@ -199,6 +246,9 @@ def format_as_json(results: list[MatchResult]) -> str:
                 "unmodified_monomer_mass_vector": list(r.unmodified_monomer_mass_vector),
                 "matched_peaks": matched_peaks_data,
                 "modifications": modifications_data,
+                "nerpa_score": nerpa_score_val,
+                "nerpa_rank": nerpa_rank_val,
+                "nerpa_modifications_count": nerpa_mods_val,
             }
         )
 
@@ -209,6 +259,7 @@ def write_results(
     results: list[MatchResult],
     output_path: Optional[Union[str, Path]] = None,
     format_type: str = "table",
+    molecules: Optional[list[Molecule]] = None,
 ) -> None:
     """Write formatted match results to a file or stdout.
 
@@ -219,6 +270,7 @@ def write_results(
         results: A list of MatchResult instances.
         output_path: Path to write results. If None or "-", prints to standard output.
         format_type: Output format ("table", "txt", "csv", or "json"). Case-insensitive.
+        molecules: Optional list of Molecule objects to look up metadata.
 
     Raises:
         ValueError: If an unsupported format_type is provided.
@@ -231,13 +283,15 @@ def write_results(
         format_type,
     )
 
+    molecule_map = {mol.structure_id: mol for mol in molecules} if molecules else {}
+
     fmt = format_type.lower()
     if fmt in ("table", "txt"):
-        formatted_content = format_as_table(results)
+        formatted_content = format_as_table(results, molecules=molecule_map)
     elif fmt == "csv":
-        formatted_content = format_as_csv(results)
+        formatted_content = format_as_csv(results, molecules=molecule_map)
     elif fmt == "json":
-        formatted_content = format_as_json(results)
+        formatted_content = format_as_json(results, molecules=molecule_map)
     else:
         logger.error("Unsupported output format type: %s", format_type)
         raise ValueError(
@@ -320,6 +374,7 @@ def _serialize_molecule(mol: Molecule) -> dict:
         }
         if mol.metadata
         else None,
+        "nerpa_ms_data": mol.nerpa_ms_data.to_dict() if mol.nerpa_ms_data else None,
     }
 
 
