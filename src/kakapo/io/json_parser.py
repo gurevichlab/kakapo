@@ -27,6 +27,7 @@ from kakapo.models import (
     Metadata,
     Molecule,
     Monomer,
+    NerpaMSData,
 )
 from kakapo.utils.logger import get_logger
 
@@ -208,47 +209,26 @@ def _map_and_classify_bonds(
     return bonds
 
 
-def _build_molecule_from_dict(  # noqa: C901
-    data: dict, structure_id: str | None = None
-) -> Molecule:
-    """Convert a raw rBAN record dictionary into a kakapo Molecule instance.
-
-    Maps the record's atoms, monomers, and atomic bonds to Molecule components,
-    precalculates the exact monoisotopic mass of each monomer using the atomic composition, and
-    dynamically classifies inter-monomer bond subtypes using subgraph isomorphism.
-
-    Args:
-        data: The raw dictionary parsed from JSON.
-        structure_id: Optional string to override the record's default compound_id.
-
-    Returns:
-        A fully constructed Molecule instance with enriched properties and classified bonds.
-
-    Raises:
-        ValueError: If mandatory fields are missing or invalid.
-    """
-    final_id = str(structure_id or data.get("compound_id") or "")
-    if not final_id:
-        raise ValueError("Record is missing mandatory 'compound_id'")
-
-    # 1. Map atoms to Atom
-    atoms = {}
-    raw_atoms = data.get("atoms")
+def _parse_atoms_from_dict(raw_atoms: dict | None) -> dict[int, Atom]:
+    """Parse raw atoms dictionary into Atom objects."""
     if raw_atoms is None:
         raise ValueError("Record is missing mandatory 'atoms' section")
-
-    for atom_id_raw, atom_info in raw_atoms.items():
-        atom_id = int(atom_id_raw)
-        atoms[atom_id] = Atom(
+    return {
+        int(atom_id_raw): Atom(
             name=atom_info.get("name", "C"),
             hydrogens=int(atom_info.get("hydrogens", 0)),
         )
+        for atom_id_raw, atom_info in raw_atoms.items()
+    }
 
-    # 2. Map monomers to Monomer using original keys
-    raw_monomers = data.get("monomers")
+
+def _parse_monomers_from_dict(
+    raw_monomers: dict | None, atoms: dict[int, Atom]
+) -> dict[int, Monomer]:
+    """Parse raw monomers dictionary into Monomer objects with exact mass."""
     if raw_monomers is None:
         raise ValueError("Record is missing mandatory 'monomers' section")
-    if len(raw_monomers) == 0:
+    if not raw_monomers:
         raise ValueError("Record must contain at least one monomer")
 
     monomers = {}
@@ -266,7 +246,6 @@ def _build_molecule_from_dict(  # noqa: C901
 
         atom_ids = tuple(int(a) for a in mon_info.get("atoms", []))
 
-        # Calculate exact mass from atomic composition
         try:
             mass = _calculate_monomer_exact_mass(atom_ids, norine_name, atoms)
         except ValueError as e:
@@ -285,25 +264,60 @@ def _build_molecule_from_dict(  # noqa: C901
             atoms=atom_ids,
             mass=mass,
         )
+    return monomers
 
-    # 3. Map atomic bonds
+
+def _parse_atomic_bonds_from_dict(
+    raw_atomic_bonds: list | None,
+) -> dict[AtomicEdge, AtomicBond]:
+    """Parse raw atomic bonds into AtomicEdge to AtomicBond mapping."""
     atomic_bonds = {}
-    raw_atomic_bonds = data.get("atomic_bonds", [])
-    for bond_entry in raw_atomic_bonds:
+    for bond_entry in raw_atomic_bonds or []:
         if isinstance(bond_entry, (list, tuple)) and len(bond_entry) == 2:
             (u, v), edge_info = bond_entry
-            arity = str(edge_info.get("arity", "1"))
-            bond_type = edge_info.get("bond_type")
             atomic_bonds[AtomicEdge(int(u), int(v))] = AtomicBond(
-                arity=arity,
-                bond_type=bond_type,
+                arity=str(edge_info.get("arity", "1")),
+                bond_type=edge_info.get("bond_type"),
             )
+    return atomic_bonds
 
-    # 4. Map monomer bonds and dynamically classify subtypes directly
+
+def _build_molecule_from_dict(
+    data: dict,
+    structure_id: str | None = None,
+    nerpa_ms_data: NerpaMSData | None = None,
+) -> Molecule:
+    """Convert a raw rBAN record dictionary into a kakapo Molecule instance.
+
+    Maps the record's atoms, monomers, and atomic bonds to Molecule components,
+    precalculates the exact monoisotopic mass of each monomer using the atomic composition, and
+    dynamically classifies inter-monomer bond subtypes using subgraph isomorphism.
+
+    Args:
+        data: The raw dictionary parsed from JSON.
+        structure_id: Optional string to override the record's default compound_id.
+        nerpa_ms_data: Optional NERPA-MS variant data.
+
+    Returns:
+        A fully constructed Molecule instance with enriched properties and classified bonds.
+
+    Raises:
+        ValueError: If mandatory fields are missing or invalid.
+    """
+    final_id = str(structure_id or data.get("compound_id") or "")
+    if not final_id:
+        raise ValueError("Record is missing mandatory 'compound_id'")
+
+    atoms = _parse_atoms_from_dict(data.get("atoms"))
+    monomers = _parse_monomers_from_dict(data.get("monomers"), atoms)
+    atomic_bonds = _parse_atomic_bonds_from_dict(data.get("atomic_bonds"))
     bonds = _map_and_classify_bonds(data.get("monomer_bonds", []), monomers, atoms, atomic_bonds)
 
     metadata = Metadata.from_dict(data.get("metadata"))
     smiles = generate_smiles_from_atoms(atoms, atomic_bonds)
+
+    if nerpa_ms_data is None and "nerpa_ms_data" in data:
+        nerpa_ms_data = NerpaMSData.from_dict(data.get("nerpa_ms_data"))
 
     logger.debug(
         "Molecule %s built: %d atoms, %d monomers, %d atomic bonds, %d monomer bonds",
@@ -314,7 +328,6 @@ def _build_molecule_from_dict(  # noqa: C901
         len(bonds),
     )
 
-    # 5. Return the final Molecule
     return Molecule(
         structure_id=final_id,
         monomers=monomers,
@@ -323,6 +336,7 @@ def _build_molecule_from_dict(  # noqa: C901
         atoms=atoms,
         atomic_bonds=atomic_bonds,
         metadata=metadata,
+        nerpa_ms_data=nerpa_ms_data,
     )
 
 
@@ -378,6 +392,7 @@ def _serialize_molecule_for_cache(mol: Molecule) -> dict:
         }
         if mol.metadata
         else None,
+        "nerpa_ms_data": mol.nerpa_ms_data.to_dict() if mol.nerpa_ms_data else None,
     }
 
 
@@ -414,6 +429,7 @@ def _deserialize_molecule_from_cache(data: dict) -> Molecule:
         for edge, ab in data.get("atomic_bonds", [])
     }
     metadata = Metadata.from_dict(data.get("metadata"))
+    nerpa_ms_data = NerpaMSData.from_dict(data.get("nerpa_ms_data"))
     smiles = data.get("smiles")
 
     structure_id = str(data.get("structure_id") or data.get("compound_id") or "")
@@ -425,6 +441,7 @@ def _deserialize_molecule_from_cache(data: dict) -> Molecule:
         atoms=atoms,
         atomic_bonds=atomic_bonds,
         metadata=metadata,
+        nerpa_ms_data=nerpa_ms_data,
     )
 
 
@@ -459,6 +476,10 @@ class NewVariant(BaseModel):
     rank: int | None = None
     original_id: str | None = None
     new_record: dict[str, Any]
+    old_to_new_mon_map: (
+        list[tuple[int | None, int | None]] | list[list[int | None]] | None
+    ) = None
+    monomer_origins: list[dict[str, Any]] | None = None
 
 
 class BGCVariantItem(BaseModel):
@@ -476,11 +497,25 @@ class BGCVariantsFile(RootModel[list[BGCVariantItem]]):
     pass
 
 
-def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool]:
-    """Extract new_record dictionaries from BGC variant items.
+def _parse_bgc_variant_items(json_data: list | dict) -> tuple[list[BGCVariantItem], bool]:
+    """Parse raw JSON data into BGCVariantItem instances."""
+    if isinstance(json_data, list):
+        return BGCVariantsFile.model_validate(json_data).root, True
+    if isinstance(json_data, dict):
+        if "new_variants" in json_data:
+            return [BGCVariantItem.model_validate(json_data)], False
+        items = [BGCVariantItem.model_validate(item) for item in json_data.values()]
+        return items, len(items) > 1
+    raise TypeError(f"Expected list or dict, got {type(json_data).__name__}")
+
+
+def _extract_and_clean_records(
+    json_data: list | dict,
+) -> tuple[list[tuple[dict, NerpaMSData | None]], bool]:
+    """Extract new_record dictionaries and NERPA-MS metadata from BGC variant items.
 
     Uses Pydantic schemas to validate the structure of the JSON data and
-    safely extract the nested new_record dicts.
+    safely extract the nested new_record dicts and associated variant metadata.
 
     Args:
         json_data: Parsed JSON data, either a single BGC dict or a list of BGC dicts,
@@ -488,40 +523,111 @@ def _extract_and_clean_records(json_data: list | dict) -> tuple[list[dict], bool
 
     Returns:
         A tuple containing:
-            - A list of record dictionaries.
+            - A list of tuples containing (record dict, NerpaMSData instance or None).
             - A boolean indicating if the input root was a list (for return type selection).
     """
-    if isinstance(json_data, list):
-        generated_candidates = BGCVariantsFile.model_validate(json_data).root
-        is_list = True
-    elif isinstance(json_data, dict):
-        if "new_variants" in json_data:
-            generated_candidates = [BGCVariantItem.model_validate(json_data)]
-            is_list = False
-        else:
-            generated_candidates = [
-                BGCVariantItem.model_validate(item)
-                for item in json_data.values()
-            ]
-            is_list = len(generated_candidates) > 1
-    else:
-        raise TypeError(f"Expected list or dict, got {type(json_data).__name__}")
-
+    generated_candidates, is_list = _parse_bgc_variant_items(json_data)
     records = []
     for item in generated_candidates:
-        for _new_variant_id, variant in item.new_variants.items():
-            records.append(variant.new_record)
+        for variant in item.new_variants.values():
+            nerpa_data = NerpaMSData.from_dict(
+                {
+                    "rank": variant.rank,
+                    "score": variant.score,
+                    "old_to_new_mon_map": variant.old_to_new_mon_map,
+                    "monomer_origins": variant.monomer_origins,
+                }
+            )
+            records.append((variant.new_record, nerpa_data))
 
     return records, is_list
 
 
-def _process_single_record(args: tuple[dict, str]) -> Molecule:
+def _process_single_record(args: tuple[dict, NerpaMSData | None, str]) -> Molecule:
     """Helper function to parse a single record in parallel."""
-    item, unique_id = args
-    return _build_molecule_from_dict(item, structure_id=unique_id)
+    item, nerpa_ms_data, unique_id = args
+    return _build_molecule_from_dict(
+        item, structure_id=unique_id, nerpa_ms_data=nerpa_ms_data
+    )
 
 
-def parse_rban_json(  # noqa: C901
+def _create_parsing_tasks(
+    records: list[tuple[dict, NerpaMSData | None]],
+    id_counts: dict[str, int],
+) -> list[tuple[dict, NerpaMSData | None, str]]:
+    """Create unique-ID parsing task tuples for records."""
+    tasks = []
+    for i, (item, nerpa_data) in enumerate(records):
+        base_id = (
+            item.get("compound_id")
+            or (item.get("metadata") or {}).get("name")
+            or f"unknown_{i}"
+        )
+        count = id_counts.get(base_id, 0)
+        unique_id = f"{base_id}_{count + 1}" if count > 0 else base_id
+        id_counts[base_id] = count + 1
+        tasks.append((item, nerpa_data, unique_id))
+    return tasks
+
+
+def _parse_tasks(
+    tasks: list[tuple[dict, NerpaMSData | None, str]],
+    is_list: bool,
+    json_path: Path,
+) -> dict[str, Molecule]:
+    """Parse list of tasks sequentially or in parallel depending on task count."""
+    molecules: dict[str, Molecule] = {}
+    errors: list[str] = []
+    num_workers = min(4, os.cpu_count() or 1)
+
+    if len(tasks) > 5 and num_workers > 1:
+        logger.info("Parsing JSON records in parallel using %d workers", num_workers)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [executor.submit(_process_single_record, task) for task in tasks]
+            for idx, future in enumerate(futures):
+                try:
+                    mol = future.result()
+                    molecules[mol.structure_id] = mol
+                except Exception as e:
+                    logger.warning(
+                        "Index %d failed to parse in list from %s: %s",
+                        idx,
+                        json_path,
+                        e,
+                    )
+                    errors.append(f"Index {idx}: {e}")
+    else:
+        for idx, task in enumerate(tasks):
+            try:
+                mol = _process_single_record(task)
+                molecules[mol.structure_id] = mol
+            except Exception as e:
+                if is_list:
+                    logger.warning(
+                        "Index %d failed to parse in list from %s: %s",
+                        idx,
+                        json_path,
+                        e,
+                    )
+                    errors.append(f"Index {idx}: {e}")
+                else:
+                    _log_and_raise(
+                        f"Failed to parse Parsed_rBAN_Record from {json_path}. Error: {e}",
+                        ValueError,
+                        e,
+                    )
+
+    if errors:
+        _log_and_raise(
+            f"Failed to parse Parsed_rBAN_Record list from {json_path}. Errors:\n"
+            + "\n".join(errors),
+            ValueError,
+        )
+
+    return molecules
+
+
+def parse_rban_json(
     json_path: str | Path, id_counts: dict[str, int] | None = None
 ) -> Molecule | dict[str, Molecule]:
     """Parse a Parsed_rBAN_Record JSON file and return a kakapo Molecule or a dict of Molecules.
@@ -546,12 +652,10 @@ def parse_rban_json(  # noqa: C901
         id_counts = {}
 
     json_data = _load_json_file(json_path)
-
     if json_data is None:
         _log_and_raise(f"JSON file {json_path} is empty", ValueError, level="warning")
 
     records, is_list = _extract_and_clean_records(json_data)
-
     if not records:
         _log_and_raise(
             f"No valid new_variants records found in {json_path}",
@@ -559,74 +663,8 @@ def parse_rban_json(  # noqa: C901
             level="warning" if is_list else "error",
         )
 
-    molecules = {}
-    errors = []
-
-    # Pre-calculate unique IDs sequentially to keep it correct and fast
-    tasks = []
-    for i, item in enumerate(records):
-        base_id = item.get("compound_id")
-        if not base_id:
-            # If compound_id is missing, use a fallback
-            metadata = item.get("metadata") or {}
-            base_id = metadata.get("name") or f"unknown_{i}"
-
-        count = id_counts.get(base_id, 0)
-        if count > 0:
-            unique_id = f"{base_id}_{count + 1}"
-        else:
-            unique_id = base_id
-        id_counts[base_id] = count + 1
-        tasks.append((item, unique_id))
-
-    if tasks:
-        # Determine whether to parse in parallel.
-        # Parallel execution is beneficial for >= 5 records.
-        num_workers = min(4, os.cpu_count() or 1)
-        if len(tasks) > 5 and num_workers > 1:
-            logger.info("Parsing JSON records in parallel using %d workers", num_workers)
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
-                futures = [executor.submit(_process_single_record, task) for task in tasks]
-                for idx, future in enumerate(futures):
-                    try:
-                        mol = future.result()
-                        molecules[mol.structure_id] = mol
-                    except Exception as e:
-                        logger.warning(
-                            "Index %d failed to parse in list from %s: %s",
-                            idx,
-                            json_path,
-                            e,
-                        )
-                        errors.append(f"Index {idx}: {e}")
-        else:
-            # Sequential fallback for small lists or single cores
-            for idx, task in enumerate(tasks):
-                try:
-                    mol = _process_single_record(task)
-                    molecules[mol.structure_id] = mol
-                except Exception as e:
-                    if is_list:
-                        logger.warning(
-                            "Index %d failed to parse in list from %s: %s",
-                            idx,
-                            json_path,
-                            e,
-                        )
-                        errors.append(f"Index {idx}: {e}")
-                    else:
-                        _log_and_raise(
-                            f"Failed to parse Parsed_rBAN_Record from {json_path}. Error: {e}",
-                            ValueError,
-                            e,
-                        )
-
-    if errors:
-        _log_and_raise(
-            f"Failed to parse Parsed_rBAN_Record list from {json_path}. Errors:\n"
-            + "\n".join(errors),
-            ValueError,
-        )
+    tasks = _create_parsing_tasks(records, id_counts)
+    molecules = _parse_tasks(tasks, is_list, json_path)
 
     if is_list:
         logger.info("Successfully parsed %d molecules from %s", len(molecules), json_path)

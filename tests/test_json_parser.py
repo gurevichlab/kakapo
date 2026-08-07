@@ -523,3 +523,175 @@ class TestCacheSerializationRoundtrip:
         assert restored.structure_id == "Ala_structure_cache"
         assert restored.monomers[0].norine_name == "Ala"
 
+    def test_cache_serialization_roundtrip_with_nerpa_ms_data(self):
+        """Test roundtrip caching of a Molecule with nerpa_ms_data."""
+        from kakapo.io.json_parser import (
+            _deserialize_molecule_from_cache,
+            _serialize_molecule_for_cache,
+        )
+        from kakapo.models import Chirality, Molecule, Monomer, MonomerOrigin, NerpaMSData
+
+        monomer = Monomer(
+            norine_name="Ala",
+            residue="Ala",
+            is_methylated=False,
+            chirality=Chirality.L,
+        )
+        nerpa_data = NerpaMSData(
+            rank=1,
+            score=15.2,
+            old_to_new_mon_map=((None, 7),),
+            monomer_origins=(
+                MonomerOrigin(compound_id="comp_100", monomer_name="Ala", monomer_idx=4),
+            ),
+        )
+        dummy_mol = Molecule(
+            structure_id="Nerpa_structure_cache",
+            monomers={0: monomer},
+            bonds=(),
+            nerpa_ms_data=nerpa_data,
+        )
+
+        serialized = _serialize_molecule_for_cache(dummy_mol)
+        assert serialized["nerpa_ms_data"]["rank"] == 1
+        assert serialized["nerpa_ms_data"]["score"] == 15.2
+        assert serialized["nerpa_ms_data"]["old_to_new_mon_map"] == [[None, 7]]
+        assert serialized["nerpa_ms_data"]["monomer_origins"][0]["compound_id"] == "comp_100"
+
+        restored = _deserialize_molecule_from_cache(serialized)
+        assert restored.structure_id == "Nerpa_structure_cache"
+        assert restored.nerpa_ms_data is not None
+        assert restored.nerpa_ms_data.rank == 1
+        assert restored.nerpa_ms_data.score == 15.2
+        assert restored.nerpa_ms_data.old_to_new_mon_map == ((None, 7),)
+        assert len(restored.nerpa_ms_data.monomer_origins) == 1
+        assert restored.nerpa_ms_data.monomer_origins[0].monomer_name == "Ala"
+
+
+class TestNerpaMSDataJsonParsing:
+    """Granular tests for parsing NERPA-MS variant fields from JSON payloads."""
+
+    def test_parse_rban_json_populates_rank_and_score(self):
+        """Parse BGC variant JSON and verify rank and score extraction."""
+        json_data = {
+            "compound_id": "NRP_NERPA_RS",
+            "new_variants": {
+                "variant_0": {
+                    "score": 14.5,
+                    "rank": 1,
+                    "new_record": {
+                        "compound_id": "NRP_NERPA_RS",
+                        "atoms": {},
+                        "monomers": {"0": {"name": "Ala", "atoms": [], "chirality": "L"}},
+                        "monomer_bonds": [],
+                    },
+                }
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(json_data, f)
+            json_path = f.name
+
+        try:
+            res = parse_rban_json(json_path)
+            assert isinstance(res, Molecule)
+            assert res.nerpa_ms_data is not None
+            assert res.nerpa_ms_data.rank == 1
+            assert res.nerpa_ms_data.score == pytest.approx(14.5)
+        finally:
+            os.unlink(json_path)
+
+    def test_parse_rban_json_populates_old_to_new_mon_map(self):
+        """Parse BGC variant JSON and verify old_to_new_mon_map extraction."""
+        json_data = {
+            "compound_id": "NRP_NERPA_MAP",
+            "new_variants": {
+                "variant_0": {
+                    "old_to_new_mon_map": [[None, 7], [1, 2]],
+                    "new_record": {
+                        "compound_id": "NRP_NERPA_MAP",
+                        "atoms": {},
+                        "monomers": {"0": {"name": "Ala", "atoms": [], "chirality": "L"}},
+                        "monomer_bonds": [],
+                    },
+                }
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(json_data, f)
+            json_path = f.name
+
+        try:
+            res = parse_rban_json(json_path)
+            assert isinstance(res, Molecule)
+            assert res.nerpa_ms_data is not None
+            assert res.nerpa_ms_data.old_to_new_mon_map == ((None, 7), (1, 2))
+        finally:
+            os.unlink(json_path)
+
+    def test_parse_rban_json_populates_monomer_origins(self):
+        """Parse BGC variant JSON and verify monomer_origins extraction."""
+        json_data = {
+            "compound_id": "NRP_NERPA_ORIG",
+            "new_variants": {
+                "variant_0": {
+                    "monomer_origins": [
+                        {
+                            "compound_id": "compound_001780",
+                            "monomer_name": "Ala",
+                            "monomer_idx": 4,
+                        }
+                    ],
+                    "new_record": {
+                        "compound_id": "NRP_NERPA_ORIG",
+                        "atoms": {},
+                        "monomers": {"0": {"name": "Ala", "atoms": [], "chirality": "L"}},
+                        "monomer_bonds": [],
+                    },
+                }
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(json_data, f)
+            json_path = f.name
+
+        try:
+            res = parse_rban_json(json_path)
+            assert isinstance(res, Molecule)
+            assert res.nerpa_ms_data is not None
+            assert len(res.nerpa_ms_data.monomer_origins) == 1
+            origin = res.nerpa_ms_data.monomer_origins[0]
+            assert origin.compound_id == "compound_001780"
+            assert origin.monomer_name == "Ala"
+            assert origin.monomer_idx == 4
+        finally:
+            os.unlink(json_path)
+
+    def test_parse_rban_json_without_nerpa_ms_fields(self):
+        """Parse BGC variant JSON lacking nerpa_ms_data fields results in None."""
+        json_data = {
+            "compound_id": "NRP_NO_NERPA",
+            "new_variants": {
+                "variant_0": {
+                    "new_record": {
+                        "compound_id": "NRP_NO_NERPA",
+                        "atoms": {},
+                        "monomers": {"0": {"name": "Ala", "atoms": [], "chirality": "L"}},
+                        "monomer_bonds": [],
+                    },
+                }
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(json_data, f)
+            json_path = f.name
+
+        try:
+            res = parse_rban_json(json_path)
+            assert isinstance(res, Molecule)
+            assert res.nerpa_ms_data is None
+        finally:
+            os.unlink(json_path)
+
+
+

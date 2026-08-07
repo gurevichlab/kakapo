@@ -3,10 +3,14 @@
 import pytest
 
 from kakapo.models import (
+    Chirality,
     MatchedPeak,
     MatchResult,
     Molecule,
+    Monomer,
     MonomerModification,
+    MonomerOrigin,
+    NerpaMSData,
     Peak,
     Spectrum,
     TheoreticalIonWithMass,
@@ -442,3 +446,79 @@ class TestTolerance:
     def test_tolerance_str(self):
         t = Tolerance(value=20.0, unit="ppm")
         assert str(t) == "20.0ppm"
+
+
+class TestNerpaMSDataModels:
+    """Granular unit tests for MonomerOrigin and NerpaMSData data models."""
+
+    def test_monomer_origin_creation(self):
+        """Test instantiation of MonomerOrigin."""
+        origin = MonomerOrigin(compound_id="comp_1", monomer_name="Ala", monomer_idx=4)
+        assert origin.compound_id == "comp_1"
+        assert origin.monomer_name == "Ala"
+        assert origin.monomer_idx == 4
+
+    def test_monomer_origin_from_dict(self):
+        """Test constructing MonomerOrigin from a raw dictionary."""
+        raw = {"compound_id": "comp_2", "monomer_name": "Leu", "monomer_idx": 2}
+        from_dict_origin = MonomerOrigin.from_dict(raw)
+        assert from_dict_origin is not None
+        assert from_dict_origin.compound_id == "comp_2"
+        assert from_dict_origin.monomer_name == "Leu"
+        assert from_dict_origin.monomer_idx == 2
+
+    def test_monomer_origin_from_dict_none(self):
+        """Test MonomerOrigin.from_dict with None or non-dict input."""
+        assert MonomerOrigin.from_dict(None) is None
+        assert MonomerOrigin.from_dict("invalid") is None  # type: ignore
+
+    def test_nerpa_ms_data_creation(self):
+        """Test instantiation of NerpaMSData."""
+        origin = MonomerOrigin(compound_id="c1", monomer_name="Ala", monomer_idx=1)
+        data = NerpaMSData(
+            rank=2,
+            score=12.5,
+            old_to_new_mon_map=((None, 7), (1, 2)),
+            monomer_origins=(origin,),
+        )
+        assert data.rank == 2
+        assert data.score == 12.5
+        assert data.old_to_new_mon_map == ((None, 7), (1, 2))
+        assert data.monomer_origins == (origin,)
+
+    def test_nerpa_ms_data_from_dict(self):
+        """Test constructing NerpaMSData from a raw dictionary."""
+        raw_dict = {
+            "rank": 3,
+            "score": 10.1,
+            "old_to_new_mon_map": [[None, 5], [0, 1]],
+            "monomer_origins": [{"compound_id": "c2", "monomer_name": "Val", "monomer_idx": 3}],
+        }
+        parsed = NerpaMSData.from_dict(raw_dict)
+        assert parsed is not None
+        assert parsed.rank == 3
+        assert parsed.score == 10.1
+        assert parsed.old_to_new_mon_map == ((None, 5), (0, 1))
+        assert len(parsed.monomer_origins) == 1
+        assert parsed.monomer_origins[0].compound_id == "c2"
+
+    def test_nerpa_ms_data_from_dict_none(self):
+        """Test NerpaMSData.from_dict with None or empty input."""
+        assert NerpaMSData.from_dict(None) is None
+        assert NerpaMSData.from_dict({}) is None
+
+    def test_molecule_with_nerpa_ms_data(self):
+        """Test creating a Molecule with nerpa_ms_data attached."""
+        data = NerpaMSData(rank=1, score=5.0)
+        mol = Molecule(
+            structure_id="mol_nerpa",
+            monomers={
+                0: Monomer(
+                    norine_name="Gly", residue="Gly", is_methylated=False, chirality=Chirality.L
+                )
+            },
+            nerpa_ms_data=data,
+        )
+        assert mol.nerpa_ms_data is not None
+        assert mol.nerpa_ms_data.rank == 1
+        assert mol.nerpa_ms_data.score == 5.0

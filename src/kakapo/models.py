@@ -518,6 +518,101 @@ class Metadata:
 
 
 @dataclass(frozen=True)
+class MonomerOrigin:
+    """Origin information for a monomer imported or substituted in a variant.
+
+    Attributes:
+        compound_id: Identifier of the source compound.
+        monomer_name: Name of the monomer.
+        monomer_idx: Index of the monomer in the source compound.
+    """
+
+    compound_id: str
+    monomer_name: str
+    monomer_idx: int
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "MonomerOrigin | None":
+        """Construct a MonomerOrigin instance from a raw dictionary."""
+        if not data or not isinstance(data, dict):
+            return None
+        return cls(
+            compound_id=str(data.get("compound_id", "")),
+            monomer_name=str(data.get("monomer_name", "")),
+            monomer_idx=int(data.get("monomer_idx", 0)),
+        )
+
+
+@dataclass(frozen=True)
+class NerpaMSData:
+    """NERPA-MS variant alignment and score data.
+
+    Attributes:
+        rank: Rank of the variant candidate.
+        score: Log-odds score for the variant.
+        old_to_new_mon_map: Mapping of old monomer indices to new monomer indices.
+        monomer_origins: Origins for substituted or inserted monomers.
+    """
+
+    rank: int | None = None
+    score: float | None = None
+    old_to_new_mon_map: tuple[tuple[int | None, int | None], ...] = ()
+    monomer_origins: tuple[MonomerOrigin, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert NerpaMSData to a JSON-serializable dictionary."""
+        return {
+            "rank": self.rank,
+            "score": self.score,
+            "old_to_new_mon_map": [list(pair) for pair in self.old_to_new_mon_map],
+            "monomer_origins": [
+                {
+                    "compound_id": orig.compound_id,
+                    "monomer_name": orig.monomer_name,
+                    "monomer_idx": orig.monomer_idx,
+                }
+                for orig in self.monomer_origins
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "NerpaMSData | None":
+        """Construct a NerpaMSData instance from a raw dictionary."""
+        if not data or not isinstance(data, dict):
+            return None
+
+        rank = int(data["rank"]) if data.get("rank") is not None else None
+        score = float(data["score"]) if data.get("score") is not None else None
+
+        raw_map = data.get("old_to_new_mon_map") or ()
+        parsed_map = [
+            (
+                int(p[0]) if p[0] is not None else None,
+                int(p[1]) if p[1] is not None else None,
+            )
+            for p in raw_map
+            if isinstance(p, (list, tuple)) and len(p) == 2
+        ]
+
+        raw_origins = data.get("monomer_origins") or ()
+        parsed_origins = [
+            orig
+            for item in raw_origins
+            if (orig := MonomerOrigin.from_dict(item)) is not None
+        ]
+
+        if rank is None and score is None and not parsed_map and not parsed_origins:
+            return None
+
+        return cls(
+            rank=rank,
+            score=score,
+            old_to_new_mon_map=tuple(parsed_map),
+            monomer_origins=tuple(parsed_origins),
+        )
+
+
+@dataclass(frozen=True)
 class Molecule:
     """An rBAN molecular structure.
 
@@ -532,6 +627,7 @@ class Molecule:
         atoms: Mapping of atom IDs to Atom instances.
         atomic_bonds: Mapping of atomic edges to AtomicBond instances.
         metadata: Optional metadata.
+        nerpa_ms_data: Optional NERPA-MS variant data (rank, score, monomer mapping, origins).
     """
 
     structure_id: str
@@ -541,6 +637,7 @@ class Molecule:
     atoms: dict[int, Atom] = field(default_factory=dict)
     atomic_bonds: dict[AtomicEdge, AtomicBond] = field(default_factory=dict)
     metadata: Metadata | None = None
+    nerpa_ms_data: NerpaMSData | None = None
 
     def __post_init__(self):
         if not self.structure_id:
