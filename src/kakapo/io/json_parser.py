@@ -1,13 +1,14 @@
-"""JSON parser for full Parsed_rBAN_Record structures.
+"""JSON parser for full Nerpa record structures.
 
-This module loads atom-level rBAN records serialized by nerpa-ms in JSON format
-and converts them to kakapo's Molecule model while retaining the source Parsed_rBAN_Record.
+This module loads atom-level nerpa records serialized by nerpa-ms in JSON format
+and converts them to kakapo's Molecule model while retaining the source Nerpa record.
 """
 
 import hashlib
 import os
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -287,7 +288,7 @@ def _build_molecule_from_dict(
     structure_id: str | None = None,
     nerpa_ms_data: NerpaMSData | None = None,
 ) -> Molecule:
-    """Convert a raw rBAN record dictionary into a kakapo Molecule instance.
+    """Convert a raw nerpa record dictionary into a kakapo Molecule instance.
 
     Maps the record's atoms, monomers, and atomic bonds to Molecule components,
     precalculates the exact monoisotopic mass of each monomer using the atomic composition, and
@@ -393,6 +394,7 @@ def _serialize_molecule_for_cache(mol: Molecule) -> dict:
         if mol.metadata
         else None,
         "nerpa_ms_data": mol.nerpa_ms_data.to_dict() if mol.nerpa_ms_data else None,
+        "duplicated_structure_ids": list(mol.duplicated_structure_ids),
     }
 
 
@@ -431,6 +433,7 @@ def _deserialize_molecule_from_cache(data: dict) -> Molecule:
     metadata = Metadata.from_dict(data.get("metadata"))
     nerpa_ms_data = NerpaMSData.from_dict(data.get("nerpa_ms_data"))
     smiles = data.get("smiles")
+    duplicated_structure_ids = tuple(data.get("duplicated_structure_ids") or [])
 
     structure_id = str(data.get("structure_id") or data.get("compound_id") or "")
     return Molecule(
@@ -442,6 +445,7 @@ def _deserialize_molecule_from_cache(data: dict) -> Molecule:
         atomic_bonds=atomic_bonds,
         metadata=metadata,
         nerpa_ms_data=nerpa_ms_data,
+        duplicated_structure_ids=duplicated_structure_ids,
     )
 
 
@@ -612,14 +616,14 @@ def _parse_tasks(
                     errors.append(f"Index {idx}: {e}")
                 else:
                     _log_and_raise(
-                        f"Failed to parse Parsed_rBAN_Record from {json_path}. Error: {e}",
+                        f"Failed to parse Nerpa record from {json_path}. Error: {e}",
                         ValueError,
                         e,
                     )
 
     if errors:
         _log_and_raise(
-            f"Failed to parse Parsed_rBAN_Record list from {json_path}. Errors:\n"
+            f"Failed to parse Nerpa record list from {json_path}. Errors:\n"
             + "\n".join(errors),
             ValueError,
         )
@@ -627,10 +631,45 @@ def _parse_tasks(
     return molecules
 
 
-def parse_rban_json(
+def _deduplicate_molecules(molecules: dict[str, Molecule]) -> dict[str, Molecule]:
+    """Deduplicate molecules by SMILES string.
+
+    Groups molecules by their smiles field. In each group, keeps the molecule with the
+    lowest rank (from nerpa_ms_data.rank) if provided, otherwise the one with the
+    lexicographically first structure_id. Sets the duplicated_structure_ids field of
+    the kept molecule to contain the sorted structure_ids of the deduplicated molecules.
+    """
+    groups: dict[str | None, list[Molecule]] = {}
+    for mol in molecules.values():
+        groups.setdefault(mol.smiles, []).append(mol)
+
+    deduped: dict[str, Molecule] = {}
+    for _, group in groups.items():
+        if len(group) == 1:
+            mol = group[0]
+            if mol.duplicated_structure_ids:
+                mol = replace(mol, duplicated_structure_ids=())
+            deduped[mol.structure_id] = mol
+        else:
+            def sort_key(m: Molecule) -> tuple[int, int | float, str]:
+                if m.nerpa_ms_data is not None and m.nerpa_ms_data.rank is not None:
+                    return (0, m.nerpa_ms_data.rank, m.structure_id)
+                return (1, float("inf"), m.structure_id)
+
+            sorted_group = sorted(group, key=sort_key)
+            chosen = sorted_group[0]
+            dup_ids = tuple(sorted(m.structure_id for m in sorted_group[1:]))
+
+            chosen_with_dups = replace(chosen, duplicated_structure_ids=dup_ids)
+            deduped[chosen_with_dups.structure_id] = chosen_with_dups
+
+    return deduped
+
+
+def parse_nerpa_json(
     json_path: str | Path, id_counts: dict[str, int] | None = None
 ) -> Molecule | dict[str, Molecule]:
-    """Parse a Parsed_rBAN_Record JSON file and return a kakapo Molecule or a dict of Molecules.
+    """Parse a Nerpa record JSON file and return a kakapo Molecule or a dict of Molecules.
 
     Args:
         json_path: Path to a JSON file containing BGC variant items with new_record structures.
@@ -665,6 +704,7 @@ def parse_rban_json(
 
     tasks = _create_parsing_tasks(records, id_counts)
     molecules = _parse_tasks(tasks, is_list, json_path)
+    molecules = _deduplicate_molecules(molecules)
 
     if is_list:
         logger.info("Successfully parsed %d molecules from %s", len(molecules), json_path)
@@ -675,12 +715,12 @@ def parse_rban_json(
     return molecule
 
 
-def parse_rban_json_batch(  # noqa: C901
+def parse_nerpa_json_batch(  # noqa: C901
     json_paths: Iterable[str | Path],
     cache_dir: Path | None = None,
     use_cache: bool = True,
 ) -> dict[str, Molecule]:
-    """Parse multiple rBAN JSON files.
+    """Parse multiple nerpa JSON files.
 
     Args:
         json_paths: Iterable of paths to JSON files.
@@ -738,7 +778,7 @@ def parse_rban_json_batch(  # noqa: C901
 
         # 2. Parse JSON from scratch
         try:
-            result = parse_rban_json(json_path, id_counts=id_counts)
+            result = parse_nerpa_json(json_path, id_counts=id_counts)
             if isinstance(result, dict):
                 parsed_dict = result
                 molecules.update(result)
@@ -770,5 +810,6 @@ def parse_rban_json_batch(  # noqa: C901
             ValueError,
         )
 
+    molecules = _deduplicate_molecules(molecules)
     logger.info("Completed batch load. Loaded %d total molecules.", len(molecules))
     return molecules

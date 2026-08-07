@@ -12,7 +12,7 @@ from kakapo.models import MatchResult, Tolerance
 
 @pytest.fixture
 def temp_files(tmp_path: Path):
-    """Fixture to create sample MGF and rBAN YAML files for pipeline testing."""
+    """Fixture to create sample MGF and nerpa YAML files for pipeline testing."""
     # 1. Create a sample MGF file
     mgf_content = """BEGIN IONS
 TITLE=spec_1
@@ -31,7 +31,7 @@ END IONS
     mgf_file = tmp_path / "test_spectra.mgf"
     mgf_file.write_text(mgf_content, encoding="utf-8")
 
-    # 2. Create sample rBAN JSON structures
+    # 2. Create sample nerpa JSON structures
     # A single alanine molecule
     json_ala = [
         {

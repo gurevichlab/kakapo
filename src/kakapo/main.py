@@ -9,7 +9,7 @@ from kakapo.config import DEFAULT_MODIFICATION_MODE, DEFAULT_SCORING_MODE
 from kakapo.constants import DEFAULT_RULES, FragmentationRule
 from kakapo.core.fragmenter import generate_theoretical_spectrum
 from kakapo.core.matcher import match_spectra
-from kakapo.io.json_parser import parse_rban_json_batch
+from kakapo.io.json_parser import parse_nerpa_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
 from kakapo.models import MatchResult, ModificationMode, Molecule, ScoringMode, Spectrum, Tolerance
 from kakapo.utils.logger import get_logger
@@ -36,7 +36,7 @@ def run_pipeline(  # noqa: C901
 
     Args:
         spectra_files: Single path or list of paths to MGF experimental spectra files.
-        structure_files: Single path or list of paths to rBAN YAML structure files.
+        structure_files: Single path or list of paths to nerpa structure files.
         tolerance: The Tolerance configuration allowed for matching peaks.
         apply_filters: Whether to clean up experimental spectra using matchms filters.
         min_peaks: Minimum number of peaks required to include an experimental spectrum.
@@ -136,7 +136,7 @@ def run_pipeline(  # noqa: C901
         logger.error("No valid JSON structure files found among provided paths")
         raise ValueError("No valid JSON structure files provided")
 
-    molecules = parse_rban_json_batch(json_paths, cache_dir=cache_dir, use_cache=use_cache)
+    molecules = parse_nerpa_json_batch(json_paths, cache_dir=cache_dir, use_cache=use_cache)
 
     duration_load_structures = time.perf_counter() - start_load_structures
     logger.info(

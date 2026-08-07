@@ -628,6 +628,7 @@ class Molecule:
         atomic_bonds: Mapping of atomic edges to AtomicBond instances.
         metadata: Optional metadata.
         nerpa_ms_data: Optional NERPA-MS variant data (rank, score, monomer mapping, origins).
+        duplicated_structure_ids: Tuple of structure IDs of duplicate molecules that were discarded.
     """
 
     structure_id: str
@@ -638,6 +639,7 @@ class Molecule:
     atomic_bonds: dict[AtomicEdge, AtomicBond] = field(default_factory=dict)
     metadata: Metadata | None = None
     nerpa_ms_data: NerpaMSData | None = None
+    duplicated_structure_ids: tuple[str, ...] = ()
 
     def __post_init__(self):
         if not self.structure_id:

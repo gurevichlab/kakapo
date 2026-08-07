@@ -11,7 +11,7 @@ from kakapo.io.bond_classifier import (
     get_default_rules,
     make_rule,
 )
-from kakapo.io.json_parser import parse_rban_json
+from kakapo.io.json_parser import parse_nerpa_json
 from kakapo.models import Atom, AtomicBond, AtomicEdge, Chirality, Molecule, Monomer
 
 
@@ -20,7 +20,7 @@ def test_redca_json_parsing_and_classification():
     json_path = "/home/daria/Uni/Master/nerpa-ms-varquest/test_data/redca_parsed_rban_records.json"
 
     # This automatically runs parsing, mass precalculation, and bond classification!
-    molecules = parse_rban_json(json_path)
+    molecules = parse_nerpa_json(json_path)
 
     # 1. Basic Molecule Assertions
     assert isinstance(molecules, dict)
