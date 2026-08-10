@@ -162,9 +162,6 @@ class TestCliMainFunction:
         mock_write_spectra.assert_not_called()
 
     @patch("kakapo.cli.run_pipeline")
-    @patch("kakapo.cli.write_results")
-    @patch("kakapo.cli.write_structures")
-    @patch("kakapo.cli.write_spectra")
     def test_main_num_workers(
         self,
         mock_run_pipeline: MagicMock,
