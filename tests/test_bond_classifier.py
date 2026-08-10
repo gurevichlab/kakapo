@@ -78,7 +78,7 @@ def test_make_rule_missing_anchors():
 def test_get_default_rules():
     """Verify get_default_rules returns the compiled cached default rules."""
     rules = get_default_rules()
-    assert len(rules) == 13
+    assert len(rules) == 11
     assert all(isinstance(r, BondRule) for r in rules)
     # Check one of the rules
     amide_1 = next(r for r in rules if r.name == "amide_1")

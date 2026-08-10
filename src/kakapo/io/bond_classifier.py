@@ -17,15 +17,13 @@ logger = get_logger(__name__)
 # Atoms with mapping numbers :1 and :2 represent the breakable bond connection.
 SMARTS_RULES = {
     "amide_1": "[N:1](-[C:2]-O)-C",
-    "amide_1_dnp": "[N:1](-[C:2]-O)-C",
     "amide_2": "N(-[C:1](-O)-[C:2])-C",
     "amide_3": "N(-[C:1](-S)-[C:2])-C",
     "amide_4": "[N:1](-[C:2]-O)(-C)-C",
     "amide_5": "[O:1](-[C:2]-O)-C",
     "amide_6": "N(-[C:1](-O)-[C:2])-C-C",
-    "amide_7": "N(-[C:1](-O)-[C:2])-C-C",
-    "amide_8": "N(-[C:1](-S)-[C:2])-C-C",
-    "amide_9": "[N:1](-[C:2]-O)(-C)-N",
+    "amide_7": "N(-[C:1](-S)-[C:2])-C-C",
+    "amide_8": "[N:1](-[C:2]-O)(-C)-N",
     "CC": "[C:1]-[C:2]",
     "NC": "[N:1]-[C:2]",
     "OC": "[O:1]-[C:2]",
