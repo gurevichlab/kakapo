@@ -62,7 +62,7 @@ kakapo -s path/to/spectra.mgf -str path/to/structures.yaml
   Choices:
   - `all-peaks`: Total matched peaks across theoretical and experimental spectra
   - `exp-peaks`: Experimental matched peaks count
-  - `intencity`: Sum of intensities of matched peaks
+  - `intensity`: Sum of intensities of matched peaks
 
 - `--no-filters`  
   Disable default quality and preprocessing filters (`matchms`) on experimental spectra.
@@ -110,7 +110,7 @@ kakapo -s data/spectra.mgf \
        -str structures/rban_records.yaml \
        -t 0.01da \
        --mode no-mod \
-       --scoring intencity \
+       --scoring intensity \
        -f csv json \
        -o output_dir \
        -v

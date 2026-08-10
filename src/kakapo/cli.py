@@ -161,7 +161,7 @@ def create_parser() -> argparse.ArgumentParser:
         choices=[m.value for m in ScoringMode],
         default=DEFAULT_SCORING_MODE,
         help="Scoring mode to use for matching (default: all-peaks). "
-        "Choices: all-peaks, exp-peaks, intencity.",
+        "Choices: all-peaks, exp-peaks, intensity.",
     )
     parser.add_argument(
         "--num-workers",

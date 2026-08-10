@@ -821,11 +821,11 @@ class TestCliMainFunction:
         )
         assert args_all.scoring == "all-peaks"
 
-        # Test intencity mode
-        args_intencity = parser.parse_args(
-            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "intencity"]
+        # Test intensity mode
+        args_intensity = parser.parse_args(
+            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "intensity"]
         )
-        assert args_intencity.scoring == "intencity"
+        assert args_intensity.scoring == "intensity"
 
         # Test default scoring mode (should be all-peaks)
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])

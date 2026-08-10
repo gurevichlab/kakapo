@@ -4,10 +4,10 @@ Defines immutable data structures used throughout the application for type safet
 and explicit contracts between modules.
 """
 
+import uuid
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import Any
-import uuid
 
 import networkx as nx
 
@@ -28,7 +28,7 @@ class ScoringMode(str, Enum):
 
     ALL_PEAKS = "all-peaks"
     EXP_PEAKS = "exp-peaks"
-    INTENCITY = "intencity"
+    INTENSITY = "intensity"
 
 
 class ModificationMode(str, Enum):
@@ -597,9 +597,7 @@ class NerpaMSData:
 
         raw_origins = data.get("monomer_origins") or ()
         parsed_origins = [
-            orig
-            for item in raw_origins
-            if (orig := MonomerOrigin.from_dict(item)) is not None
+            orig for item in raw_origins if (orig := MonomerOrigin.from_dict(item)) is not None
         ]
 
         if rank is None and score is None and not parsed_map and not parsed_origins:
@@ -778,7 +776,6 @@ class ModificationHypothesis:
 
     updated_monomer_masses: list[float]
     modifications: tuple[MonomerModification, ...] = ()
-
 
 
 @dataclass(frozen=True, kw_only=True)
