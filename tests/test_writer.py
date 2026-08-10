@@ -530,3 +530,90 @@ class TestWriterNerpaMSDataFormatting:
         assert "Nerpa_structure" in data
         assert data["Nerpa_structure"]["nerpa_ms_data"]["rank"] == 2
         assert data["Nerpa_structure"]["nerpa_ms_data"]["score"] == 12.34
+
+
+class TestWriterDuplicateFiltering:
+    """Test duplicate result filtering behavior in writer formats."""
+
+    def _get_sample_results(self) -> list[MatchResult]:
+        # Create three results. r2 is a duplicate of r1. r3 is unique.
+        r1 = MatchResult(
+            result_id="res_1",
+            structure_id="NRP_001",
+            spectrum_id="spec_101",
+            structure_mass=800.45,
+            spectrum_mass=800.46,
+            tolerance=Tolerance(0.02),
+            matched_peaks_count=5,
+            theoretical_peaks_count=10,
+            experimental_peaks_count=15,
+            monomer_count=6,
+            unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
+            score=12.3456,
+            duplicate_representative=None,
+        )
+
+        r2 = MatchResult(
+            result_id="res_2",
+            structure_id="NRP_002",
+            spectrum_id="spec_101",
+            structure_mass=800.45,
+            spectrum_mass=800.46,
+            tolerance=Tolerance(0.02),
+            matched_peaks_count=5,
+            theoretical_peaks_count=10,
+            experimental_peaks_count=15,
+            monomer_count=6,
+            unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
+            score=12.3456,
+            duplicate_representative="res_1",
+        )
+
+        r3 = MatchResult(
+            result_id="res_3",
+            structure_id="NRP_003",
+            spectrum_id="spec_101",
+            structure_mass=800.45,
+            spectrum_mass=800.46,
+            tolerance=Tolerance(0.02),
+            matched_peaks_count=5,
+            theoretical_peaks_count=10,
+            experimental_peaks_count=15,
+            monomer_count=6,
+            unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
+            score=9.99,
+            duplicate_representative=None,
+        )
+        return [r1, r2, r3]
+
+    def test_writer_duplicate_filtering_csv(self) -> None:
+        """Verify that CSV formatting filters out duplicate results."""
+        results = self._get_sample_results()
+        csv_str = format_as_csv(results)
+        reader = csv.DictReader(csv_str.splitlines())
+        rows = list(reader)
+        assert len(rows) == 2
+        structure_ids = {row["structure_id"] for row in rows}
+        assert structure_ids == {"NRP_001", "NRP_003"}
+
+    def test_writer_duplicate_filtering_table(self) -> None:
+        """Verify that ASCII table formatting filters out duplicate results."""
+        results = self._get_sample_results()
+        table_str = format_as_table(results)
+        assert "NRP_001" in table_str
+        assert "NRP_003" in table_str
+        assert "NRP_002" not in table_str
+
+    def test_writer_duplicate_filtering_json(self) -> None:
+        """Verify that JSON formatting retains duplicate results and includes key fields."""
+        results = self._get_sample_results()
+        json_str = format_as_json(results)
+        json_data = json.loads(json_str)
+        assert len(json_data) == 3
+        json_structs = {item["structure_id"] for item in json_data}
+        assert json_structs == {"NRP_001", "NRP_002", "NRP_003"}
+
+        for item in json_data:
+            assert "result_id" in item
+            assert "duplicate_representative" in item
+            assert "post_modification_ion_masses" in item

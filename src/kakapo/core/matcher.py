@@ -3,7 +3,7 @@
 import bisect
 import itertools
 import os
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
@@ -611,6 +611,7 @@ def _evaluate_hypotheses(
     max_matched_count = 0
     best_matched_peaks: list[MatchedPeak] = []
     best_modifications: tuple[MonomerModification, ...] = ()
+    best_theory_ions: list[TheoreticalIonWithMass] = []
     found_any = False
 
     for hypothesis in hypotheses:
@@ -636,8 +637,14 @@ def _evaluate_hypotheses(
                 max_matched_count = matched_peaks_count
                 best_matched_peaks = matched_peaks
                 best_modifications = hypothesis.modifications
+                best_theory_ions = theory_ions_with_mass
 
     final_score = max_score if found_any else 0.0
+
+    if not found_any:
+        best_theory_ions = _calculate_theory_ions_with_mass(theoretical_spectrum, max_charge, ())
+
+    post_modification_ion_masses = [ion.mz for ion in best_theory_ions]
 
     return MatchResult(
         structure_id=theoretical_spectrum.structure_id,
@@ -653,6 +660,7 @@ def _evaluate_hypotheses(
         score=final_score,
         matched_peaks=best_matched_peaks,
         modifications=best_modifications,
+        post_modification_ion_masses=post_modification_ion_masses,
     )
 
 
@@ -875,6 +883,117 @@ def _filter_candidates_with_index(
     return {struct_id for struct_id, count in hits.items() if count >= min_shared_peaks}
 
 
+def _are_mass_lists_equal(masses1: list[float], masses2: list[float], tolerance: Tolerance) -> bool:
+    """Check if two sorted mass lists are equal within mass tolerance.
+
+    Args:
+        masses1: First list of sorted theoretical m/z masses.
+        masses2: Second list of sorted theoretical m/z masses.
+        tolerance: Tolerance configuration used for matching.
+
+    Returns:
+        True if all masses in both lists match within tolerance, False otherwise.
+    """
+    if len(masses1) != len(masses2):
+        return False
+    for m1, m2 in zip(masses1, masses2):
+        if not tolerance.is_within(m1, m2):
+            return False
+    return True
+
+
+def _cluster_and_update_score_group(
+    score_results: list[tuple[int, MatchResult]],
+) -> list[tuple[int, MatchResult]]:
+    """Cluster same-score results within a single spectrum and set representatives.
+
+    Args:
+        score_results: A list of tuples containing original indices and MatchResult
+            instances with matching spectrum_id and score.
+
+    Returns:
+        A list of tuples containing original indices and updated MatchResult instances
+        with duplicate_representative fields populated.
+    """
+    # Sort by representative priority key:
+    # key: (len(modifications), theoretical_peaks_count, structure_id)
+    sorted_indexed = sorted(
+        score_results,
+        key=lambda item: (
+            len(item[1].modifications),
+            item[1].theoretical_peaks_count,
+            item[1].structure_id,
+        ),
+    )
+
+    # Greedy clustering
+    groups: list[list[tuple[int, MatchResult]]] = []
+    for idx, result in sorted_indexed:
+        for group in groups:
+            # The representative is the first member of the group
+            _, representative = group[0]
+            if _are_mass_lists_equal(
+                result.post_modification_ion_masses,
+                representative.post_modification_ion_masses,
+                result.tolerance,
+            ):
+                group.append((idx, result))
+                break
+        else:
+            groups.append([(idx, result)])
+
+    # Set duplicate_representative
+    updated_results = []
+    for group in groups:
+        rep_idx, representative = group[0]
+        rep_updated = replace(representative, duplicate_representative=None)
+        updated_results.append((rep_idx, rep_updated))
+
+        for idx, m in group[1:]:
+            m_updated = replace(m, duplicate_representative=rep_updated.result_id)
+            updated_results.append((idx, m_updated))
+
+    return updated_results
+
+
+def _deduplicate_results(results: list[MatchResult]) -> list[MatchResult]:
+    """Group duplicate same-score results and set representative, preserving original order.
+
+    Priority for representative selection:
+    1. Fewer modifications.
+    2. Fewer theoretical peaks.
+    3. Lower structure ID (lexicographically).
+
+    Args:
+        results: List of MatchResult objects to deduplicate.
+
+    Returns:
+        A list of MatchResult objects with duplicate_representative set.
+    """
+
+    # Associate each result with its original index
+    indexed_results = list(enumerate(results))
+
+    # Group by spectrum_id
+    by_spec = defaultdict(list)
+    for idx, r in indexed_results:
+        by_spec[r.spectrum_id].append((idx, r))
+
+    updated_indexed_results = []
+    for spec_results in by_spec.values():
+        # Group by score
+        by_score = defaultdict(list)
+        for idx, r in spec_results:
+            by_score[r.score].append((idx, r))
+
+        for score_results in by_score.values():
+            updated_indexed_results.extend(_cluster_and_update_score_group(score_results))
+
+    # Sort back by original index to preserve original order
+    updated_indexed_results.sort(key=lambda item: item[0])
+    return [r for _, r in updated_indexed_results]
+
+
 def match_spectra(  # noqa: C901
     spectra: Iterable[Spectrum],
     theoretical_spectra: Iterable[TheoreticalSpectrum],
@@ -972,4 +1091,4 @@ def match_spectra(  # noqa: C901
         "Completed batch matching. Generated %d total MatchResult(s).",
         len(results),
     )
-    return results
+    return _deduplicate_results(results)

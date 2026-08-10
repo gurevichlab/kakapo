@@ -277,6 +277,64 @@ class TestModelsValidation:
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
         )
         assert mr.matched_peaks == []
+        assert isinstance(mr.result_id, str)
+        assert len(mr.result_id) > 0
+        assert mr.duplicate_representative is None
+        assert mr.post_modification_ion_masses == []
+
+    def test_match_result_result_id_validation(self):
+        """MatchResult validates that result_id is a string."""
+        base_args = {
+            "structure_id": "mol_1",
+            "spectrum_id": "spec_1",
+            "structure_mass": 100.0,
+            "spectrum_mass": 100.5,
+            "tolerance": Tolerance(0.01),
+            "matched_peaks_count": 5,
+            "theoretical_peaks_count": 10,
+            "experimental_peaks_count": 15,
+            "monomer_count": 3,
+            "unmodified_monomer_mass_vector": (100.0, 100.0, 100.0),
+        }
+
+        with pytest.raises(TypeError, match="result_id must be a string"):
+            MatchResult(**(base_args | {"result_id": 123}))
+
+    def test_match_result_duplicate_representative_validation(self):
+        """MatchResult validates that duplicate_representative is a string or None."""
+        base_args = {
+            "structure_id": "mol_1",
+            "spectrum_id": "spec_1",
+            "structure_mass": 100.0,
+            "spectrum_mass": 100.5,
+            "tolerance": Tolerance(0.01),
+            "matched_peaks_count": 5,
+            "theoretical_peaks_count": 10,
+            "experimental_peaks_count": 15,
+            "monomer_count": 3,
+            "unmodified_monomer_mass_vector": (100.0, 100.0, 100.0),
+        }
+
+        with pytest.raises(TypeError, match="duplicate_representative must be a string or None"):
+            MatchResult(**(base_args | {"duplicate_representative": 123}))
+
+    def test_match_result_post_modification_ion_masses_validation(self):
+        """MatchResult validates that post_modification_ion_masses is a list."""
+        base_args = {
+            "structure_id": "mol_1",
+            "spectrum_id": "spec_1",
+            "structure_mass": 100.0,
+            "spectrum_mass": 100.5,
+            "tolerance": Tolerance(0.01),
+            "matched_peaks_count": 5,
+            "theoretical_peaks_count": 10,
+            "experimental_peaks_count": 15,
+            "monomer_count": 3,
+            "unmodified_monomer_mass_vector": (100.0, 100.0, 100.0),
+        }
+
+        with pytest.raises(TypeError, match="post_modification_ion_masses must be a list"):
+            MatchResult(**(base_args | {"post_modification_ion_masses": "not a list"}))
 
     def test_match_result_negative_experimental_peaks_count(self):
         """MatchResult validates that experimental peaks count is non-negative."""

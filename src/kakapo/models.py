@@ -7,6 +7,7 @@ and explicit contracts between modules.
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import Any
+import uuid
 
 import networkx as nx
 
@@ -780,11 +781,12 @@ class ModificationHypothesis:
 
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class MatchResult:
     """Result of matching a spectrum to a molecule.
 
     Attributes:
+        result_id: Unique identifier for the match result.
         structure_id: ID of the matched molecule.
         spectrum_id: ID of the matched spectrum.
         structure_mass: Exact mass of the matched molecule.
@@ -798,8 +800,11 @@ class MatchResult:
         score: The match score calculated based on the selected scoring mode.
         matched_peaks: List of matched peaks.
         modifications: Tuple of MonomerModification instances applied to monomers.
+        post_modification_ion_masses: List of theoretical ion masses after modification.
+        duplicate_representative: ID of the representative match result for the duplicate group.
     """
 
+    result_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     structure_id: str
     spectrum_id: str
     structure_mass: float
@@ -813,6 +818,8 @@ class MatchResult:
     score: float = 0.0
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modifications: tuple[MonomerModification, ...] = ()
+    post_modification_ion_masses: list[float] = field(default_factory=list)
+    duplicate_representative: str | None = None
 
     def __post_init__(self):  # noqa: C901
         if self.structure_mass < 0:
@@ -841,3 +848,11 @@ class MatchResult:
             raise TypeError("modifications must be a tuple")
         if any(not isinstance(m, MonomerModification) for m in self.modifications):
             raise TypeError("All items in modifications must be MonomerModification instances")
+        if not isinstance(self.result_id, str):
+            raise TypeError("result_id must be a string")
+        if self.duplicate_representative is not None and not isinstance(
+            self.duplicate_representative, str
+        ):
+            raise TypeError("duplicate_representative must be a string or None")
+        if not isinstance(self.post_modification_ion_masses, list):
+            raise TypeError("post_modification_ion_masses must be a list")

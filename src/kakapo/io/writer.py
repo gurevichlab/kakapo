@@ -34,6 +34,15 @@ def _format_modifications_str(modifications: tuple) -> str:
     return "; ".join(parts)
 
 
+def _filter_duplicates(results: list[MatchResult]) -> list[MatchResult]:
+    """Filter out duplicate same-score results that are not representatives."""
+    return [
+        r
+        for r in results
+        if r.duplicate_representative is None or r.duplicate_representative == r.result_id
+    ]
+
+
 def format_as_csv(
     results: list[MatchResult],
     molecules: Optional[dict[str, Molecule]] = None,
@@ -47,6 +56,7 @@ def format_as_csv(
     Returns:
         A standard RFC 4180 compliant CSV string representation.
     """
+    results = _filter_duplicates(results)
     logger.debug("Formatting %d match results as CSV", len(results))
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
@@ -112,6 +122,7 @@ def format_as_table(
     Returns:
         A string containing the pretty-printed table.
     """
+    results = _filter_duplicates(results)
     logger.debug("Formatting %d match results as ASCII table", len(results))
 
     headers = [
@@ -233,6 +244,7 @@ def format_as_json(
 
         serialized.append(
             {
+                "result_id": r.result_id,
                 "structure_id": r.structure_id,
                 "spectrum_id": r.spectrum_id,
                 "structure_mass": round(r.structure_mass, 5),
@@ -249,6 +261,8 @@ def format_as_json(
                 "nerpa_score": nerpa_score_val,
                 "nerpa_rank": nerpa_rank_val,
                 "nerpa_modifications_count": nerpa_mods_val,
+                "duplicate_representative": r.duplicate_representative,
+                "post_modification_ion_masses": r.post_modification_ion_masses,
             }
         )
 
