@@ -815,21 +815,15 @@ class TestCliMainFunction:
         )
         assert args_exp.scoring == "exp-peaks"
 
-        # Test all-peaks mode
-        args_all = parser.parse_args(
-            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "all-peaks"]
-        )
-        assert args_all.scoring == "all-peaks"
-
         # Test intensity mode
         args_intensity = parser.parse_args(
             ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "intensity"]
         )
         assert args_intensity.scoring == "intensity"
 
-        # Test default scoring mode (should be all-peaks)
+        # Test default scoring mode (should be exp-peaks)
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
-        assert args_default.scoring == "all-peaks"
+        assert args_default.scoring == "exp-peaks"
 
         # Test invalid scoring mode raises SystemExit
         with pytest.raises(SystemExit):

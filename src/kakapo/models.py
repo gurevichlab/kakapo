@@ -26,7 +26,6 @@ class Chirality(Enum):
 class ScoringMode(str, Enum):
     """Scoring modes for matching experimental spectra."""
 
-    ALL_PEAKS = "all-peaks"
     EXP_PEAKS = "exp-peaks"
     INTENSITY = "intensity"
 

@@ -83,7 +83,7 @@ class TestSpectrumMatcherScoring:
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == 3
 
@@ -96,7 +96,7 @@ class TestSpectrumMatcherScoring:
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.03), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.03), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == 2
 
@@ -109,7 +109,7 @@ class TestSpectrumMatcherScoring:
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.005), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.005), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == 0
 
@@ -121,7 +121,7 @@ class TestSpectrumMatcherScoring:
         theo = make_theoretical_spectrum(
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
-        result = match_spectrum(spec, theo, tolerance=Tolerance(0.1), scoring=ScoringMode.ALL_PEAKS)
+        result = match_spectrum(spec, theo, tolerance=Tolerance(0.1), scoring=ScoringMode.EXP_PEAKS)
         assert result.matched_peaks_count == 0
 
     def test_greedy_matching_unique_peaks(self):
@@ -136,7 +136,7 @@ class TestSpectrumMatcherScoring:
 
         # Only 1 match should occur because there is only 1 experimental peak
         result1 = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.05), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.05), scoring=ScoringMode.EXP_PEAKS
         )
         assert result1.matched_peaks_count == 1
 
@@ -146,7 +146,7 @@ class TestSpectrumMatcherScoring:
 
         # Only 1 match should occur because there is only 1 theoretical ion
         result2 = match_spectrum(
-            spec2, theo2, tolerance=Tolerance(0.05), scoring=ScoringMode.ALL_PEAKS
+            spec2, theo2, tolerance=Tolerance(0.05), scoring=ScoringMode.EXP_PEAKS
         )
         assert result2.matched_peaks_count == 1
 
@@ -162,7 +162,7 @@ class TestSpectrumMatcherScoring:
         # 100.0 matches 100.01 (first)
         # 100.04 matches 100.05 (remaining)
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == 2
 
@@ -176,7 +176,7 @@ class TestSpectrumMatcherScoring:
         )
 
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == 2
         assert result.experimental_peaks_count == 3
@@ -207,7 +207,7 @@ class TestSpectrumMatcherScoring:
         theo = make_theoretical_spectrum([198.0], structure_mass=500.0, monomer_count=1)
         spec = make_spectrum([(100.007276, 1.0)], precursor_mass=500.0, charge=spec_charge)
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == expected_count
         if expected_count > 0:
@@ -218,7 +218,7 @@ class TestSpectrumMatcherScoring:
         theo = make_theoretical_spectrum([198.0, 298.0], structure_mass=500.0, monomer_count=2)
         spec = make_spectrum([(199.007276, 1.0), (150.007276, 1.0)], precursor_mass=500.0, charge=2)
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
 
         assert result.matched_peaks_count == 2
@@ -237,7 +237,7 @@ class TestSpectrumMatcherScoring:
         assert sorted_matched[1].experimental_mz == pytest.approx(150.007276)
 
     def test_scoring_modes(self):
-        """Test all-peaks and exp-peaks scoring modes."""
+        """Test exp-peaks scoring mode ensures each experimental peak is matched at most once."""
         # Create a spectrum with a single peak at 100.0, max charge 2
         spec = make_spectrum(
             [(100.0, 1.0)],
@@ -287,21 +287,70 @@ class TestSpectrumMatcherScoring:
             monomers=monomers,
         )
 
-        # 1. Test "all-peaks" mode (default)
-        res_all = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.ALL_PEAKS
-        )
-        assert res_all.matched_peaks_count == 2
-        assert len(res_all.matched_peaks) == 2
-        assert res_all.score == 2
-
-        # 2. Test "exp-peaks" mode
         res_exp = match_spectrum(
             spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
-        assert res_exp.matched_peaks_count == 2
-        assert len(res_exp.matched_peaks) == 2
+        assert res_exp.matched_peaks_count == 1
+        assert len(res_exp.matched_peaks) == 1
         assert res_exp.score == 1
+
+    def test_greedy_matching_different_charges(self):
+        """Verify that theoretical ions of different charges match different experimental peaks when available."""
+        # Experimental peaks at 100.0 and 100.04
+        spec = make_spectrum([(100.0, 1.0), (100.04, 1.0)], precursor_mass=250.0, charge=2)
+        # Theoretical ions:
+        # Ion 1: mz = 100.01 (charge 1) -> within tolerance of 100.0 (diff 0.01) and 100.04 (diff 0.03)
+        # Ion 2: mz = 100.03 (charge 2) -> within tolerance of 100.0 (diff 0.03) and 100.04 (diff 0.01)
+        # With tolerance 0.02, both ions are within tolerance of both peaks!
+        # Because we match sequentially:
+        # Ion 1 matches 100.0. Index becomes 1.
+        # Ion 2 matches 100.04 (index 1).
+        # Both should match!
+
+        ions = frozenset(
+            [
+                TheoreticalIon(
+                    fragment_id="frag_1",
+                    mask=1,
+                    rules_shifts=(RuleShift("TEST", 100.01 - PROTON_MASS - 125.0),),
+                ),
+                TheoreticalIon(
+                    fragment_id="frag_2",
+                    mask=2,
+                    rules_shifts=(RuleShift("TEST", 200.06 - 2 * PROTON_MASS - 125.0),),
+                ),
+            ]
+        )
+        monomers = {
+            0: Monomer(
+                norine_name="Mon_0",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=125.0,
+            ),
+            1: Monomer(
+                norine_name="Mon_1",
+                residue="X",
+                is_methylated=False,
+                chirality=Chirality.L,
+                mass=125.0,
+            ),
+        }
+        theo = TheoreticalSpectrum(
+            structure_id="struct_test",
+            ions=ions,
+            structure_mass=250.0,
+            monomer_count=2,
+            monomer_mass_vector=(125.0, 125.0),
+            monomers=monomers,
+        )
+
+        res = match_spectrum(spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS)
+        assert res.matched_peaks_count == 2
+        assert len(res.matched_peaks) == 2
+        assert res.matched_peaks[0].experimental_mz == 100.0
+        assert res.matched_peaks[1].experimental_mz == 100.04
 
     def test_ppm_tolerance_matching(self):
         """Test matching using ppm relative tolerance."""
@@ -317,7 +366,7 @@ class TestSpectrumMatcherScoring:
 
         # PPM tolerance = 20.0, min_tolerance = 0.0001 (so ppm limit 0.002 takes precedence)
         tol_ppm = Tolerance(value=20.0, unit="ppm", min_tolerance=0.0001)
-        res1 = match_spectrum(spec1, theo1, tolerance=tol_ppm, scoring=ScoringMode.ALL_PEAKS)
+        res1 = match_spectrum(spec1, theo1, tolerance=tol_ppm, scoring=ScoringMode.EXP_PEAKS)
         assert res1.matched_peaks_count == 1
 
         # Test case 2: peak outside ppm window but within min_tolerance
@@ -327,13 +376,13 @@ class TestSpectrumMatcherScoring:
 
         tol_ppm_low_min = Tolerance(value=20.0, unit="ppm", min_tolerance=0.001)
         res2_fail = match_spectrum(
-            spec2, theo1, tolerance=tol_ppm_low_min, scoring=ScoringMode.ALL_PEAKS
+            spec2, theo1, tolerance=tol_ppm_low_min, scoring=ScoringMode.EXP_PEAKS
         )
         assert res2_fail.matched_peaks_count == 0
 
         tol_ppm_high_min = Tolerance(value=20.0, unit="ppm", min_tolerance=0.01)
         res2_pass = match_spectrum(
-            spec2, theo1, tolerance=tol_ppm_high_min, scoring=ScoringMode.ALL_PEAKS
+            spec2, theo1, tolerance=tol_ppm_high_min, scoring=ScoringMode.EXP_PEAKS
         )
         assert res2_pass.matched_peaks_count == 1
 

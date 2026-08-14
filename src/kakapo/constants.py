@@ -80,7 +80,7 @@ DEFAULT_RULES = (
     FragmentationRule("amide_8", H_MASS, -H_MASS),
     FragmentationRule("NC", H_MASS, -H_MASS),
     FragmentationRule("OC", H_MASS, -H_MASS),
-    FragmentationRule("CC", 0, 0),
+    FragmentationRule("CC", H_MASS, -H_MASS),
 )
 
 

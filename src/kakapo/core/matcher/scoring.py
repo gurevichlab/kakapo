@@ -35,16 +35,15 @@ def _match_peaks(
     matched_peaks_count = 0
     matched_peaks: list[MatchedPeak] = []
 
-    exp_idx_map = dict.fromkeys(range(1, max_charge + 1), 0)
+    exp_idx = 0
 
     for ion in theory_ions_with_mass:
         mz = ion.mz
         charge = ion.charge
 
-        if charge not in exp_idx_map:
+        if charge > max_charge:
             continue
 
-        exp_idx = exp_idx_map[charge]
         tol = tolerance.get_limit(mz)
         min_mass = mz - tol
         max_mass = mz + tol
@@ -71,9 +70,9 @@ def _match_peaks(
                 charge,
                 peak.mass,
             )
-            exp_idx_map[charge] = cand_idx + 1
+            exp_idx = cand_idx + 1
         elif left_idx > exp_idx:
-            exp_idx_map[charge] = left_idx
+            exp_idx = left_idx
 
     return matched_peaks_count, matched_peaks
 
@@ -217,6 +216,4 @@ def _get_matched_peaks_count(
     matched_peaks_count: int,
 ) -> int:
     """Calculate match score based on the selected scoring mode."""
-    if scoring == ScoringMode.EXP_PEAKS:
-        return len({mp.experimental_mz for mp in matched_peaks})
     return matched_peaks_count

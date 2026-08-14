@@ -92,7 +92,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec1, spec2],
             [theo1, theo2],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
 
@@ -120,7 +120,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
 
@@ -136,15 +136,15 @@ class TestSpectrumMatcherOrchestrator:
         theo = make_theoretical_spectrum([100.0 - 1.007276], structure_mass=500.0, monomer_count=1)
 
         assert (
-            len(match_spectra([], [theo], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            len(match_spectra([], [theo], tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS))
             == 0
         )
         assert (
-            len(match_spectra([spec], [], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            len(match_spectra([spec], [], tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS))
             == 0
         )
         assert (
-            len(match_spectra([], [], tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS))
+            len(match_spectra([], [], tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS))
             == 0
         )
 
@@ -174,7 +174,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
         if expected_match:
@@ -199,7 +199,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
         assert len(results) == 0
@@ -222,7 +222,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
         assert len(results) == 0
@@ -278,7 +278,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
         assert len(results) == 1
@@ -307,7 +307,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=1,
         )
         assert len(results_1) == 1
@@ -318,7 +318,7 @@ class TestSpectrumMatcherOrchestrator:
             [spec],
             [theo],
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             min_shared_peaks=2,
         )
         assert len(results_2) == 0

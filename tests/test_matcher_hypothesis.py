@@ -158,7 +158,7 @@ class TestSpectrumMatcherHypothesis:
 
         spec = make_spectrum(peaks, precursor_mass=precursor_mass, charge=1)
         result = match_spectrum(
-            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.ALL_PEAKS
+            spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
         assert result.matched_peaks_count == expected_matched
         if expected_idx is None:
@@ -233,7 +233,7 @@ class TestSpectrumMatcherHypothesis:
             spec_ala,
             theo,
             tolerance=Tolerance(0.02),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.FREE_MOD,
         )
         assert res_normal.matched_peaks_count == 1
@@ -246,7 +246,7 @@ class TestSpectrumMatcherHypothesis:
             spec_ala,
             theo,
             tolerance=Tolerance(0.02),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.X_MOD,
         )
         assert res_x.matched_peaks_count == 0
@@ -286,7 +286,7 @@ class TestSpectrumMatcherHypothesis:
             spec,
             theo,
             tolerance=Tolerance(0.02),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.NO_MOD,
         )
         assert res_no_mod.matched_peaks_count == 0
@@ -296,7 +296,7 @@ class TestSpectrumMatcherHypothesis:
             spec,
             theo,
             tolerance=Tolerance(0.02),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.FREE_MOD,
         )
         assert res_free_mod.matched_peaks_count == 1
@@ -366,7 +366,7 @@ class TestSpectrumMatcherHypothesis:
             spec,
             theo,
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.TWO_MOD,
         )
 
@@ -429,7 +429,7 @@ class TestSpectrumMatcherHypothesis:
             spec,
             theo,
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.TWO_MOD,
         )
 
@@ -485,7 +485,7 @@ class TestSpectrumMatcherHypothesis:
             spec,
             theo,
             tolerance=Tolerance(0.01),
-            scoring=ScoringMode.ALL_PEAKS,
+            scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.TWO_MOD,
         )
 
