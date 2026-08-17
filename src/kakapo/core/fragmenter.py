@@ -1,14 +1,22 @@
 """Theoretical fragment generation from rBAN structures.
 
 This module implements the core fragmentation logic for generating theoretical
-mass spectra from rBAN molecules. It handles:
-- Breaking molecular graphs at bridge bonds (single cuts)
-- Enumerating 2-cut combinations in cyclic regions
-- Calculating fragment masses from monomer totals
-- Generating theoretical ions ([M+H]+, [M-H]-, neutral fragments)
+ions from molecules. It handles:
+- Building fragmentation graphs and identifying breakable bonds based on rules.
+- Cleaving bridge bonds (1-cuts) in the molecular graph.
+- Cleaving pairs of bonds (2-cuts) in cyclic regions of the molecular graph.
+- Calculating rule-based mass shifts from bond cleavages for each fragment.
+- Creating theoretical ions (TheoreticalIon) with monomer masks and mass shifts.
+- Constructing theoretical spectra (TheoreticalSpectrum) containing the generated ions.
+
+Note:
+    Specific charge states and adducts (e.g., [M+H]+) are not generated directly in this
+    module; instead, this module produces base theoretical ions (TheoreticalIon) with
+    cleavage mass shifts. Adduct/charge state calculation is handled during spectrum
+    construction and indexing.
 
 Key algorithm: Graph-theoretic approach using bridge detection (for linear parts)
-and 2-cut enumeration (for cyclic parts).
+and 2-cut enumeration (for cyclic parts) based on optimal XOR-hashing.
 """
 
 from dataclasses import dataclass, replace
