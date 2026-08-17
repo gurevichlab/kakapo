@@ -45,6 +45,7 @@ def _generate_single_mod_hypotheses(
     theoretical_spectrum: TheoreticalSpectrum,
     mass_mod: float,
     x_mode_only: bool,
+    tolerance: Tolerance,
 ) -> Iterator[ModificationHypothesis]:
     """Generate candidate hypotheses for single-modification matching.
 
@@ -54,6 +55,7 @@ def _generate_single_mod_hypotheses(
         theoretical_spectrum: The TheoreticalSpectrum representing the base structure.
         mass_mod: The total mass difference to apply to a monomer.
         x_mode_only: If True, only allow modifications on monomers starting with 'X'.
+        tolerance: The tolerance configuration allowed for a match.
 
     Yields:
         ModificationHypothesis instances for each valid single modification candidate.
@@ -68,7 +70,7 @@ def _generate_single_mod_hypotheses(
 
         updated_masses = list(monomer_masses)
         updated_masses[i] += mass_mod
-        if updated_masses[i] < 0:
+        if updated_masses[i] < -tolerance.get_limit(monomer_masses[i]):
             continue
 
         mod = MonomerModification(
@@ -85,6 +87,7 @@ def _generate_single_mod_hypotheses(
 def _generate_two_mod_hypotheses(
     theoretical_spectrum: TheoreticalSpectrum,
     mass_mod: float,
+    tolerance: Tolerance,
 ) -> Iterator[ModificationHypothesis]:
     """Generate candidate hypotheses for two-modification matching (known mod + residual on X).
 
@@ -94,6 +97,7 @@ def _generate_two_mod_hypotheses(
     Args:
         theoretical_spectrum: The TheoreticalSpectrum representing the base structure.
         mass_mod: The total precursor mass difference to distribute between two modifications.
+        tolerance: The tolerance configuration allowed for a match.
 
     Yields:
         ModificationHypothesis instances for each valid two-modification candidate.
@@ -119,7 +123,9 @@ def _generate_two_mod_hypotheses(
                 updated_masses[j] += known_mod_mass
                 updated_masses[k] += residual_mass
 
-                if updated_masses[j] < 0 or updated_masses[k] < 0:
+                tol_j = tolerance.get_limit(monomer_masses[j])
+                tol_k = tolerance.get_limit(monomer_masses[k])
+                if updated_masses[j] < -tol_j or updated_masses[k] < -tol_k:
                     continue
 
                 new_name_1 = (

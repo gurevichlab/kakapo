@@ -124,6 +124,15 @@ class TestSpectrumMatcherHypothesis:
                 -20.0,
                 1,
             ),
+            # Non-positive monomer NOT skipped if within tolerance (monomer 0 becomes 0.005 - 0.012 = -0.007 >= -0.01)
+            (
+                (0.005, 150.0),
+                149.993,
+                [(150.0 + 1.007276, 1.0), (149.993 + 1.007276, 1.0)],
+                2,
+                -0.012,
+                0,
+            ),
         ],
     )
     def test_modification_tolerant_matching_scenarios(

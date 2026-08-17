@@ -179,16 +179,18 @@ def match_spectrum(
         hypotheses = ()
     elif mode == ModificationMode.FREE_MOD:
         hypotheses = _generate_single_mod_hypotheses(
-            theoretical_spectrum, mass_mod, x_mode_only=False
+            theoretical_spectrum, mass_mod, x_mode_only=False, tolerance=tolerance
         )
     elif mode == ModificationMode.X_MOD:
         hypotheses = _generate_single_mod_hypotheses(
-            theoretical_spectrum, mass_mod, x_mode_only=True
+            theoretical_spectrum, mass_mod, x_mode_only=True, tolerance=tolerance
         )
     elif mode == ModificationMode.TWO_MOD:
         hypotheses = itertools.chain(
-            _generate_single_mod_hypotheses(theoretical_spectrum, mass_mod, x_mode_only=True),
-            _generate_two_mod_hypotheses(theoretical_spectrum, mass_mod),
+            _generate_single_mod_hypotheses(
+                theoretical_spectrum, mass_mod, x_mode_only=True, tolerance=tolerance
+            ),
+            _generate_two_mod_hypotheses(theoretical_spectrum, mass_mod, tolerance=tolerance),
         )
     else:
         raise ValueError(f"Unsupported modification mode: {mode}")
