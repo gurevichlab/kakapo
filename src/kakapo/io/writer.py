@@ -389,6 +389,7 @@ def _serialize_molecule(mol: Molecule) -> dict:
         if mol.metadata
         else None,
         "nerpa_ms_data": mol.nerpa_ms_data.to_dict() if mol.nerpa_ms_data else None,
+        "duplicated_structure_ids": list(mol.duplicated_structure_ids),
     }
 
 

@@ -366,6 +366,7 @@ class TestWriterWriteStructures:
             structure_id="Ala_structure",
             monomers={0: monomer},
             bonds=(),
+            duplicated_structure_ids=("Ala_structure_dup1", "Ala_structure_dup2"),
         )
 
         # Case 1: output_path is a directory
@@ -377,6 +378,10 @@ class TestWriterWriteStructures:
         assert "Ala_structure" in data
         assert "structure_id" not in data["Ala_structure"]
         assert data["Ala_structure"]["input_compound_id"] == "Ala_structure"
+        assert data["Ala_structure"]["duplicated_structure_ids"] == [
+            "Ala_structure_dup1",
+            "Ala_structure_dup2",
+        ]
 
     def test_write_structures_to_file_path(self, tmp_path: Path) -> None:
         """Test writing structures when output_path is a specific file path."""
