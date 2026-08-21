@@ -5,7 +5,10 @@ from pathlib import Path
 from matchms import filtering as msfilters
 
 from kakapo.constants import DEFAULT_RULES
-from kakapo.utils import remove_peaks_relative_to_precursor_mz_charge_aware
+from kakapo.utils import (
+    keep_highest_intensity_in_radius,
+    remove_peaks_relative_to_precursor_mz_charge_aware,
+)
 
 DEFAULT_OUTPUT_DIR = Path("kakapo_output")
 DEFAULT_APPLY_FILTERS = True
@@ -25,6 +28,7 @@ MIN_SPECTRA_FOR_PARALLEL = 5
 DEFAULT_FILTERS = [
     (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),
     remove_peaks_relative_to_precursor_mz_charge_aware,
+    (keep_highest_intensity_in_radius, {"radius": 0.025}),
     (msfilters.reduce_to_number_of_peaks, {"n_max": 1000}),
     (msfilters.require_minimum_number_of_high_peaks, {"no_peaks": 5, "intensity_percent": 2.0}),
 ]

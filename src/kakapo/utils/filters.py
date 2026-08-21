@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+import numpy as np
 from matchms import Fragments, Spectrum
 
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
@@ -52,6 +53,56 @@ def remove_peaks_relative_to_precursor_mz_charge_aware(
 
     mzs, intensities = spectrum.peaks.mz, spectrum.peaks.intensities
     peaks_to_keep = mzs <= cutoff_mz
+    spectrum.peaks = Fragments(mz=mzs[peaks_to_keep], intensities=intensities[peaks_to_keep])
+
+    return spectrum
+
+
+def keep_highest_intensity_in_radius(
+    spectrum_in: Optional[Spectrum],
+    radius: float = 0.02,
+    clone: Optional[bool] = True,
+) -> Optional[Spectrum]:
+    """Keep a peak only if it has the highest intensity in its radius window.
+
+    For each peak at m/z_i, the radius window is defined as [m/z_i - radius, m/z_i + radius].
+    A peak is kept if its intensity is greater than or equal to the intensity of all other
+    peaks in this window.
+
+    Args:
+        spectrum_in: The input matchms Spectrum object.
+        radius: The window radius (in Da) around each peak. Default is 0.02 Da.
+        clone: Whether to clone the input spectrum.
+
+    Returns:
+        The filtered matchms Spectrum object, or None if the input is None.
+
+    Raises:
+        ValueError: If radius is less than or equal to zero.
+    """
+    if spectrum_in is None:
+        return None
+
+    if radius <= 0:
+        raise ValueError("Radius must be a positive number.")
+
+    spectrum = spectrum_in.clone() if clone else spectrum_in
+
+    if len(spectrum.peaks) == 0:
+        return spectrum
+
+    mzs, intensities = spectrum.peaks.mz, spectrum.peaks.intensities
+
+    # Find the range of peak indices within the window [m/z - radius, m/z + radius]
+    left_indices = np.searchsorted(mzs, mzs - radius, side="left")
+    right_indices = np.searchsorted(mzs, mzs + radius, side="right")
+
+    peaks_to_keep = np.zeros(len(mzs), dtype=bool)
+    for i in range(len(mzs)):
+        window_intensities = intensities[left_indices[i] : right_indices[i]]
+        if intensities[i] == np.max(window_intensities):
+            peaks_to_keep[i] = True
+
     spectrum.peaks = Fragments(mz=mzs[peaks_to_keep], intensities=intensities[peaks_to_keep])
 
     return spectrum
