@@ -83,8 +83,8 @@ class TestSpectrumMatcherDeduplication:
 
         # Since r1 and r2 are duplicates:
         # One is representative (duplicate_representative is None), the other points to it.
-        # Priority for representative: modifications, theoretical_peaks_count, structure_id.
-        # Both have 0 modifications and 10 theoretical peaks.
+        # Priority for representative: modifications, structure_id.
+        # Both have 0 modifications.
         # "struct_1" < "struct_2", so r1 must be the representative!
         assert deduped_map["struct_1"].duplicate_representative is None
         assert deduped_map["struct_2"].duplicate_representative == deduped_map["struct_1"].result_id
@@ -94,14 +94,14 @@ class TestSpectrumMatcherDeduplication:
         assert deduped_map["struct_4"].duplicate_representative is None
 
     def test_deduplicate_results_priority(self) -> None:
-        """Verify representative selection priority: modifications, theoretical peaks, structure_id."""
+        """Verify representative selection priority: modifications, structure_id."""
         # All have same score, same spectrum, same masses.
         # r1: 1 modification
-        # r2: 0 modifications, 15 theoretical peaks
-        # r3: 0 modifications, 10 theoretical peaks, structure_id="struct_B"
-        # r4: 0 modifications, 10 theoretical peaks, structure_id="struct_A"
+        # r2: 0 modifications, structure_id="struct_2"
+        # r3: 0 modifications, structure_id="struct_B"
+        # r4: 0 modifications, structure_id="struct_A"
 
-        # We expect representative to be r4 (0 mods, 10 peaks, "struct_A").
+        # We expect representative to be r4 (0 mods, "struct_A").
 
         common_args = {
             "spectrum_id": "spec_1",
@@ -124,7 +124,7 @@ class TestSpectrumMatcherDeduplication:
             structure_id="struct_1", modifications=(mod,), theoretical_peaks_count=10, **common_args
         )
         r2 = MatchResult(
-            structure_id="struct_2", modifications=(), theoretical_peaks_count=15, **common_args
+            structure_id="struct_C", modifications=(), theoretical_peaks_count=15, **common_args
         )
         r3 = MatchResult(
             structure_id="struct_B", modifications=(), theoretical_peaks_count=10, **common_args
@@ -143,5 +143,5 @@ class TestSpectrumMatcherDeduplication:
         # others must point to r4
         rep_id = deduped_map["struct_A"].result_id
         assert deduped_map["struct_1"].duplicate_representative == rep_id
-        assert deduped_map["struct_2"].duplicate_representative == rep_id
+        assert deduped_map["struct_C"].duplicate_representative == rep_id
         assert deduped_map["struct_B"].duplicate_representative == rep_id

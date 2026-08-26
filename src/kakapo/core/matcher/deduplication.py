@@ -39,12 +39,11 @@ def _cluster_and_update_score_group(
         with duplicate_representative fields populated.
     """
     # Sort by representative priority key:
-    # key: (len(modifications), theoretical_peaks_count, structure_id)
+    # key: (len(modifications), structure_id)
     sorted_indexed = sorted(
         score_results,
         key=lambda item: (
             len(item[1].modifications),
-            item[1].theoretical_peaks_count,
             item[1].structure_id,
         ),
     )
@@ -84,8 +83,7 @@ def _deduplicate_results(results: list[MatchResult]) -> list[MatchResult]:
 
     Priority for representative selection:
     1. Fewer modifications.
-    2. Fewer theoretical peaks.
-    3. Lower structure ID (lexicographically).
+    2. Lower structure ID (lexicographically).
 
     Args:
         results: List of MatchResult objects to deduplicate.
