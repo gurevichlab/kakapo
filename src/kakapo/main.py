@@ -124,11 +124,10 @@ def run_pipeline(  # noqa: C901
     )
     duration_load_spectra = time.perf_counter() - start_load_spectra
     logger.info(
-        "Loaded %d experimental spectra in %.4f seconds",
+        "Successfully loaded %d experimental spectra in %.4f seconds",
         len(spectra),
         duration_load_spectra,
     )
-    logger.info("Successfully loaded %d experimental spectra", len(spectra))
 
     # 2. Load and parse structures
     logger.info("Loading structures from %d file(s)", len(struct_paths))
@@ -145,11 +144,10 @@ def run_pipeline(  # noqa: C901
 
     duration_load_structures = time.perf_counter() - start_load_structures
     logger.info(
-        "Loaded %d structures in %.4f seconds",
+        "Successfully loaded %d structures in %.4f seconds",
         len(molecules),
         duration_load_structures,
     )
-    logger.info("Successfully loaded %d structures", len(molecules))
 
     # Use default fragmentation rules if none provided
     frag_rules = rules if rules is not None else DEFAULT_RULES
@@ -201,5 +199,4 @@ def run_pipeline(  # noqa: C901
         duration_sort,
     )
 
-    logger.info("Pipeline execution complete")
     return results, list(molecules.values()), spectra

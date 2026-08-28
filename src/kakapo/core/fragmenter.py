@@ -239,7 +239,7 @@ def generate_fragments(
         >>> fragments = generate_fragments(mol)
         >>> print(f"Generated {len(fragments)} fragments")
     """
-    logger.info("Generating fragments for molecule '%s'", molecule.structure_id)
+    logger.debug("Generating fragments for molecule '%s'", molecule.structure_id)
     graph = FragmentationGraph(molecule, rules=rules)
 
     if len(molecule.monomers) == 1:
@@ -270,7 +270,7 @@ def generate_fragments(
     for idx, fragment in enumerate(fragments):
         final_fragments.append(replace(fragment, fragment_id=f"frag_{idx}"))
 
-    logger.info(
+    logger.debug(
         "Generated %d theoretical fragments for molecule '%s'",
         len(final_fragments),
         molecule.structure_id,

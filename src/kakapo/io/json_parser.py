@@ -741,7 +741,6 @@ def parse_nerpa_json_batch(  # noqa: C901
     molecules = {}
     id_counts = {}
     errors = []
-    logger.info("Parsing batch of JSON file(s)...")
 
     for path in json_paths:
         json_path = Path(path)
@@ -816,5 +815,4 @@ def parse_nerpa_json_batch(  # noqa: C901
         )
 
     molecules = _deduplicate_molecules(molecules)
-    logger.info("Completed batch load. Loaded %d total molecules.", len(molecules))
     return molecules

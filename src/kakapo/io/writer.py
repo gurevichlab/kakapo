@@ -290,7 +290,7 @@ def write_results(
         ValueError: If an unsupported format_type is provided.
         OSError: If writing to the file fails.
     """
-    logger.info(
+    logger.debug(
         "Writing %d results to %s with format '%s'",
         len(results),
         output_path if output_path is not None else "stdout",
@@ -324,7 +324,7 @@ def write_results(
         try:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(formatted_content, encoding="utf-8")
-            logger.info("Successfully wrote results to %s", file_path)
+            logger.info("Successfully wrote %d results to %s", len(results), file_path)
         except OSError as e:
             logger.error("Failed to write results to %s: %s", file_path, e)
             raise
@@ -419,14 +419,14 @@ def write_structures(
     else:
         structures_path = path.parent / "structures.json"
 
-    logger.info("Writing %d structures to %s", len(molecules), structures_path)
+    logger.debug("Writing %d structures to %s", len(molecules), structures_path)
 
     serialized_data = {mol.structure_id: _serialize_molecule(mol) for mol in molecules}
 
     try:
         structures_path.parent.mkdir(parents=True, exist_ok=True)
         structures_path.write_text(json.dumps(serialized_data, indent=2), encoding="utf-8")
-        logger.info("Successfully wrote structures to %s", structures_path)
+        logger.info("Successfully wrote %d structures to %s", len(molecules), structures_path)
     except OSError as e:
         logger.error("Failed to write structures to %s: %s", structures_path, e)
         raise
@@ -467,14 +467,14 @@ def write_spectra(
     else:
         spectra_path = path.parent / "spectra.json"
 
-    logger.info("Writing %d spectra to %s", len(spectra), spectra_path)
+    logger.debug("Writing %d spectra to %s", len(spectra), spectra_path)
 
     serialized_data = {spec.spectrum_id: serialize_spectrum(spec) for spec in spectra}
 
     try:
         spectra_path.parent.mkdir(parents=True, exist_ok=True)
         spectra_path.write_text(json.dumps(serialized_data, indent=2), encoding="utf-8")
-        logger.info("Successfully wrote spectra to %s", spectra_path)
+        logger.info("Successfully wrote %d spectra to %s", len(spectra), spectra_path)
     except OSError as e:
         logger.error("Failed to write spectra to %s: %s", spectra_path, e)
         raise

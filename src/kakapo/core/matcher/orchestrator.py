@@ -231,7 +231,7 @@ def match_spectra(  # noqa: C901
     Returns:
         A list of MatchResult instances for all pairwise matches.
     """
-    logger.info("Starting batch matching (cross-matching spectra)...")
+    logger.debug("Starting batch matching (cross-matching spectra)...")
     spectra_list = list(spectra)
     theo_list = [theo for theo in theoretical_spectra if theo.monomer_count > 1]
     logger.debug(
@@ -285,7 +285,7 @@ def match_spectra(  # noqa: C901
                         if result.matched_peaks_count >= min_shared_peaks:
                             results.append(result)
     else:
-        logger.info("Running matching in parallel using %d workers", num_workers)
+        logger.debug("Running matching in parallel using %d workers", num_workers)
         # Determine chunk size to balance task distribution and scheduling overhead
         chunk_size = max(1, len(spectra_list) // (num_workers * 4))
         chunks = [spectra_list[i : i + chunk_size] for i in range(0, len(spectra_list), chunk_size)]
@@ -300,7 +300,7 @@ def match_spectra(  # noqa: C901
             for chunk_res in executor.map(_match_spectra_chunk, chunks):
                 results.extend(chunk_res)
 
-    logger.info(
+    logger.debug(
         "Completed batch matching. Generated %d total MatchResult(s).",
         len(results),
     )

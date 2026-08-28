@@ -219,7 +219,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--verbose",
         "-v",
         action="count",
-        default=0,
+        default=1,
         help="Increase logging verbosity (can be specified multiple times, e.g. -v, -vv).",
     )
 
@@ -399,8 +399,7 @@ def main(args: Optional[list[str]] = None) -> int:
         return 1
 
     total_duration = time.perf_counter() - start_total
-    logger.info("CLI execution completed in %.4f seconds", total_duration)
-    logger.info("CLI execution completed successfully")
+    logger.info("CLI execution completed successfully in %.4f seconds", total_duration)
     return 0
 
 
