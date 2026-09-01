@@ -435,7 +435,7 @@ class TestCliMainFunction:
         ]
         exit_code = main(args)
         assert exit_code == 0
-        mock_setup_logging.assert_called_once_with(verbosity=0, log_file=log_file)
+        mock_setup_logging.assert_called_once_with(verbosity=1, log_file=log_file)
         mock_write_results.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv", format_type="csv", molecules=[]
         )
@@ -475,7 +475,7 @@ class TestCliMainFunction:
         ]
         exit_code = main(args_dir)
         assert exit_code == 0
-        mock_setup_logging.assert_called_with(verbosity=0, log_file=out_dir / "kakapo.log")
+        mock_setup_logging.assert_called_with(verbosity=1, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with(
             [], output_path=out_dir / "results.csv", format_type="csv", molecules=[]
         )
@@ -512,7 +512,7 @@ class TestCliMainFunction:
         ]
         exit_code = main(args_file)
         assert exit_code == 0
-        mock_setup_logging.assert_called_with(verbosity=0, log_file=out_dir / "kakapo.log")
+        mock_setup_logging.assert_called_with(verbosity=1, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with(
             [], output_path=out_file, format_type="csv", molecules=[]
         )
@@ -546,7 +546,7 @@ class TestCliMainFunction:
         exit_code = main(args_default)
         assert exit_code == 0
         mock_setup_logging.assert_called_with(
-            verbosity=0, log_file=DEFAULT_OUTPUT_DIR / "kakapo.log"
+            verbosity=1, log_file=DEFAULT_OUTPUT_DIR / "kakapo.log"
         )
         mock_write_results.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv", format_type="csv", molecules=[]
