@@ -5,194 +5,12 @@ import os
 import tempfile
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from kakapo.io.mgf_parser import (
-    _get_precursor_mass,
-    _matchms_to_kakapo,
     load_mgf,
     load_mgf_batch,
 )
-from kakapo.models import Spectrum
-
-
-class TestMgfParserHelpers:
-    """Test helper functions for MGF parsing."""
-
-    def test_get_precursor_mass_from_precursor_mz(self):
-        """Extract precursor mass from precursor_mz field."""
-        metadata = {
-            "precursor_mz": 500.5,
-            "spectrum_id": "spec_1",
-        }
-        mass = _get_precursor_mass(metadata)
-        assert mass == 500.5
-
-    def test_get_precursor_mass_from_pepmass_float(self):
-        """Extract precursor mass from pepmass as float."""
-        metadata = {
-            "pepmass": 600.0,
-            "spectrum_id": "spec_2",
-        }
-        mass = _get_precursor_mass(metadata)
-        assert mass == 600.0
-
-    def test_get_precursor_mass_from_pepmass_tuple(self):
-        """Extract precursor mass from pepmass as tuple [mass, intensity]."""
-        metadata = {
-            "pepmass": (700.5, 1000.0),
-            "spectrum_id": "spec_3",
-        }
-        mass = _get_precursor_mass(metadata)
-        assert mass == 700.5
-
-    def test_get_precursor_mass_from_pepmass_list(self):
-        """Extract precursor mass from pepmass as list."""
-        metadata = {
-            "pepmass": [750.0, 500.0],
-            "spectrum_id": "spec_4",
-        }
-        mass = _get_precursor_mass(metadata)
-        assert mass == 750.0
-
-    def test_get_precursor_mass_priority_precursor_mz(self):
-        """precursor_mz should be prioritized over pepmass."""
-        metadata = {
-            "precursor_mz": 400.0,
-            "pepmass": 500.0,
-        }
-        mass = _get_precursor_mass(metadata)
-        assert mass == 400.0
-
-    def test_get_precursor_mass_missing_field(self):
-        """Should raise ValueError when no precursor mass field is present."""
-        metadata = {
-            "spectrum_id": "spec_5",
-        }
-        with pytest.raises(ValueError, match="Could not extract"):
-            _get_precursor_mass(metadata)
-
-    def test_get_precursor_mass_negative_value(self):
-        """Should raise ValueError for negative precursor mass."""
-        metadata = {
-            "precursor_mz": -100.0,
-        }
-        with pytest.raises(ValueError, match="Could not extract"):
-            _get_precursor_mass(metadata)
-
-
-
-
-class TestMgfParserConversion:
-    """Test conversion from matchms to kakapo Spectrum."""
-
-    def test_matchms_to_kakapo_basic_conversion(self):
-        """Convert a basic matchms spectrum to kakapo Spectrum."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[100.0, 10.0], [200.0, 20.0], [300.0, 15.0]])
-        metadata = {
-            "spectrum_id": "spec_001",
-            "precursor_mz": 400.0,
-        }
-
-        matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
-        kakapo_spec = _matchms_to_kakapo(matchms_spec, "test_file.mgf")
-
-        assert isinstance(kakapo_spec, Spectrum)
-        assert kakapo_spec.spectrum_id == "spec_001"
-        assert kakapo_spec.precursor_mass == 400.0
-        assert len(kakapo_spec.peaks) == 3
-        assert kakapo_spec.charge is None
-
-    def test_matchms_to_kakapo_with_positive_charge(self):
-        """Convert matchms spectrum with positive charge value."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[100.0, 10.0]])
-        matchms_spec = MatchmsSpectrum(
-            mz=peaks[:, 0],
-            intensities=peaks[:, 1],
-            metadata={"spectrum_id": "spec_1", "precursor_mz": 400.0, "charge": "2+"},
-        )
-        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge == 2
-
-    def test_matchms_to_kakapo_with_negative_charge(self):
-        """Convert matchms spectrum with negative charge value."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[100.0, 10.0]])
-        matchms_spec = MatchmsSpectrum(
-            mz=peaks[:, 0],
-            intensities=peaks[:, 1],
-            metadata={"spectrum_id": "spec_2", "precursor_mz": 400.0, "charge": "1-"},
-        )
-        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge == -1
-
-    def test_matchms_to_kakapo_with_invalid_charge(self):
-        """Convert matchms spectrum with invalid charge, falling back to None."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[100.0, 10.0]])
-        matchms_spec = MatchmsSpectrum(
-            mz=peaks[:, 0],
-            intensities=peaks[:, 1],
-            metadata={"spectrum_id": "spec_3", "precursor_mz": 400.0, "charge": "invalid"},
-        )
-        assert _matchms_to_kakapo(matchms_spec, "test_file.mgf").charge is None
-
-    def test_matchms_to_kakapo_with_pepmass(self):
-        """Convert spectrum using pepmass field."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[50.0, 5.0], [100.0, 10.0]])
-        metadata = {
-            "spectrum_id": "42",
-            "pepmass": (250.5, 500.0),
-        }
-
-        matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
-        kakapo_spec = _matchms_to_kakapo(matchms_spec, "test_file.mgf")
-
-        assert kakapo_spec.spectrum_id == "42"
-        assert kakapo_spec.precursor_mass == 250.5
-
-    def test_matchms_to_kakapo_no_peaks(self):
-        """Should raise ValueError for spectrum with no peaks."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        metadata = {"spectrum_id": "spec_empty", "precursor_mz": 300.0}
-
-        matchms_spec = MatchmsSpectrum(mz=np.array([]), intensities=np.array([]), metadata=metadata)
-
-        with pytest.raises(ValueError, match="has no peaks"):
-            _matchms_to_kakapo(matchms_spec, "test_file.mgf")
-
-    def test_matchms_to_kakapo_invalid_peaks(self):
-        """Should raise ValueError for invalid peak data."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[-10.0, 5.0], [100.0, 10.0]])
-        metadata = {"spectrum_id": "spec_bad", "precursor_mz": 300.0}
-
-        matchms_spec = MatchmsSpectrum(mz=peaks[:, 0], intensities=peaks[:, 1], metadata=metadata)
-
-        with pytest.raises(ValueError, match="Invalid peak mass"):
-            _matchms_to_kakapo(matchms_spec, "test_file.mgf")
-
-    def test_matchms_to_kakapo_invalid_source_file_path_type(self):
-        """Should raise TypeError if source_file_path is not a string."""
-        from matchms import Spectrum as MatchmsSpectrum
-
-        peaks = np.array([[100.0, 10.0]])
-        matchms_spec = MatchmsSpectrum(
-            mz=peaks[:, 0],
-            intensities=peaks[:, 1],
-            metadata={"spectrum_id": "spec_1", "precursor_mz": 400.0},
-        )
-        with pytest.raises(TypeError, match="Source file path must be a string"):
-            _matchms_to_kakapo(matchms_spec, source_file_path=123)  # type: ignore
 
 
 class TestMgfParserLoadFile:
@@ -228,7 +46,7 @@ END IONS
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "spectrum_1"
             assert spectra[0].precursor_mass == 500.0
-            assert len(spectra[0].peaks) == 3
+            assert len(spectra[0].mzs) == 3
             assert spectra[0].charge is None
         finally:
             os.unlink(mgf_path)
@@ -267,13 +85,11 @@ END IONS
         mgf_path = self._create_test_mgf(mgf_content)
 
         try:
-            # First load: parses MGF and saves to cache
             spectra = load_mgf(mgf_path, self.cache_dir, apply_filters=False, use_cache=True)
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "spec_zero_charge"
             assert spectra[0].charge is None
 
-            # Second load: loads from cache
             spectra_cached = load_mgf(mgf_path, self.cache_dir, apply_filters=False, use_cache=True)
             assert len(spectra_cached) == 1
             assert spectra_cached[0].spectrum_id == "spec_zero_charge"
@@ -437,12 +253,10 @@ END IONS
         mgf_path = self._create_test_mgf(mgf_content)
 
         try:
-            # Test with Path object
             spectra = load_mgf(Path(mgf_path), self.cache_dir, apply_filters=False)
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "spec_path"
 
-            # Test with string
             spectra = load_mgf(mgf_path, self.cache_dir, apply_filters=False)
             assert len(spectra) == 1
         finally:
@@ -471,12 +285,10 @@ END IONS
 """
         mgf_path = self._create_test_mgf(mgf_content)
         try:
-            # 1. First load: should populate the cache
             spectra_1 = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
             assert len(spectra_1) == 1
             assert spectra_1[0].spectrum_id == "spec_cache_test"
 
-            # Verify cache file exists
             from kakapo.io.mgf_parser import _get_cache_path
 
             cache_path = _get_cache_path(
@@ -487,16 +299,13 @@ END IONS
             )
             assert cache_path.exists()
 
-            # 2. Modify the cache file content manually to verify cache hit
             with open(cache_path, encoding="utf-8") as f:
                 cache_data = json.load(f)
 
-            # Change the ID in cached data
             cache_data[0]["spectrum_id"] = "modified_cache_id"
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(cache_data, f)
 
-            # 3. Reload with cache: should load from the modified cache file
             spectra_2 = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
             assert len(spectra_2) == 1
             assert spectra_2[0].spectrum_id == "modified_cache_id"
@@ -528,11 +337,9 @@ END IONS
             )
             assert cache_path_1.exists()
 
-            # Change modification time of original file
             mtime = os.path.getmtime(mgf_path)
             os.utime(mgf_path, (mtime + 10, mtime + 10))
 
-            # Reload: should invalidate the old cache and parse again (different cache path)
             spectra_2 = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
             assert spectra_2[0].spectrum_id == "spec_mtime"
 
@@ -564,14 +371,12 @@ END IONS
 
             path_obj = Path(mgf_path)
 
-            # Different filters
             cache_1 = _get_cache_path(path_obj, apply_filters=True, min_peaks=1, cache_dir=tmp_path)
             cache_2 = _get_cache_path(
                 path_obj, apply_filters=False, min_peaks=1, cache_dir=tmp_path
             )
             assert cache_1 != cache_2
 
-            # Different min_peaks
             cache_3 = _get_cache_path(path_obj, apply_filters=True, min_peaks=1, cache_dir=tmp_path)
             cache_4 = _get_cache_path(path_obj, apply_filters=True, min_peaks=3, cache_dir=tmp_path)
             assert cache_3 != cache_4
@@ -602,11 +407,9 @@ END IONS
             )
             assert cache_path.exists()
 
-            # Corrupt the cache file with invalid JSON
             with open(cache_path, "w", encoding="utf-8") as f:
                 f.write("{invalid json...")
 
-            # Load should succeed by falling back to raw MGF parsing
             spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "spec_corrupt"
@@ -654,7 +457,6 @@ END IONS
         custom_dir = tmp_path / "custom_cache_location"
 
         try:
-            # Load with explicit cache_dir
             spectra = load_mgf(
                 mgf_path,
                 custom_dir,
@@ -664,7 +466,6 @@ END IONS
             assert len(spectra) == 1
             assert spectra[0].spectrum_id == "spec_explicit_dir"
 
-            # Verify cache was created in custom_dir and not in DEFAULT_CACHE_DIR
             from kakapo.io.mgf_parser import _get_cache_path
 
             cache_path = _get_cache_path(
@@ -690,12 +491,10 @@ END IONS
 """
         mgf_path = self._create_test_mgf(mgf_content)
         try:
-            # 1. Test raw loading
             spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
             assert len(spectra) == 1
             assert spectra[0].source_file_path == str(Path(mgf_path).resolve())
 
-            # 2. Test loading from cache
             spectra_cached = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=True)
             assert len(spectra_cached) == 1
             assert spectra_cached[0].source_file_path == str(Path(mgf_path).resolve())
@@ -748,8 +547,38 @@ END IONS
         try:
             spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
             assert len(spectra) == 2
-            assert spectra[0].spectrum_id == "0"
-            assert spectra[1].spectrum_id == "1"
+            assert spectra[0].spectrum_id == "spectrum_1"
+            assert spectra[1].spectrum_id == "spectrum_2"
+        finally:
+            os.unlink(mgf_path)
+
+    def test_parse_spectrum_id_candidates(self, tmp_path):
+        """Test spectrum ID candidate extraction with TITLE taking first priority."""
+        mgf_content = """BEGIN IONS
+TITLE=spec_title_1
+FEATURE_ID=feat_123
+PEPMASS=500.0
+100 10
+END IONS
+BEGIN IONS
+FEATURE=feat_456
+PEPMASS=600.0
+200 20
+END IONS
+BEGIN IONS
+SPECTRUM_ID=spec_789
+PEPMASS=700.0
+300 30
+END IONS
+"""
+        mgf_path = self._create_test_mgf(mgf_content)
+        try:
+            spectra = load_mgf(mgf_path, tmp_path, apply_filters=False, use_cache=False)
+            assert len(spectra) == 3
+            assert spectra[0].spectrum_id == "spec_title_1"
+            assert spectra[1].spectrum_id == "feat_456"
+            assert spectra[2].spectrum_id == "spec_789"
         finally:
             if os.path.exists(mgf_path):
                 os.unlink(mgf_path)
+

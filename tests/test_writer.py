@@ -4,6 +4,7 @@ import csv
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from kakapo.io.writer import (
@@ -23,7 +24,6 @@ from kakapo.models import (
     MonomerModification,
     MonomerOrigin,
     NerpaMSData,
-    Peak,
     Spectrum,
     Tolerance,
 )
@@ -31,7 +31,8 @@ from kakapo.models import (
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
     source_file_path="test_file.mgf",
-    peaks=frozenset([Peak(100.0, 1.0)]),
+    mzs=np.array([100.0]),
+    intensities=np.array([1.0]),
     precursor_mass=500.0,
 )
 

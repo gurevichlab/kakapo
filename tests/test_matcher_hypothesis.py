@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from kakapo.constants import PROTON_MASS
@@ -6,7 +7,6 @@ from kakapo.models import (
     Chirality,
     ModificationMode,
     Monomer,
-    Peak,
     RuleShift,
     ScoringMode,
     Spectrum,
@@ -24,12 +24,14 @@ def make_spectrum(
     source_file_path: str = "test.mgf",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
-    peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
+    mzs = np.array([p[0] for p in peaks_data], dtype=np.float64)
+    intensities = np.array([p[1] for p in peaks_data], dtype=np.float64)
     charge_val = charge if charge is not None else 1
     precursor_mz = (precursor_mass + PROTON_MASS * charge_val) / charge_val
     return Spectrum(
         spectrum_id=spectrum_id,
-        peaks=peaks,
+        mzs=mzs,
+        intensities=intensities,
         precursor_mass=precursor_mz,
         charge=charge,
         source_file_path=source_file_path,
@@ -232,7 +234,8 @@ class TestSpectrumMatcherHypothesis:
         spec_ala = Spectrum(
             spectrum_id="spec_ala",
             source_file_path="test.mgf",
-            peaks=frozenset([Peak(110.0 + 1.0078, 1.0)]),
+            mzs=np.array([110.0 + 1.0078]),
+            intensities=np.array([1.0]),
             precursor_mass=215.0 + 1.0078,
             charge=1,
         )
@@ -286,7 +289,8 @@ class TestSpectrumMatcherHypothesis:
         spec = Spectrum(
             spectrum_id="spec_nomod",
             source_file_path="test.mgf",
-            peaks=frozenset([Peak(120.0 + 1.0078, 1.0)]),
+            mzs=np.array([120.0 + 1.0078]),
+            intensities=np.array([1.0]),
             precursor_mass=120.0 + 1.0078,
             charge=1,
         )
@@ -356,17 +360,11 @@ class TestSpectrumMatcherHypothesis:
             monomers=monomers,
         )
 
-        # Experimental spectrum with peaks matching 142.010565 + 1.007276 and 140.0 + 1.007276
-        spec_peaks = frozenset(
-            [
-                Peak(mass=142.010565 + 1.007276, intensity=100.0),
-                Peak(mass=140.0 + 1.007276, intensity=100.0),
-            ]
-        )
         spec = Spectrum(
             spectrum_id="spec_two_mod",
             source_file_path="test.mgf",
-            peaks=spec_peaks,
+            mzs=np.array([140.0 + 1.007276, 142.010565 + 1.007276]),
+            intensities=np.array([100.0, 100.0]),
             precursor_mass=282.010565 + 1.007276,
             charge=1,
         )
@@ -429,7 +427,8 @@ class TestSpectrumMatcherHypothesis:
         spec = Spectrum(
             spectrum_id="spec_test",
             source_file_path="test.mgf",
-            peaks=frozenset([Peak(mass=150.0, intensity=10.0)]),
+            mzs=np.array([150.0]),
+            intensities=np.array([10.0]),
             precursor_mass=280.0,
             charge=1,
         )
@@ -485,7 +484,8 @@ class TestSpectrumMatcherHypothesis:
         spec = Spectrum(
             spectrum_id="spec_test",
             source_file_path="test.mgf",
-            peaks=frozenset([Peak(mass=150.0 + PROTON_MASS, intensity=100.0)]),
+            mzs=np.array([150.0 + PROTON_MASS]),
+            intensities=np.array([100.0]),
             precursor_mass=270.0 + PROTON_MASS,
             charge=1,
         )

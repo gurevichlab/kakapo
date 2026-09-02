@@ -5,7 +5,6 @@ from kakapo.constants import SCORING_WEIGHTS
 from kakapo.core.matcher.indexing import ExperimentalSpectrumIndex, get_left_index
 from kakapo.models import (
     MatchedPeak,
-    Peak,
     ScoringMode,
     TheoreticalIonWithMass,
     Tolerance,
@@ -34,6 +33,8 @@ def _match_peaks(
     """
     matched_peaks_count = 0
     matched_peaks: list[MatchedPeak] = []
+    exp_mzs = spec_index.mzs_list
+    n_exp = len(exp_mzs)
 
     exp_idx = 0
 
@@ -51,13 +52,13 @@ def _match_peaks(
         left_idx = get_left_index(spec_index, min_mass)
         cand_idx = max(exp_idx, left_idx)
 
-        if cand_idx < len(spec_index.masses) and spec_index.masses[cand_idx] <= max_mass:
-            peak = spec_index.sorted_peaks[cand_idx]
+        if cand_idx < n_exp and exp_mzs[cand_idx] <= max_mass:
+            exp_mz = exp_mzs[cand_idx]
             matched_peaks_count += 1
             matched_peaks.append(
                 MatchedPeak(
                     theoretical_mz=mz,
-                    experimental_mz=peak.mass,
+                    experimental_mz=exp_mz,
                     experimental_peak_idx=cand_idx,
                     charge=charge,
                     theoretical_fragment_mask=ion.mask,
@@ -68,7 +69,7 @@ def _match_peaks(
                 ion.fragment_id,
                 mz,
                 charge,
-                peak.mass,
+                exp_mz,
             )
             exp_idx = cand_idx + 1
         elif left_idx > exp_idx:
@@ -80,7 +81,7 @@ def _match_peaks(
 def _match_group_candidates(
     theoretical_peaks: list[TheoreticalIonWithMass],
     theo_idx: int,
-    peak: Peak,
+    exp_mz: float,
     tolerance: Tolerance,
 ) -> tuple[int, list[TheoreticalIonWithMass]]:
     """Collect all consecutive theoretical peaks matching the same experimental peak.
@@ -91,7 +92,7 @@ def _match_group_candidates(
     candidates = []
     while theo_idx < len(theoretical_peaks):
         cand = theoretical_peaks[theo_idx]
-        if not tolerance.is_within(cand.mz, peak.mass):
+        if not tolerance.is_within(cand.mz, exp_mz):
             break
         candidates.append(cand)
         theo_idx += 1
@@ -101,7 +102,7 @@ def _match_group_candidates(
 def _score_missing_cluster(
     theoretical_peaks: list[TheoreticalIonWithMass],
     theo_idx: int,
-    exp_peaks: tuple[Peak, ...],
+    exp_mzs: tuple[float, ...],
     exp_idx: int,
     tolerance: Tolerance,
 ) -> tuple[int, float]:
@@ -121,9 +122,9 @@ def _score_missing_cluster(
         if abs(cand.mz - cluster_start.mz) >= 2 * tol:
             break
 
-        if exp_idx < len(exp_peaks):
-            current_peak = exp_peaks[exp_idx]
-            if tolerance.is_within(cand.mz, current_peak.mass):
+        if exp_idx < len(exp_mzs):
+            current_mz = exp_mzs[exp_idx]
+            if tolerance.is_within(cand.mz, current_mz):
                 break
 
         missing_candidates.append(cand)
@@ -152,8 +153,9 @@ def _match_peaks_intensity(
         Tuple of (score, matched_peaks).
     """
     theoretical_peaks = [ion for ion in theory_ions_with_mass if ion.charge in SCORING_WEIGHTS]
-    exp_peaks = spec_index.sorted_peaks
-    exp_masses = spec_index.masses
+    exp_mzs = spec_index.mzs_list
+    exp_ranks = spec_index.ranks
+    n_exp = len(exp_mzs)
 
     score = 0.0
     matched_peaks: list[MatchedPeak] = []
@@ -170,21 +172,21 @@ def _match_peaks_intensity(
         if exp_idx < left_idx:
             exp_idx = left_idx
 
-        if exp_idx < len(exp_masses) and exp_masses[exp_idx] <= mz + tol:
-            peak = exp_peaks[exp_idx]
+        if exp_idx < n_exp and exp_mzs[exp_idx] <= mz + tol:
+            exp_mz = exp_mzs[exp_idx]
             theo_idx, candidates = _match_group_candidates(
-                theoretical_peaks, theo_idx, peak, tolerance
+                theoretical_peaks, theo_idx, exp_mz, tolerance
             )
             rep = min(candidates, key=lambda c: c.charge)
 
             charge_weights = SCORING_WEIGHTS[rep.charge]
-            rank = min(spec_index.ranks[exp_idx], charge_weights.max_rank)
+            rank = min(int(exp_ranks[exp_idx]), charge_weights.max_rank)
             score += charge_weights.weights[rank]
 
             matched_peaks.append(
                 MatchedPeak(
                     theoretical_mz=rep.mz,
-                    experimental_mz=peak.mass,
+                    experimental_mz=exp_mz,
                     experimental_peak_idx=exp_idx,
                     charge=rep.charge,
                     theoretical_fragment_mask=rep.mask,
@@ -195,19 +197,17 @@ def _match_peaks_intensity(
                 rep.fragment_id,
                 rep.mz,
                 rep.charge,
-                peak.mass,
+                exp_mz,
             )
             exp_idx += 1
             continue
 
         theo_idx, missing_score = _score_missing_cluster(
-            theoretical_peaks, theo_idx, exp_peaks, exp_idx, tolerance
+            theoretical_peaks, theo_idx, exp_mzs, exp_idx, tolerance
         )
         score += missing_score
 
     return score, matched_peaks
-
-
 
 
 def _get_matched_peaks_count(

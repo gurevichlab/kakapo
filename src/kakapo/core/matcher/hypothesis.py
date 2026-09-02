@@ -30,10 +30,10 @@ def _generate_unmodified_hypotheses(
     """Generate the single hypothesis for unmodified spectrum matching.
 
     Args:
-        theoretical_spectrum: The TheoreticalSpectrum representing the unmodified structure.
+        theoretical_spectrum: The TheoreticalSpectrum representing the base structure.
 
     Yields:
-        A single ModificationHypothesis containing unmodified monomer masses and no modifications.
+        The unmodified ModificationHypothesis (empty modifications).
     """
     yield ModificationHypothesis(
         updated_monomer_masses=list(theoretical_spectrum.monomer_mass_vector),
@@ -228,7 +228,7 @@ def _evaluate_hypotheses(
         tolerance=tolerance,
         matched_peaks_count=max_matched_count,
         theoretical_peaks_count=len(theoretical_spectrum.ions),
-        experimental_peaks_count=len(spec_index.sorted_peaks),
+        experimental_peaks_count=len(spec_index.mzs),
         monomer_count=theoretical_spectrum.monomer_count,
         unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
         score=final_score,

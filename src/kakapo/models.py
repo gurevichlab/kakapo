@@ -10,9 +10,11 @@ from enum import Enum, auto
 from typing import Any
 
 import networkx as nx
+import numpy as np
 
-from kakapo.config import DEFAULT_MIN_TOLERANCE
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
+
+DEFAULT_MIN_TOLERANCE = 0.001
 
 
 class Chirality(Enum):
@@ -130,39 +132,22 @@ class Tolerance:
 
 
 @dataclass(frozen=True)
-class Peak:
-    """A single mass spectrometry peak.
-
-    Attributes:
-        mass: The m/z value of the peak.
-        intensity: The normalized intensity (0-1 or higher).
-    """
-
-    mass: float
-    intensity: float
-
-    def __post_init__(self):
-        if self.mass < 0:
-            raise ValueError("Peak mass must be non-negative")
-        if self.intensity < 0:
-            raise ValueError("Peak intensity must be non-negative")
-
-
-@dataclass(frozen=True)
 class Spectrum:
     """An experimental mass spectrometry spectrum.
 
     Attributes:
         spectrum_id: Unique identifier for this spectrum.
         source_file_path: The path of the source MGF file from which this spectrum was loaded.
-        peaks: List of detected peaks.
+        mzs: 1D NumPy float64 array of m/z values (sorted ascending).
+        intensities: 1D NumPy float64 array of corresponding peak intensities.
         precursor_mass: The m/z of the precursor ion (parent mass).
         charge: The charge of the precursor ion.
     """
 
     spectrum_id: str
     source_file_path: str
-    peaks: frozenset[Peak]
+    mzs: np.ndarray
+    intensities: np.ndarray
     precursor_mass: float
     charge: int | None = None
 
@@ -171,8 +156,17 @@ class Spectrum:
             raise ValueError("Precursor mass must be non-negative")
         if not self.spectrum_id:
             raise ValueError("Spectrum ID cannot be empty")
-        if len(self.peaks) == 0:
+
+        mzs_arr = np.asarray(self.mzs, dtype=np.float64)
+        ints_arr = np.asarray(self.intensities, dtype=np.float64)
+
+        if mzs_arr.ndim != 1 or ints_arr.ndim != 1:
+            raise ValueError("mzs and intensities must be 1D arrays")
+        if len(mzs_arr) != len(ints_arr):
+            raise ValueError("mzs and intensities must have the same length")
+        if len(mzs_arr) == 0:
             raise ValueError("Spectrum must contain at least one peak")
+
         if not isinstance(self.source_file_path, str):
             raise TypeError("Source file path must be a string")
         if self.charge is not None and not isinstance(self.charge, int):
@@ -180,9 +174,11 @@ class Spectrum:
         if self.charge == 0:
             object.__setattr__(self, "charge", None)
 
-    def get_sorted_peaks(self) -> list[Peak]:
-        """Return peaks sorted by mass."""
-        return sorted(self.peaks, key=lambda p: p.mass)
+        mzs_arr.flags.writeable = False
+        ints_arr.flags.writeable = False
+
+        object.__setattr__(self, "mzs", mzs_arr)
+        object.__setattr__(self, "intensities", ints_arr)
 
     def get_neutral_mass(self) -> float:
         """Calculate the neutral precursor mass of the spectrum.

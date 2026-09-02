@@ -3,16 +3,18 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
-from kakapo.cli import main, resolve_paths
+from kakapo.cli import create_parser, main, resolve_paths
 from kakapo.config import DEFAULT_OUTPUT_DIR
-from kakapo.models import MatchResult, Peak, Spectrum, Tolerance
+from kakapo.models import Chirality, MatchResult, Molecule, Monomer, Spectrum, Tolerance
 
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
     source_file_path="test_file.mgf",
-    peaks=frozenset([Peak(100.0, 1.0)]),
+    mzs=np.array([100.0]),
+    intensities=np.array([1.0]),
     precursor_mass=500.0,
 )
 
@@ -368,9 +370,7 @@ class TestCliMainFunction:
         ]
         exit_code = main(args)
         assert exit_code == 0
-        mock_write_results.assert_called_with(
-            [], output_path="-", format_type="csv", molecules=[]
-        )
+        mock_write_results.assert_called_with([], output_path="-", format_type="csv", molecules=[])
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
 
@@ -680,12 +680,11 @@ class TestCliMainFunction:
         temp_io_structure,
     ) -> None:
         """Test that only matched molecules and spectra are filtered and passed to their write methods."""
-        from kakapo.models import Chirality, Molecule, Monomer, Peak, Spectrum
-
         spec2 = Spectrum(
             spectrum_id="spec_2",
             source_file_path="test_file.mgf",
-            peaks=frozenset([Peak(100.0, 1.0)]),
+            mzs=np.array([100.0]),
+            intensities=np.array([1.0]),
             precursor_mass=500.0,
         )
 
@@ -791,8 +790,6 @@ class TestCliMainFunction:
 
     def test_cli_parser_mode(self) -> None:
         """Verify that --mode / -m CLI flags are parsed correctly."""
-        from kakapo.cli import create_parser
-
         parser = create_parser()
         args = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json", "--mode", "x-mod"])
         assert args.mode == "x-mod"
@@ -805,8 +802,6 @@ class TestCliMainFunction:
 
     def test_cli_parser_scoring(self) -> None:
         """Verify that --scoring CLI flag is parsed correctly."""
-        from kakapo.cli import create_parser
-
         parser = create_parser()
 
         # Test exp-peaks mode

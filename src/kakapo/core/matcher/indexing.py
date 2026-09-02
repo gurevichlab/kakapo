@@ -5,11 +5,12 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+import numpy as np
+
 from kakapo.config import DEFAULT_MIN_PEAKS
 from kakapo.constants import MAX_CHARGE, PROTON_MASS
 from kakapo.models import (
     MonomerModification,
-    Peak,
     Spectrum,
     TheoreticalIonWithMass,
     TheoreticalSpectrum,
@@ -25,18 +26,20 @@ class ExperimentalSpectrumIndex:
     """Search index for an experimental spectrum to enable fast peak matching.
 
     Attributes:
-        sorted_peaks: Tuple of Peak objects sorted ascending by m/z mass.
-        masses: Tuple of float peak m/z masses corresponding to sorted_peaks.
-        ranks: Tuple of integer intensity ranks (0 = highest intensity).
+        mzs: 1D float64 NumPy array of peak m/z masses (sorted ascending).
+        intensities: 1D float64 NumPy array of corresponding peak intensities.
+        ranks: 1D int64 NumPy array of intensity ranks (0 = highest intensity).
         bin_width: Width of mass bins in Daltons for O(1) table lookup.
-        index_table: Tuple of start indices in `sorted_peaks` for each bin.
+        index_table: 1D int64 NumPy array of start indices for each mass bin.
+        mzs_list: Tuple of peak m/z floats for ultra-fast C bisect searches.
     """
 
-    sorted_peaks: tuple[Peak, ...]
-    masses: tuple[float, ...]
-    ranks: tuple[int, ...]
+    mzs: np.ndarray
+    intensities: np.ndarray
+    ranks: np.ndarray
     bin_width: float
-    index_table: tuple[int, ...]
+    index_table: np.ndarray
+    mzs_list: tuple[float, ...] = ()
 
 
 def build_experimental_spectrum_index(
@@ -51,47 +54,45 @@ def build_experimental_spectrum_index(
     Returns:
         An ExperimentalSpectrumIndex container holding the index state.
     """
-    sorted_peaks = tuple(sorted(spectrum.peaks, key=lambda p: p.mass))
-    masses = tuple(p.mass for p in sorted_peaks)
-
-    # Precalculate intensity ranks (0 = most intense peak)
-    sorted_by_intensity = sorted(
-        enumerate(sorted_peaks), key=lambda item: item[1].intensity, reverse=True
-    )
-    rank_arr = [0] * len(sorted_peaks)
-    for rank, (orig_idx, _) in enumerate(sorted_by_intensity):
-        rank_arr[orig_idx] = rank
-    ranks = tuple(rank_arr)
-
-    if not sorted_peaks:
+    if len(spectrum.mzs) == 0:
         return ExperimentalSpectrumIndex(
-            sorted_peaks=(),
-            masses=(),
-            ranks=(),
+            mzs=np.empty(0, dtype=np.float64),
+            intensities=np.empty(0, dtype=np.float64),
+            ranks=np.empty(0, dtype=np.int64),
             bin_width=bin_width,
-            index_table=(0,),
+            index_table=np.zeros(1, dtype=np.int64),
+            mzs_list=(),
         )
 
-    max_mass = masses[-1]
+    # Ensure mzs and intensities are sorted by m/z
+    if not np.all(spectrum.mzs[:-1] <= spectrum.mzs[1:]):
+        sort_idx = np.argsort(spectrum.mzs)
+        mzs = spectrum.mzs[sort_idx]
+        intensities = spectrum.intensities[sort_idx]
+    else:
+        mzs = spectrum.mzs
+        intensities = spectrum.intensities
+
+    ranks = np.argsort(np.argsort(-intensities))
+
+    max_mass = mzs[-1]
     num_bins = int(max_mass // bin_width) + 3
 
-    index_table: list[int] = []
-    for i in range(num_bins):
-        target = i * bin_width
-        idx = bisect.bisect_left(masses, target)
-        index_table.append(idx)
+    bin_targets = np.arange(num_bins, dtype=np.float64) * bin_width
+    index_table = np.searchsorted(mzs, bin_targets, side="left")
 
     return ExperimentalSpectrumIndex(
-        sorted_peaks=sorted_peaks,
-        masses=masses,
+        mzs=mzs,
+        intensities=intensities,
         ranks=ranks,
         bin_width=bin_width,
-        index_table=tuple(index_table),
+        index_table=index_table,
+        mzs_list=tuple(mzs.tolist()),
     )
 
 
 def get_left_index(index: ExperimentalSpectrumIndex, min_mass: float) -> int:
-    """Find the lower bound index in index.sorted_peaks for min_mass.
+    """Find the lower bound index in index.mzs for min_mass.
 
     Args:
         index: The experimental spectrum index.
@@ -100,19 +101,20 @@ def get_left_index(index: ExperimentalSpectrumIndex, min_mass: float) -> int:
     Returns:
         The first index where peak mass >= min_mass.
     """
-    if not index.masses or min_mass > index.masses[-1]:
-        return len(index.masses)
-    if min_mass <= index.masses[0]:
+    mzs_list = index.mzs_list
+    if not mzs_list or min_mass > mzs_list[-1]:
+        return len(mzs_list)
+    if min_mass <= mzs_list[0]:
         return 0
 
     i_lower = int(min_mass // index.bin_width)
     if i_lower >= len(index.index_table):
-        return len(index.masses)
+        return len(mzs_list)
     if i_lower < 0:
         i_lower = 0
 
-    start_search = index.index_table[i_lower]
-    return bisect.bisect_left(index.masses, min_mass, lo=start_search)
+    start_search = int(index.index_table[i_lower])
+    return bisect.bisect_left(mzs_list, min_mass, lo=start_search)
 
 
 def get_matching_range(
@@ -126,23 +128,24 @@ def get_matching_range(
         tolerance: Tolerance configuration (da or ppm).
 
     Returns:
-        A tuple of (start_idx, end_idx) in index.sorted_peaks.
+        A tuple of (start_idx, end_idx) in index.mzs.
     """
-    if not index.masses:
+    mzs_list = index.mzs_list
+    if not mzs_list:
         return 0, 0
 
     tol = tolerance.get_limit(mz)
     min_mass = mz - tol
     max_mass = mz + tol
 
-    if max_mass < index.masses[0] or min_mass > index.masses[-1]:
+    if max_mass < mzs_list[0] or min_mass > mzs_list[-1]:
         return 0, 0
 
     left_idx = get_left_index(index, min_mass)
 
     i_upper = int(max_mass // index.bin_width)
     end_search = index.index_table[min(i_upper + 1, len(index.index_table) - 1)]
-    right_idx = bisect.bisect_right(index.masses, max_mass, lo=left_idx, hi=end_search)
+    right_idx = bisect.bisect_right(mzs_list, max_mass, lo=left_idx, hi=end_search)
 
     return left_idx, right_idx
 
@@ -154,11 +157,15 @@ class _StructureIndex:
     Attributes:
         bin_width: Bin width in Daltons.
         sorted_peaks: List of sorted tuples (theoretical_ion_mass, structure_id).
+        theo_masses: List of theoretical ion mass floats.
+        theo_struct_ids: List of corresponding structure IDs.
         index_table: Mapping from bin index to offset in sorted_peaks.
     """
 
     bin_width: float
     sorted_peaks: list[tuple[float, str]]
+    theo_masses: list[float]
+    theo_struct_ids: list[str]
     index_table: list[int]
 
 
@@ -185,18 +192,33 @@ def _build_structure_index(
     flat_peaks.sort(key=lambda item: item[0])
 
     if not flat_peaks:
-        return _StructureIndex(bin_width=bin_width, sorted_peaks=[], index_table=[0])
+        return _StructureIndex(
+            bin_width=bin_width,
+            sorted_peaks=[],
+            theo_masses=[],
+            theo_struct_ids=[],
+            index_table=[0],
+        )
 
     max_mass = flat_peaks[-1][0]
     num_bins = int(max_mass // bin_width) + 3
 
+    theo_masses = [p[0] for p in flat_peaks]
+    theo_struct_ids = [p[1] for p in flat_peaks]
+
     index_table: list[int] = []
     for i in range(num_bins):
         target = i * bin_width
-        idx = bisect.bisect_left(flat_peaks, (target, ""))
+        idx = bisect.bisect_left(theo_masses, target)
         index_table.append(idx)
 
-    return _StructureIndex(bin_width=bin_width, sorted_peaks=flat_peaks, index_table=index_table)
+    return _StructureIndex(
+        bin_width=bin_width,
+        sorted_peaks=flat_peaks,
+        theo_masses=theo_masses,
+        theo_struct_ids=theo_struct_ids,
+        index_table=index_table,
+    )
 
 
 def _filter_candidates_with_index(
@@ -227,12 +249,11 @@ def _filter_candidates_with_index(
     Returns:
         A set of structure_ids matching the threshold.
     """
-    if not spectrum.peaks or not index.sorted_peaks:
+    if len(spectrum.mzs) == 0 or not index.theo_masses:
         return set()
 
     max_charge = spectrum.charge if spectrum.charge is not None else MAX_CHARGE
     hits: Counter[str] = Counter()
-    precursor_neutral_mass = spectrum.get_neutral_mass()
 
     def query_index(target_mass: float, tolerance: float) -> None:
         """Query the search index for a target mass and increment hits for matching structures.
@@ -259,34 +280,40 @@ def _filter_candidates_with_index(
         end_idx = index.index_table[min(i_upper + 1, len(index.index_table) - 1)]
 
         left_idx = bisect.bisect_left(
-            index.sorted_peaks,
-            (target_mass - tolerance, ""),
+            index.theo_masses,
+            target_mass - tolerance,
             lo=start_idx,
             hi=end_idx,
         )
         right_idx = bisect.bisect_right(
-            index.sorted_peaks,
-            (target_mass + tolerance, "z" * 100),
+            index.theo_masses,
+            target_mass + tolerance,
             lo=start_idx,
             hi=end_idx,
         )
 
         for idx in range(left_idx, right_idx):
-            _, struct_id = index.sorted_peaks[idx]
-            hits[struct_id] += 1
+            hits[index.theo_struct_ids[idx]] += 1
 
-    for peak in spectrum.peaks:
-        for c in range(1, max_charge + 1):
-            # Convert experimental peak m/z to neutral mass at charge c
-            neutral_mass = peak.mass * c - PROTON_MASS * c
-            tol_mz = tolerance.get_limit(peak.mass)
+    charges = np.arange(1, max_charge + 1)
+    mzs = spectrum.mzs
+
+    neutral_matrix = mzs[:, None] * charges - PROTON_MASS * charges
+
+    for peak_idx in range(len(mzs)):
+        peak_mz = mzs[peak_idx]
+        tol_mz = tolerance.get_limit(peak_mz)
+
+        for c_idx, c in enumerate(charges):
+            neutral_mass = neutral_matrix[peak_idx, c_idx]
             neutral_tolerance = c * tol_mz
 
             # 1. Unmodified peak match
             query_index(neutral_mass, neutral_tolerance)
 
             # 2. Modified peak match (via its unmodified complement fragment)
-            complement_mass = precursor_neutral_mass - neutral_mass
+            precursor_neutral_c = spectrum.precursor_mass * c - PROTON_MASS * c
+            complement_mass = precursor_neutral_c - neutral_mass
             if complement_mass > neutral_tolerance:
                 query_index(complement_mass, neutral_tolerance)
 
@@ -299,8 +326,6 @@ def _calculate_theory_ions_with_mass(
     modifications: Iterable[MonomerModification] = (),
 ) -> list[TheoreticalIonWithMass]:
     """Calculate and sort theoretical ion masses based on monomer masses and charges.
-
-    Uses precomputed unmodified masses to update mass in O(1) for modified monomers.
 
     Args:
         theoretical_spectrum: The TheoreticalSpectrum containing unmodified ions.

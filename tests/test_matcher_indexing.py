@@ -1,5 +1,7 @@
 from typing import cast
 
+import numpy as np
+
 from kakapo.constants import PROTON_MASS
 from kakapo.core.matcher.indexing import (
     ExperimentalSpectrumIndex,
@@ -11,7 +13,6 @@ from kakapo.core.matcher.indexing import (
 from kakapo.models import (
     Chirality,
     Monomer,
-    Peak,
     RuleShift,
     Spectrum,
     TheoreticalIon,
@@ -28,12 +29,14 @@ def make_spectrum(
     source_file_path: str = "test.mgf",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
-    peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
+    mzs = np.array([p[0] for p in peaks_data], dtype=np.float64)
+    intensities = np.array([p[1] for p in peaks_data], dtype=np.float64)
     charge_val = charge if charge is not None else 1
     precursor_mz = (precursor_mass + PROTON_MASS * charge_val) / charge_val
     return Spectrum(
         spectrum_id=spectrum_id,
-        peaks=peaks,
+        mzs=mzs,
+        intensities=intensities,
         precursor_mass=precursor_mz,
         charge=charge,
         source_file_path=source_file_path,
@@ -129,7 +132,8 @@ class TestSpectrumMatcherIndexing:
         # Empty spectrum validation using a mock object with empty peaks
         class MockSpectrum:
             def __init__(self):
-                self.peaks = frozenset()
+                self.mzs = np.empty(0, dtype=np.float64)
+                self.intensities = np.empty(0, dtype=np.float64)
                 self.precursor_mass = 500.0
                 self.charge = 1
 
@@ -248,15 +252,14 @@ class TestExperimentalSpectrumIndex:
         index = build_experimental_spectrum_index(spec, bin_width=0.5)
 
         assert isinstance(index, ExperimentalSpectrumIndex)
-        assert len(index.sorted_peaks) == 3
+        assert len(index.mzs) == 3
         # Sorted peaks should be ordered by mass ascending
-        assert [p.mass for p in index.sorted_peaks] == [100.0, 200.0, 300.0]
-        assert index.masses == (100.0, 200.0, 300.0)
+        assert list(index.mzs) == [100.0, 200.0, 300.0]
 
         # Intensity ranks: peak at 100.0 (intensity 200) -> rank 0
         # peak at 200.0 (intensity 100) -> rank 1
         # peak at 300.0 (intensity 50) -> rank 2
-        assert index.ranks == (0, 1, 2)
+        assert list(index.ranks) == [0, 1, 2]
 
     def test_get_matching_range_da_tolerance(self) -> None:
         """Verify get_matching_range returns exact index slice for Da tolerance."""
@@ -268,7 +271,7 @@ class TestExperimentalSpectrumIndex:
         tol_da = Tolerance(0.02, unit="da")
         left, right = get_matching_range(index, 100.0, tol_da)
         assert (left, right) == (0, 2)
-        assert [p.mass for p in index.sorted_peaks[left:right]] == [100.0, 100.01]
+        assert list(index.mzs[left:right]) == [100.0, 100.01]
 
     def test_get_matching_range_ppm_tolerance(self) -> None:
         """Verify get_matching_range returns exact index slice for ppm tolerance."""
@@ -279,7 +282,7 @@ class TestExperimentalSpectrumIndex:
 
         tol_ppm = Tolerance(20.0, unit="ppm", min_tolerance=0.001)
         left, right = get_matching_range(index, 500.0, tol_ppm)
-        assert [p.mass for p in index.sorted_peaks[left:right]] == [499.995, 500.0, 500.005]
+        assert list(index.mzs[left:right]) == [499.995, 500.0, 500.005]
 
     def test_get_matching_range_out_of_bounds(self) -> None:
         """Verify out of bounds queries return empty range (0, 0)."""

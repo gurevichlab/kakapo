@@ -436,7 +436,10 @@ def serialize_spectrum(spec: Spectrum) -> dict:
     """Serialize a Spectrum object into a JSON-serializable dictionary."""
     return {
         "source_file_path": spec.source_file_path,
-        "peaks": [{"mass": p.mass, "intensity": p.intensity} for p in spec.get_sorted_peaks()],
+        "peaks": [
+            {"mass": float(m), "intensity": float(i)}
+            for m, i in zip(spec.mzs, spec.intensities)
+        ],
         "precursor_mass": spec.precursor_mass,
         "charge": spec.charge,
     }

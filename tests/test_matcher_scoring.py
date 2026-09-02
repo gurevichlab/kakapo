@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from kakapo.constants import PROTON_MASS
@@ -5,7 +6,6 @@ from kakapo.core.matcher.orchestrator import match_spectrum
 from kakapo.models import (
     Chirality,
     Monomer,
-    Peak,
     RuleShift,
     ScoringMode,
     Spectrum,
@@ -23,12 +23,14 @@ def make_spectrum(
     source_file_path: str = "test.mgf",
 ) -> Spectrum:
     """Helper to create a Spectrum from list of mass-intensity tuples."""
-    peaks = frozenset(Peak(mass=m, intensity=i) for m, i in peaks_data)
+    mzs = np.array([p[0] for p in peaks_data], dtype=np.float64)
+    intensities = np.array([p[1] for p in peaks_data], dtype=np.float64)
     charge_val = charge if charge is not None else 1
     precursor_mz = (precursor_mass + PROTON_MASS * charge_val) / charge_val
     return Spectrum(
         spectrum_id=spectrum_id,
-        peaks=peaks,
+        mzs=mzs,
+        intensities=intensities,
         precursor_mass=precursor_mz,
         charge=charge,
         source_file_path=source_file_path,

@@ -1,5 +1,6 @@
 """Unit tests for kakapo data models and their validations."""
 
+import numpy as np
 import pytest
 
 from kakapo.models import (
@@ -11,7 +12,6 @@ from kakapo.models import (
     MonomerModification,
     MonomerOrigin,
     NerpaMSData,
-    Peak,
     Spectrum,
     TheoreticalIonWithMass,
     Tolerance,
@@ -20,7 +20,8 @@ from kakapo.models import (
 DUMMY_SPEC = Spectrum(
     spectrum_id="spec_1",
     source_file_path="test_file.mgf",
-    peaks=frozenset([Peak(100.0, 1.0)]),
+    mzs=np.array([100.0]),
+    intensities=np.array([1.0]),
     precursor_mass=500.0,
 )
 
@@ -34,7 +35,8 @@ class TestModelsValidation:
             Spectrum(
                 spectrum_id="spec_1",
                 source_file_path="test_file.mgf",
-                peaks=frozenset(),
+                mzs=np.array([]),
+                intensities=np.array([]),
                 precursor_mass=500.0,
             )
 
@@ -44,7 +46,8 @@ class TestModelsValidation:
             Spectrum(
                 spectrum_id="spec_1",
                 source_file_path="test_file.mgf",
-                peaks=frozenset([Peak(100.0, 1.0)]),
+                mzs=np.array([100.0]),
+                intensities=np.array([1.0]),
                 precursor_mass=-1.0,
             )
 
@@ -53,7 +56,8 @@ class TestModelsValidation:
         spec = Spectrum(
             spectrum_id="spec_1",
             source_file_path="test_file.mgf",
-            peaks=frozenset([Peak(100.0, 1.0)]),
+            mzs=np.array([100.0]),
+            intensities=np.array([1.0]),
             precursor_mass=500.0,
             charge=2,
         )
@@ -62,7 +66,8 @@ class TestModelsValidation:
         spec_zero = Spectrum(
             spectrum_id="spec_1",
             source_file_path="test_file.mgf",
-            peaks=frozenset([Peak(100.0, 1.0)]),
+            mzs=np.array([100.0]),
+            intensities=np.array([1.0]),
             precursor_mass=500.0,
             charge=0,
         )
@@ -72,7 +77,8 @@ class TestModelsValidation:
             Spectrum(
                 spectrum_id="spec_1",
                 source_file_path="test_file.mgf",
-                peaks=frozenset([Peak(100.0, 1.0)]),
+                mzs=np.array([100.0]),
+                intensities=np.array([1.0]),
                 precursor_mass=500.0,
                 charge="2",  # type: ignore
             )
@@ -83,7 +89,8 @@ class TestModelsValidation:
             Spectrum(
                 spectrum_id="spec_1",
                 source_file_path=123,  # type: ignore
-                peaks=frozenset([Peak(100.0, 1.0)]),
+                mzs=np.array([100.0]),
+                intensities=np.array([1.0]),
                 precursor_mass=500.0,
             )
 
