@@ -188,12 +188,14 @@ class TestSpectrumMatcherScoring:
         ep1 = result.matched_peaks[0]
         assert ep1.theoretical_mz == pytest.approx(100.0)
         assert ep1.experimental_mz == pytest.approx(100.01)
+        assert ep1.experimental_peak_intensity == pytest.approx(1.0)
         assert ep1.charge == 1
 
         # Check second matched peak
         ep2 = result.matched_peaks[1]
         assert ep2.theoretical_mz == pytest.approx(300.04)
         assert ep2.experimental_mz == pytest.approx(300.05)
+        assert ep2.experimental_peak_intensity == pytest.approx(1.0)
         assert ep2.charge == 1
 
     @pytest.mark.parametrize(

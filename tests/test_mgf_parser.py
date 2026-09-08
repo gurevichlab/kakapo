@@ -581,4 +581,3 @@ END IONS
         finally:
             if os.path.exists(mgf_path):
                 os.unlink(mgf_path)
-

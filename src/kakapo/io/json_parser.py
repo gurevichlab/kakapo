@@ -480,9 +480,7 @@ class NewVariant(BaseModel):
     rank: int | None = None
     original_id: str | None = None
     new_record: dict[str, Any]
-    old_to_new_mon_map: (
-        list[tuple[int | None, int | None]] | list[list[int | None]] | None
-    ) = None
+    old_to_new_mon_map: list[tuple[int | None, int | None]] | list[list[int | None]] | None = None
     monomer_origins: list[dict[str, Any]] | None = None
 
 
@@ -550,9 +548,7 @@ def _extract_and_clean_records(
 def _process_single_record(args: tuple[dict, NerpaMSData | None, str]) -> Molecule:
     """Helper function to parse a single record in parallel."""
     item, nerpa_ms_data, unique_id = args
-    return _build_molecule_from_dict(
-        item, structure_id=unique_id, nerpa_ms_data=nerpa_ms_data
-    )
+    return _build_molecule_from_dict(item, structure_id=unique_id, nerpa_ms_data=nerpa_ms_data)
 
 
 def _create_parsing_tasks(
@@ -563,9 +559,7 @@ def _create_parsing_tasks(
     tasks = []
     for i, (item, nerpa_data) in enumerate(records):
         base_id = (
-            item.get("compound_id")
-            or (item.get("metadata") or {}).get("name")
-            or f"unknown_{i}"
+            item.get("compound_id") or (item.get("metadata") or {}).get("name") or f"unknown_{i}"
         )
         count = id_counts.get(base_id, 0)
         unique_id = f"{base_id}_{count + 1}" if count > 0 else base_id
@@ -625,8 +619,7 @@ def _parse_tasks(
 
     if errors:
         _log_and_raise(
-            f"Failed to parse Nerpa record list from {json_path}. Errors:\n"
-            + "\n".join(errors),
+            f"Failed to parse Nerpa record list from {json_path}. Errors:\n" + "\n".join(errors),
             ValueError,
         )
 
@@ -653,6 +646,7 @@ def _deduplicate_molecules(molecules: dict[str, Molecule]) -> dict[str, Molecule
                 mol = replace(mol, duplicated_structure_ids=())
             deduped[mol.structure_id] = mol
         else:
+
             def sort_key(m: Molecule) -> tuple[int, int | float, str]:
                 if m.nerpa_ms_data is not None and m.nerpa_ms_data.rank is not None:
                     return (0, m.nerpa_ms_data.rank, m.structure_id)

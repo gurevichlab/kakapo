@@ -939,8 +939,10 @@ class TestNerpaMSDataJsonParsing:
             }
         ]
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1, \
-                tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2:
+        with (
+            tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1,
+            tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2,
+        ):
             json.dump(json_data_1, f1)
             json.dump(json_data_2, f2)
             path1, path2 = f1.name, f2.name
@@ -955,6 +957,3 @@ class TestNerpaMSDataJsonParsing:
         finally:
             os.unlink(path1)
             os.unlink(path2)
-
-
-

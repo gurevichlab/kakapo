@@ -232,6 +232,7 @@ class TestWriterJsonFormatting:
                 MatchedPeak(
                     theoretical_mz=100.0,
                     experimental_mz=100.1,
+                    experimental_peak_intensity=500.0,
                     experimental_peak_idx=2,
                     charge=1,
                     theoretical_fragment_mask=5,
@@ -254,6 +255,7 @@ class TestWriterJsonFormatting:
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
         assert data[0]["matched_peaks"][0]["experimental_peak_idx"] == 2
+        assert data[0]["matched_peaks"][0]["experimental_peak_intensity"] == 500.0
         assert data[0]["modifications"][0]["initial_monomer_name"] == "Ala"
 
         assert data[1]["structure_id"] == "NRP_002"

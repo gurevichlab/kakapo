@@ -216,6 +216,7 @@ def format_as_json(
                 {
                     "theoretical_mz": mp.theoretical_mz,
                     "experimental_mz": mp.experimental_mz,
+                    "experimental_peak_intensity": mp.experimental_peak_intensity,
                     "experimental_peak_idx": mp.experimental_peak_idx,
                     "charge": mp.charge,
                     "theoretical_fragment_mask": mask_str,
@@ -437,8 +438,7 @@ def serialize_spectrum(spec: Spectrum) -> dict:
     return {
         "source_file_path": spec.source_file_path,
         "peaks": [
-            {"mass": float(m), "intensity": float(i)}
-            for m, i in zip(spec.mzs, spec.intensities)
+            {"mass": float(m), "intensity": float(i)} for m, i in zip(spec.mzs, spec.intensities)
         ],
         "precursor_mass": spec.precursor_mass,
         "charge": spec.charge,

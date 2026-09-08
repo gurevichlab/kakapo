@@ -703,6 +703,7 @@ class MatchedPeak:
     Attributes:
         theoretical_mz: The m/z value of the theoretical peak.
         experimental_mz: The m/z value of the experimental peak.
+        experimental_peak_intensity: The intensity of the matched experimental peak.
         experimental_peak_idx: The index of the matched peak in the experimental spectrum.
         charge: The charge of the matched peak.
         theoretical_fragment_mask: Bitmask representing the monomers in this fragment.
@@ -710,6 +711,7 @@ class MatchedPeak:
 
     theoretical_mz: float
     experimental_mz: float
+    experimental_peak_intensity: float
     experimental_peak_idx: int
     charge: int
     theoretical_fragment_mask: int
@@ -719,6 +721,8 @@ class MatchedPeak:
             raise ValueError("Theoretical m/z must be non-negative")
         if self.experimental_mz < 0:
             raise ValueError("Experimental m/z must be non-negative")
+        if self.experimental_peak_intensity < 0:
+            raise ValueError("Experimental peak intensity must be non-negative")
         if self.charge <= 0:
             raise ValueError("Charge must be positive")
         if not isinstance(self.theoretical_fragment_mask, int):

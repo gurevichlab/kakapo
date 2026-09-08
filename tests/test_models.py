@@ -172,6 +172,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=-1.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 experimental_peak_idx=0,
                 charge=1,
                 theoretical_fragment_mask=1,
@@ -183,6 +184,21 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=-1.0,
+                experimental_peak_intensity=500.0,
+                experimental_peak_idx=0,
+                charge=1,
+                theoretical_fragment_mask=1,
+            )
+
+    def test_matched_peak_negative_experimental_peak_intensity(self):
+        """MatchedPeak validates that experimental_peak_intensity is non-negative."""
+        with pytest.raises(
+            ValueError, match="Experimental peak intensity must be non-negative"
+        ):
+            MatchedPeak(
+                theoretical_mz=100.0,
+                experimental_mz=100.0,
+                experimental_peak_intensity=-10.0,
                 experimental_peak_idx=0,
                 charge=1,
                 theoretical_fragment_mask=1,
@@ -194,6 +210,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 experimental_peak_idx=0,
                 charge=0,
                 theoretical_fragment_mask=1,
@@ -205,6 +222,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 experimental_peak_idx=0,
                 charge=-1,
                 theoretical_fragment_mask=1,
@@ -215,12 +233,14 @@ class TestModelsValidation:
         ep = MatchedPeak(
             theoretical_mz=100.0,
             experimental_mz=100.1,
+            experimental_peak_intensity=500.0,
             experimental_peak_idx=5,
             charge=2,
             theoretical_fragment_mask=3,
         )
         assert ep.theoretical_mz == 100.0
         assert ep.experimental_mz == 100.1
+        assert ep.experimental_peak_intensity == 500.0
         assert ep.experimental_peak_idx == 5
         assert ep.charge == 2
         assert ep.theoretical_fragment_mask == 3
@@ -231,6 +251,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 experimental_peak_idx=0,
                 charge=1,
                 theoretical_fragment_mask="not an int",  # type: ignore
@@ -242,6 +263,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 experimental_peak_idx=0,
                 charge=1,
                 theoretical_fragment_mask=-1,
@@ -253,6 +275,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 charge=1,
                 theoretical_fragment_mask=1,
                 experimental_peak_idx="not an int",  # type: ignore
@@ -264,6 +287,7 @@ class TestModelsValidation:
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
+                experimental_peak_intensity=500.0,
                 charge=1,
                 theoretical_fragment_mask=1,
                 experimental_peak_idx=-1,

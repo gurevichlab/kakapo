@@ -1,6 +1,5 @@
 """Scoring algorithms for matching theoretical and experimental mass spectra peaks."""
 
-
 from kakapo.constants import SCORING_WEIGHTS
 from kakapo.core.matcher.indexing import ExperimentalSpectrumIndex, get_left_index
 from kakapo.models import (
@@ -59,6 +58,7 @@ def _match_peaks(
                 MatchedPeak(
                     theoretical_mz=mz,
                     experimental_mz=exp_mz,
+                    experimental_peak_intensity=float(spec_index.intensities[cand_idx]),
                     experimental_peak_idx=cand_idx,
                     charge=charge,
                     theoretical_fragment_mask=ion.mask,
@@ -187,6 +187,7 @@ def _match_peaks_intensity(
                 MatchedPeak(
                     theoretical_mz=rep.mz,
                     experimental_mz=exp_mz,
+                    experimental_peak_intensity=float(spec_index.intensities[exp_idx]),
                     experimental_peak_idx=exp_idx,
                     charge=rep.charge,
                     theoretical_fragment_mask=rep.mask,

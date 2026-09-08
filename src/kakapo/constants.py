@@ -16,7 +16,6 @@ SCORING_WEIGHTS_PATH = CONSTANTS_DIR / "scoring_weights.json"
 RESIDUE_MODIFICATIONS_PATH = CONSTANTS_DIR / "residue_modifications.json"
 
 
-
 def load_atomic_masses(path: Path) -> dict[str, float]:
     """Parse exact atomic masses from element_list.txt."""
     masses = {}
@@ -135,4 +134,3 @@ try:
 except Exception as e:
     print(f"Error loading residue modifications: {e}", file=sys.stderr)
     RESIDUE_MODIFICATIONS = {}
-
