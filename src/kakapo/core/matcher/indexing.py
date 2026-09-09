@@ -251,6 +251,8 @@ def _filter_candidates_with_index(
     """
     if len(spectrum.mzs) == 0 or not index.theo_masses:
         return set()
+    if min_shared_peaks == 0:
+        return set(index.theo_struct_ids)
 
     max_charge = spectrum.charge if spectrum.charge is not None else MAX_CHARGE
     hits: Counter[str] = Counter()
