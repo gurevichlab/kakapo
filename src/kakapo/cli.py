@@ -202,7 +202,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--max-hits-per-spectrum",
         type=int,
         default=DEFAULT_MAX_HITS_PER_SPECTRUM,
-        help="Maximum number of top hits to output per spectrum by score (default: 10).",
+        help=(
+            "Maximum number of top hits to output per spectrum by score "
+            "(default: 10, use 0 for all hits)."
+        ),
     )
     parser.add_argument(
         "--top-n",
@@ -371,8 +374,8 @@ def main(args: Optional[list[str]] = None) -> int:  # noqa: C901
     parsed_args = parser.parse_args(args)
 
     # Validate arguments
-    if parsed_args.max_hits_per_spectrum is not None and parsed_args.max_hits_per_spectrum <= 0:
-        parser.error("--max-hits-per-spectrum must be positive.")
+    if parsed_args.max_hits_per_spectrum is not None and parsed_args.max_hits_per_spectrum < 0:
+        parser.error("--max-hits-per-spectrum must be non-negative.")
     if parsed_args.top_n is not None and parsed_args.top_n <= 0:
         parser.error("--top-n must be positive.")
     if parsed_args.num_workers is not None and parsed_args.num_workers <= 0:

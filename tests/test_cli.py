@@ -715,6 +715,48 @@ class TestCliMainFunction:
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
     @patch("kakapo.cli.write_spectra")
+    def test_main_max_hits_per_spectrum_zero(
+        self,
+        mock_write_spectra: MagicMock,
+        mock_write_structures: MagicMock,
+        mock_write_results: MagicMock,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test that --max-hits-per-spectrum 0 retains all hits without filtering."""
+        res1 = make_dummy_match("struct1", "spec1", 10)
+        res2 = make_dummy_match("struct2", "spec1", 5)
+        res3 = make_dummy_match("struct3", "spec2", 8)
+        mock_run_pipeline.return_value = ([res1, res3, res2], [], [DUMMY_SPEC])
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.01",
+            "--max-hits-per-spectrum",
+            "0",
+            "--stdout",
+        ]
+
+        exit_code = main(args)
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once()
+        mock_write_results.assert_called_once_with(
+            [res1, res3, res2],
+            output_path=None,
+            format_type="csv",
+            molecules=[],
+        )
+        mock_write_structures.assert_not_called()
+        mock_write_spectra.assert_not_called()
+
+    @patch("kakapo.cli.run_pipeline")
+    @patch("kakapo.cli.write_results")
+    @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_multiple_formats(
         self,
         mock_write_spectra: MagicMock,
@@ -846,20 +888,7 @@ class TestCliMainFunction:
             main(args_neg)
 
     def test_main_max_hits_per_spectrum_invalid(self, temp_io_structure) -> None:
-        """Test that invalid values for --max-hits-per-spectrum raise SystemExit."""
-        args_zero = [
-            "-s",
-            str(temp_io_structure["spec_file1"]),
-            "-str",
-            str(temp_io_structure["struct_file1"]),
-            "-t",
-            "0.5",
-            "--max-hits-per-spectrum",
-            "0",
-        ]
-        with pytest.raises(SystemExit):
-            main(args_zero)
-
+        """Test that negative values for --max-hits-per-spectrum raise SystemExit."""
         args_neg = [
             "-s",
             str(temp_io_structure["spec_file1"]),
