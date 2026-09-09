@@ -125,7 +125,10 @@ def _match_spectra_chunk(spectra_chunk: list[Spectrum]) -> list[MatchResult]:  #
                         mode=_worker_mode,
                         spec_index=spec_index,
                     )
-                    if result.matched_peaks_count >= _worker_min_shared_peaks:
+                    if (
+                        result is not None
+                        and result.matched_peaks_count >= _worker_min_shared_peaks
+                    ):
                         results.append(result)
 
     return results
@@ -138,7 +141,7 @@ def match_spectrum(
     scoring: ScoringMode,
     mode: ModificationMode = ModificationMode.FREE_MOD,
     spec_index: Any | None = None,
-) -> MatchResult:
+) -> MatchResult | None:
     """Match an experimental spectrum to a theoretical spectrum according to mode.
 
     Args:
@@ -150,7 +153,8 @@ def match_spectrum(
         spec_index: Optional pre-built ExperimentalSpectrumIndex for performance.
 
     Returns:
-        A MatchResult instance containing matching metrics.
+        A MatchResult instance containing matching metrics, or None if no hypotheses or matches
+        are found.
     """
     logger.debug(
         "Matching experimental spectrum '%s' against structure '%s' (tolerance: %s, mode: %s)",
@@ -282,7 +286,7 @@ def match_spectra(  # noqa: C901
                             mode=mode,
                             spec_index=spec_index,
                         )
-                        if result.matched_peaks_count >= min_shared_peaks:
+                        if result is not None and result.matched_peaks_count >= min_shared_peaks:
                             results.append(result)
     else:
         logger.debug("Running matching in parallel using %d workers", num_workers)

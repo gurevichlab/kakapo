@@ -87,6 +87,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == 3
 
     def test_basic_matching_within_tolerance(self):
@@ -100,6 +101,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.03), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == 2
 
     def test_basic_matching_outside_tolerance(self):
@@ -113,6 +115,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.005), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == 0
 
     def test_basic_matching_no_matches(self):
@@ -124,6 +127,7 @@ class TestSpectrumMatcherScoring:
             ion_masses, structure_mass=500.0, monomer_count=len(ion_masses)
         )
         result = match_spectrum(spec, theo, tolerance=Tolerance(0.1), scoring=ScoringMode.EXP_PEAKS)
+        assert result is not None
         assert result.matched_peaks_count == 0
 
     def test_greedy_matching_unique_peaks(self):
@@ -140,6 +144,7 @@ class TestSpectrumMatcherScoring:
         result1 = match_spectrum(
             spec, theo, tolerance=Tolerance(0.05), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result1 is not None
         assert result1.matched_peaks_count == 1
 
         # Two experimental peaks close to the same theoretical ion
@@ -150,6 +155,7 @@ class TestSpectrumMatcherScoring:
         result2 = match_spectrum(
             spec2, theo2, tolerance=Tolerance(0.05), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result2 is not None
         assert result2.matched_peaks_count == 1
 
     def test_greedy_matching_takes_first(self):
@@ -166,6 +172,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == 2
 
     def test_matched_peaks_populated(self):
@@ -180,6 +187,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == 2
         assert result.experimental_peaks_count == 3
         assert len(result.matched_peaks) == 2
@@ -213,6 +221,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == expected_count
         if expected_count > 0:
             assert result.matched_peaks[0].charge == expected_charge
@@ -225,6 +234,7 @@ class TestSpectrumMatcherScoring:
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
 
+        assert result is not None
         assert result.matched_peaks_count == 2
 
         # Sort matched peaks by charge for deterministic assertions
@@ -294,6 +304,7 @@ class TestSpectrumMatcherScoring:
         res_exp = match_spectrum(
             spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS
         )
+        assert res_exp is not None
         assert res_exp.matched_peaks_count == 1
         assert len(res_exp.matched_peaks) == 1
         assert res_exp.score == 1
@@ -351,6 +362,7 @@ class TestSpectrumMatcherScoring:
         )
 
         res = match_spectrum(spec, theo, tolerance=Tolerance(0.02), scoring=ScoringMode.EXP_PEAKS)
+        assert res is not None
         assert res.matched_peaks_count == 2
         assert len(res.matched_peaks) == 2
         assert res.matched_peaks[0].experimental_mz == 100.0
@@ -371,6 +383,7 @@ class TestSpectrumMatcherScoring:
         # PPM tolerance = 20.0, min_tolerance = 0.0001 (so ppm limit 0.002 takes precedence)
         tol_ppm = Tolerance(value=20.0, unit="ppm", min_tolerance=0.0001)
         res1 = match_spectrum(spec1, theo1, tolerance=tol_ppm, scoring=ScoringMode.EXP_PEAKS)
+        assert res1 is not None
         assert res1.matched_peaks_count == 1
 
         # Test case 2: peak outside ppm window but within min_tolerance
@@ -382,12 +395,14 @@ class TestSpectrumMatcherScoring:
         res2_fail = match_spectrum(
             spec2, theo1, tolerance=tol_ppm_low_min, scoring=ScoringMode.EXP_PEAKS
         )
+        assert res2_fail is not None
         assert res2_fail.matched_peaks_count == 0
 
         tol_ppm_high_min = Tolerance(value=20.0, unit="ppm", min_tolerance=0.01)
         res2_pass = match_spectrum(
             spec2, theo1, tolerance=tol_ppm_high_min, scoring=ScoringMode.EXP_PEAKS
         )
+        assert res2_pass is not None
         assert res2_pass.matched_peaks_count == 1
 
     def test_intensity_scoring_single_matched_peak(self):
@@ -403,6 +418,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENSITY
         )
+        assert result is not None
         assert result.matched_peaks_count == 1
         assert result.score == pytest.approx(3.846)
 
@@ -417,6 +433,7 @@ class TestSpectrumMatcherScoring:
         result2 = match_spectrum(
             spec2, theo2, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENSITY
         )
+        assert result2 is not None
         assert result2.matched_peaks_count == 2
         assert result2.score == pytest.approx(3.846 + 4.059)
 
@@ -432,6 +449,7 @@ class TestSpectrumMatcherScoring:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.INTENSITY
         )
+        assert result is not None
         assert result.matched_peaks_count == 1
         assert result.score == pytest.approx(3.203)
         assert result.matched_peaks[0].charge == 1
@@ -450,6 +468,7 @@ class TestSpectrumMatcherScoring:
             ion_masses_clustered, structure_mass=1000.0, monomer_count=2
         )
         res1 = match_spectrum(spec, theo_clustered, tolerance=tol, scoring=ScoringMode.INTENSITY)
+        assert res1 is not None
         assert res1.matched_peaks_count == 0
         assert res1.score == pytest.approx(-0.337)
 
@@ -465,5 +484,6 @@ class TestSpectrumMatcherScoring:
             ion_masses_separated, structure_mass=1000.0, monomer_count=2
         )
         res2 = match_spectrum(spec, theo_separated, tolerance=tol, scoring=ScoringMode.INTENSITY)
+        assert res2 is not None
         assert res2.matched_peaks_count == 0
         assert res2.score == pytest.approx(-0.337 * 2)

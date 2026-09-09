@@ -163,7 +163,7 @@ def _evaluate_hypotheses(
     spectrum_id: str,
     precursor_mass: float,
     charge: int | None,
-) -> MatchResult:
+) -> MatchResult | None:
     """Evaluate candidate modification hypotheses and return the best scoring MatchResult.
 
     Args:
@@ -177,8 +177,13 @@ def _evaluate_hypotheses(
         charge: The charge state of the experimental spectrum.
 
     Returns:
-        A MatchResult instance for the optimal hypothesis.
+        A MatchResult instance for the optimal hypothesis, or None if no hypotheses or valid matches
+        are found.
     """
+    hypotheses_list = list(hypotheses)
+    if not hypotheses_list:
+        return None
+
     max_charge = charge if charge is not None else MAX_CHARGE
 
     max_score = float("-inf")
@@ -188,7 +193,7 @@ def _evaluate_hypotheses(
     best_theory_ions: list[TheoreticalIonWithMass] = []
     found_any = False
 
-    for hypothesis in hypotheses:
+    for hypothesis in hypotheses_list:
         theory_ions_with_mass = _calculate_theory_ions_with_mass(
             theoretical_spectrum, max_charge, hypothesis.modifications
         )

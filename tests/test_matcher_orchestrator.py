@@ -8,6 +8,7 @@ from kakapo.core.matcher.indexing import build_experimental_spectrum_index
 from kakapo.core.matcher.orchestrator import match_spectra, match_spectrum
 from kakapo.models import (
     Chirality,
+    ModificationMode,
     Monomer,
     RuleShift,
     ScoringMode,
@@ -206,6 +207,25 @@ class TestSpectrumMatcherOrchestrator:
         )
         assert len(results) == 0
 
+    def test_match_spectrum_no_hypotheses_returns_none(self):
+        """Test that match_spectrum returns None when no hypotheses can be generated."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=600.0, spectrum_id="spec_1")
+        theo = make_theoretical_spectrum(
+            [100.0 - PROTON_MASS],
+            structure_mass=500.0,
+            structure_id="struct_nomod",
+            monomer_count=2,
+        )
+        # Precursor mass diff is +100.0 > tolerance, mode is NO_MOD -> 0 hypotheses
+        res = match_spectrum(
+            spec,
+            theo,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.EXP_PEAKS,
+            mode=ModificationMode.NO_MOD,
+        )
+        assert res is None
+
     def test_match_spectra_negative_monomer_modification_skipped(self):
         """Test that pairwise matching filters out structures where max monomer mass plus
         mass difference is negative.
@@ -345,6 +365,8 @@ class TestSpectrumMatcherOrchestrator:
             spec_index=spec_idx,
         )
 
+        assert res_direct is not None
+        assert res_indexed is not None
         assert res_direct.matched_peaks_count == res_indexed.matched_peaks_count
         assert res_direct.score == pytest.approx(res_indexed.score)
         assert len(res_direct.matched_peaks) == len(res_indexed.matched_peaks)

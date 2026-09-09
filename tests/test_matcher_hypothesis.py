@@ -171,6 +171,7 @@ class TestSpectrumMatcherHypothesis:
         result = match_spectrum(
             spec, theo, tolerance=Tolerance(0.01), scoring=ScoringMode.EXP_PEAKS
         )
+        assert result is not None
         assert result.matched_peaks_count == expected_matched
         if expected_idx is None:
             assert len(result.modifications) == 0
@@ -248,6 +249,7 @@ class TestSpectrumMatcherHypothesis:
             scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.FREE_MOD,
         )
+        assert res_normal is not None
         assert res_normal.matched_peaks_count == 1
         assert len(res_normal.modifications) == 1
         assert res_normal.modifications[0].monomer_idx == 1
@@ -261,6 +263,7 @@ class TestSpectrumMatcherHypothesis:
             scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.X_MOD,
         )
+        assert res_x is not None
         assert res_x.matched_peaks_count == 0
         assert len(res_x.modifications) == 0
 
@@ -302,8 +305,7 @@ class TestSpectrumMatcherHypothesis:
             scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.NO_MOD,
         )
-        assert res_no_mod.matched_peaks_count == 0
-        assert len(res_no_mod.modifications) == 0
+        assert res_no_mod is None
 
         res_free_mod = match_spectrum(
             spec,
@@ -312,6 +314,7 @@ class TestSpectrumMatcherHypothesis:
             scoring=ScoringMode.EXP_PEAKS,
             mode=ModificationMode.FREE_MOD,
         )
+        assert res_free_mod is not None
         assert res_free_mod.matched_peaks_count == 1
         assert len(res_free_mod.modifications) == 1
 
@@ -377,6 +380,7 @@ class TestSpectrumMatcherHypothesis:
             mode=ModificationMode.TWO_MOD,
         )
 
+        assert result is not None
         assert result.matched_peaks_count == 2
         assert len(result.modifications) == 2
 
@@ -441,8 +445,7 @@ class TestSpectrumMatcherHypothesis:
             mode=ModificationMode.TWO_MOD,
         )
 
-        assert result.matched_peaks_count == 0
-        assert len(result.modifications) == 0
+        assert result is None
 
     def test_two_mod_matching_includes_single_mod(self) -> None:
         """Verify that TWO_MOD mode can match a single-modification hypothesis if optimal."""
@@ -498,6 +501,7 @@ class TestSpectrumMatcherHypothesis:
             mode=ModificationMode.TWO_MOD,
         )
 
+        assert result is not None
         assert result.matched_peaks_count == 1
         assert len(result.modifications) == 1
         assert result.modifications[0].monomer_idx == 0
