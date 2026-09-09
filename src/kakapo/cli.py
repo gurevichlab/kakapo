@@ -15,6 +15,7 @@ from kakapo.config import (
     DEFAULT_CACHE_DIR,
     DEFAULT_FRAGMENTATION_RULES,
     DEFAULT_MASS_TOLERANCE,
+    DEFAULT_MAX_HITS_PER_SPECTRUM,
     DEFAULT_MIN_PEAKS,
     DEFAULT_MIN_TOLERANCE,
     DEFAULT_MODIFICATION_MODE,
@@ -24,7 +25,7 @@ from kakapo.config import (
 )
 from kakapo.io.writer import write_results, write_spectra, write_structures
 from kakapo.main import run_pipeline
-from kakapo.models import ModificationMode, ScoringMode, Tolerance
+from kakapo.models import MatchResult, ModificationMode, ScoringMode, Tolerance
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -198,6 +199,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="One or more output formats (default: csv). Choices: table, txt, csv, json.",
     )
     parser.add_argument(
+        "--max-hits-per-spectrum",
+        type=int,
+        default=DEFAULT_MAX_HITS_PER_SPECTRUM,
+        help="Maximum number of top hits to output per spectrum by score (default: 10).",
+    )
+    parser.add_argument(
         "--top-n",
         type=int,
         help="Output only top N match results by number of matched peaks.",
@@ -281,6 +288,36 @@ def determine_output_path(
     return base_out
 
 
+def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> list[MatchResult]:
+    """Filter match results to output only top hits per spectrum by score.
+
+    Groups results by spectrum ID, sorts hits for each spectrum descending by score,
+    retains up to max_hits results per spectrum, and returns the combined results sorted by
+    score (descending), spectrum_id (ascending), and structure_id (ascending).
+
+    Args:
+        results: List of MatchResult objects.
+        max_hits: Maximum number of top hits to output per spectrum.
+
+    Returns:
+        Filtered list of MatchResult objects.
+    """
+    if max_hits <= 0:
+        return results
+
+    by_spectrum: dict[str, list[MatchResult]] = {}
+    for res in results:
+        by_spectrum.setdefault(res.spectrum_id, []).append(res)
+
+    filtered: list[MatchResult] = []
+    for spec_results in by_spectrum.values():
+        sorted_hits = sorted(spec_results, key=lambda r: (-r.score, r.structure_id))
+        filtered.extend(sorted_hits[:max_hits])
+
+    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
+    return filtered
+
+
 def _write_all_formats(
     results: list,
     molecules: list,
@@ -316,7 +353,7 @@ def _write_all_formats(
             spectra_written = True
 
 
-def main(args: Optional[list[str]] = None) -> int:
+def main(args: Optional[list[str]] = None) -> int:  # noqa: C901
     """Command-line interface entry point for kakapo.
 
     Parses command-line arguments, validates inputs, configures logging,
@@ -334,6 +371,8 @@ def main(args: Optional[list[str]] = None) -> int:
     parsed_args = parser.parse_args(args)
 
     # Validate arguments
+    if parsed_args.max_hits_per_spectrum is not None and parsed_args.max_hits_per_spectrum <= 0:
+        parser.error("--max-hits-per-spectrum must be positive.")
     if parsed_args.top_n is not None and parsed_args.top_n <= 0:
         parser.error("--top-n must be positive.")
     if parsed_args.num_workers is not None and parsed_args.num_workers <= 0:
@@ -389,6 +428,8 @@ def main(args: Optional[list[str]] = None) -> int:
         )
 
         # 5. Write results (one file per requested format)
+        if parsed_args.max_hits_per_spectrum is not None:
+            results = filter_top_hits_per_spectrum(results, parsed_args.max_hits_per_spectrum)
         if parsed_args.top_n is not None:
             results = results[: parsed_args.top_n]
         _write_all_formats(results, molecules, spectra, parsed_args)

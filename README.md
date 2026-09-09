@@ -85,6 +85,9 @@ kakapo -s path/to/spectra.mgf -str path/to/structures.yaml
   One or more output formats. *(Default: `table`)*  
   Choices: `table`, `txt`, `csv`, `json`.
 
+- `--max-hits-per-spectrum <INT>`  
+  Maximum number of top hits to output per spectrum by score. *(Default: `10`)*
+
 - `--top-n <INT>`  
   Limit output to only top N match results by score.
 

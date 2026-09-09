@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from kakapo.cli import create_parser, main, resolve_paths
+from kakapo.cli import create_parser, filter_top_hits_per_spectrum, main, resolve_paths
 from kakapo.config import DEFAULT_OUTPUT_DIR
 from kakapo.models import Chirality, MatchResult, Molecule, Monomer, Spectrum, Tolerance
 
@@ -103,6 +103,49 @@ def test_resolve_paths_empty_dir(temp_io_structure) -> None:
     """Test resolving directory with no matching files returns empty list."""
     resolved = resolve_paths([str(temp_io_structure["empty_dir"])], [".mgf"])
     assert len(resolved) == 0
+
+
+def make_dummy_match(
+    structure_id: str, spectrum_id: str, matched_peaks_count: int, score: float = 0.0
+) -> MatchResult:
+    """Helper to create dummy MatchResult for testing."""
+    return MatchResult(
+        structure_id=structure_id,
+        spectrum_id=spectrum_id,
+        structure_mass=100.0,
+        spectrum_mass=100.0,
+        tolerance=Tolerance(0.01),
+        matched_peaks_count=matched_peaks_count,
+        theoretical_peaks_count=5,
+        experimental_peaks_count=10,
+        monomer_count=1,
+        unmodified_monomer_mass_vector=(100.0,),
+        score=score,
+        matched_peaks=[],
+    )
+
+
+def test_filter_top_hits_per_spectrum() -> None:
+    """Test filtering top hits per spectrum by score."""
+    res1 = make_dummy_match("struct1", "spec1", 10, score=10.0)
+    res2 = make_dummy_match("struct2", "spec1", 8, score=8.0)
+    res3 = make_dummy_match("struct3", "spec1", 5, score=5.0)
+    res4 = make_dummy_match("structA", "spec2", 9, score=9.0)
+    res5 = make_dummy_match("structB", "spec2", 4, score=4.0)
+
+    results = [res1, res4, res2, res3, res5]
+
+    filtered = filter_top_hits_per_spectrum(results, max_hits=2)
+    assert len(filtered) == 4
+    assert [r.structure_id for r in filtered] == ["struct1", "structA", "struct2", "structB"]
+
+
+def test_filter_top_hits_per_spectrum_zero_or_negative() -> None:
+    """Test that max_hits <= 0 returns results unchanged."""
+    res1 = make_dummy_match("struct1", "spec1", 10)
+    results = [res1]
+    assert filter_top_hits_per_spectrum(results, max_hits=0) == results
+    assert filter_top_hits_per_spectrum(results, max_hits=-1) == results
 
 
 class TestCliMainFunction:
@@ -630,6 +673,48 @@ class TestCliMainFunction:
     @patch("kakapo.cli.write_results")
     @patch("kakapo.cli.write_structures")
     @patch("kakapo.cli.write_spectra")
+    def test_main_max_hits_per_spectrum_success(
+        self,
+        mock_write_spectra: MagicMock,
+        mock_write_structures: MagicMock,
+        mock_write_results: MagicMock,
+        mock_run_pipeline: MagicMock,
+        temp_io_structure,
+    ) -> None:
+        """Test successful execution with --max-hits-per-spectrum filtering results."""
+        res1 = make_dummy_match("struct1", "spec1", 10)
+        res2 = make_dummy_match("struct2", "spec1", 5)
+        res3 = make_dummy_match("struct3", "spec2", 8)
+        mock_run_pipeline.return_value = ([res1, res3, res2], [], [DUMMY_SPEC])
+
+        args = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.01",
+            "--max-hits-per-spectrum",
+            "1",
+            "--stdout",
+        ]
+
+        exit_code = main(args)
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once()
+        mock_write_results.assert_called_once_with(
+            [res1, res3],
+            output_path=None,
+            format_type="csv",
+            molecules=[],
+        )
+        mock_write_structures.assert_not_called()
+        mock_write_spectra.assert_not_called()
+
+    @patch("kakapo.cli.run_pipeline")
+    @patch("kakapo.cli.write_results")
+    @patch("kakapo.cli.write_structures")
+    @patch("kakapo.cli.write_spectra")
     def test_main_multiple_formats(
         self,
         mock_write_spectra: MagicMock,
@@ -756,6 +841,34 @@ class TestCliMainFunction:
             "0.5",
             "--top-n",
             "-5",
+        ]
+        with pytest.raises(SystemExit):
+            main(args_neg)
+
+    def test_main_max_hits_per_spectrum_invalid(self, temp_io_structure) -> None:
+        """Test that invalid values for --max-hits-per-spectrum raise SystemExit."""
+        args_zero = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--max-hits-per-spectrum",
+            "0",
+        ]
+        with pytest.raises(SystemExit):
+            main(args_zero)
+
+        args_neg = [
+            "-s",
+            str(temp_io_structure["spec_file1"]),
+            "-str",
+            str(temp_io_structure["struct_file1"]),
+            "-t",
+            "0.5",
+            "--max-hits-per-spectrum",
+            "-3",
         ]
         with pytest.raises(SystemExit):
             main(args_neg)

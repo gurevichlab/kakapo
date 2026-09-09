@@ -192,9 +192,7 @@ class TestModelsValidation:
 
     def test_matched_peak_negative_experimental_peak_intensity(self):
         """MatchedPeak validates that experimental_peak_intensity is non-negative."""
-        with pytest.raises(
-            ValueError, match="Experimental peak intensity must be non-negative"
-        ):
+        with pytest.raises(ValueError, match="Experimental peak intensity must be non-negative"):
             MatchedPeak(
                 theoretical_mz=100.0,
                 experimental_mz=100.0,
