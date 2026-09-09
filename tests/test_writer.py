@@ -8,6 +8,9 @@ import numpy as np
 import pytest
 
 from kakapo.io.writer import (
+    _prepare_results_for_writing,
+    filter_top_hits_per_spectrum,
+    filter_top_n,
     format_as_csv,
     format_as_json,
     format_as_table,
@@ -625,3 +628,68 @@ class TestWriterDuplicateFiltering:
             assert "result_id" in item
             assert "duplicate_representative" in item
             assert "post_modification_ion_masses" in item
+
+
+def make_dummy_match(
+    structure_id: str, spectrum_id: str, matched_peaks_count: int, score: float = 0.0
+) -> MatchResult:
+    """Helper to create dummy MatchResult for testing."""
+    return MatchResult(
+        structure_id=structure_id,
+        spectrum_id=spectrum_id,
+        structure_mass=100.0,
+        spectrum_mass=100.0,
+        tolerance=Tolerance(0.01),
+        matched_peaks_count=matched_peaks_count,
+        theoretical_peaks_count=5,
+        experimental_peaks_count=10,
+        monomer_count=1,
+        unmodified_monomer_mass_vector=(100.0,),
+        score=score,
+        matched_peaks=[],
+    )
+
+
+class TestWriterMaxHitsAndTopN:
+    """Test suite for max_hits_per_spectrum and top_n filtering in writer."""
+
+    def test_filter_top_hits_per_spectrum(self) -> None:
+        """Test standalone filter_top_hits_per_spectrum function."""
+        res1 = make_dummy_match("struct1", "spec1", 10, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 8, score=8.0)
+        res3 = make_dummy_match("struct3", "spec1", 5, score=5.0)
+        res4 = make_dummy_match("structA", "spec2", 9, score=9.0)
+        res5 = make_dummy_match("structB", "spec2", 4, score=4.0)
+
+        results = [res1, res4, res2, res3, res5]
+
+        filtered = filter_top_hits_per_spectrum(results, max_hits=2)
+        assert len(filtered) == 4
+        assert [r.structure_id for r in filtered] == ["struct1", "structA", "struct2", "structB"]
+
+    def test_filter_top_n(self) -> None:
+        """Test standalone filter_top_n function."""
+        res1 = make_dummy_match("struct1", "spec1", 10, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 8, score=8.0)
+        res3 = make_dummy_match("structA", "spec2", 9, score=9.0)
+
+        results = [res1, res3, res2]
+
+        filtered = filter_top_n(results, top_n=2)
+        assert len(filtered) == 2
+        assert [r.structure_id for r in filtered] == ["struct1", "structA"]
+
+    def test_prepare_results_for_writing_sequential_filtering(self) -> None:
+        """Test applying deduplication, max_hits_per_spectrum, and top_n sequentially."""
+        res1 = make_dummy_match("struct1", "spec1", 10, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 8, score=8.0)
+        res3 = make_dummy_match("struct3", "spec1", 5, score=5.0)
+        res4 = make_dummy_match("structA", "spec2", 9, score=9.0)
+
+        results = [res1, res4, res2, res3]
+
+        filtered = _prepare_results_for_writing(
+            results, max_hits_per_spectrum=2, top_n=2, filter_duplicates=True
+        )
+        assert len(filtered) == 2
+        assert [r.structure_id for r in filtered] == ["struct1", "structA"]

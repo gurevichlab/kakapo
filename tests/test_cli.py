@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from kakapo.cli import create_parser, filter_top_hits_per_spectrum, main, resolve_paths
+from kakapo.cli import create_parser, main, resolve_paths
 from kakapo.config import DEFAULT_OUTPUT_DIR
 from kakapo.models import Chirality, MatchResult, Molecule, Monomer, Spectrum, Tolerance
 
@@ -17,6 +17,24 @@ DUMMY_SPEC = Spectrum(
     intensities=np.array([1.0]),
     precursor_mass=500.0,
 )
+
+
+def make_dummy_match(struct_id: str, spec_id: str, score: float) -> MatchResult:
+    """Helper to construct dummy MatchResult for testing."""
+    return MatchResult(
+        structure_id=struct_id,
+        spectrum_id=spec_id,
+        structure_mass=100.0,
+        spectrum_mass=100.0,
+        tolerance=Tolerance(0.01),
+        matched_peaks_count=5,
+        theoretical_peaks_count=5,
+        experimental_peaks_count=10,
+        monomer_count=1,
+        unmodified_monomer_mass_vector=(100.0,),
+        score=score,
+        matched_peaks=[],
+    )
 
 
 @pytest.fixture
@@ -105,49 +123,6 @@ def test_resolve_paths_empty_dir(temp_io_structure) -> None:
     assert len(resolved) == 0
 
 
-def make_dummy_match(
-    structure_id: str, spectrum_id: str, matched_peaks_count: int, score: float = 0.0
-) -> MatchResult:
-    """Helper to create dummy MatchResult for testing."""
-    return MatchResult(
-        structure_id=structure_id,
-        spectrum_id=spectrum_id,
-        structure_mass=100.0,
-        spectrum_mass=100.0,
-        tolerance=Tolerance(0.01),
-        matched_peaks_count=matched_peaks_count,
-        theoretical_peaks_count=5,
-        experimental_peaks_count=10,
-        monomer_count=1,
-        unmodified_monomer_mass_vector=(100.0,),
-        score=score,
-        matched_peaks=[],
-    )
-
-
-def test_filter_top_hits_per_spectrum() -> None:
-    """Test filtering top hits per spectrum by score."""
-    res1 = make_dummy_match("struct1", "spec1", 10, score=10.0)
-    res2 = make_dummy_match("struct2", "spec1", 8, score=8.0)
-    res3 = make_dummy_match("struct3", "spec1", 5, score=5.0)
-    res4 = make_dummy_match("structA", "spec2", 9, score=9.0)
-    res5 = make_dummy_match("structB", "spec2", 4, score=4.0)
-
-    results = [res1, res4, res2, res3, res5]
-
-    filtered = filter_top_hits_per_spectrum(results, max_hits=2)
-    assert len(filtered) == 4
-    assert [r.structure_id for r in filtered] == ["struct1", "structA", "struct2", "structB"]
-
-
-def test_filter_top_hits_per_spectrum_zero_or_negative() -> None:
-    """Test that max_hits <= 0 returns results unchanged."""
-    res1 = make_dummy_match("struct1", "spec1", 10)
-    results = [res1]
-    assert filter_top_hits_per_spectrum(results, max_hits=0) == results
-    assert filter_top_hits_per_spectrum(results, max_hits=-1) == results
-
-
 class TestCliMainFunction:
     """Test suite for cli.py main function."""
 
@@ -202,6 +177,8 @@ class TestCliMainFunction:
             output_path=None,
             format_type="csv",
             molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -328,7 +305,12 @@ class TestCliMainFunction:
         exit_code = main(args)
         assert exit_code == 0
         mock_write_results.assert_called_with(
-            [], output_path=out_path / "res.csv", format_type="csv", molecules=[]
+            [],
+            output_path=out_path / "res.csv",
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "res.csv")
         mock_write_spectra.assert_called_with([], output_path=out_path / "res.csv")
@@ -349,7 +331,12 @@ class TestCliMainFunction:
         exit_code = main(args_dir)
         assert exit_code == 0
         mock_write_results.assert_called_with(
-            [], output_path=out_path / "results.txt", format_type="table", molecules=[]
+            [],
+            output_path=out_path / "results.txt",
+            format_type="table",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "results.txt")
         mock_write_spectra.assert_called_with([], output_path=out_path / "results.txt")
@@ -382,7 +369,12 @@ class TestCliMainFunction:
         # Should default to DEFAULT_OUTPUT_DIR / results.csv
         expected_out = DEFAULT_OUTPUT_DIR / "results.csv"
         mock_write_results.assert_called_with(
-            [], output_path=expected_out, format_type="csv", molecules=[]
+            [],
+            output_path=expected_out,
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_once_with([], output_path=expected_out)
         mock_write_spectra.assert_called_once_with([], output_path=expected_out)
@@ -413,7 +405,14 @@ class TestCliMainFunction:
         ]
         exit_code = main(args)
         assert exit_code == 0
-        mock_write_results.assert_called_with([], output_path="-", format_type="csv", molecules=[])
+        mock_write_results.assert_called_with(
+            [],
+            output_path="-",
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
+        )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
 
@@ -480,7 +479,12 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_setup_logging.assert_called_once_with(verbosity=1, log_file=log_file)
         mock_write_results.assert_called_once_with(
-            [], output_path=DEFAULT_OUTPUT_DIR / "results.csv", format_type="csv", molecules=[]
+            [],
+            output_path=DEFAULT_OUTPUT_DIR / "results.csv",
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv"
@@ -520,7 +524,12 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_setup_logging.assert_called_with(verbosity=1, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with(
-            [], output_path=out_dir / "results.csv", format_type="csv", molecules=[]
+            [],
+            output_path=out_dir / "results.csv",
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_once_with([], output_path=out_dir / "results.csv")
         mock_write_spectra.assert_called_once_with([], output_path=out_dir / "results.csv")
@@ -557,7 +566,12 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_setup_logging.assert_called_with(verbosity=1, log_file=out_dir / "kakapo.log")
         mock_write_results.assert_called_once_with(
-            [], output_path=out_file, format_type="csv", molecules=[]
+            [],
+            output_path=out_file,
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_once_with([], output_path=out_file)
         mock_write_spectra.assert_called_once_with([], output_path=out_file)
@@ -592,7 +606,12 @@ class TestCliMainFunction:
             verbosity=1, log_file=DEFAULT_OUTPUT_DIR / "kakapo.log"
         )
         mock_write_results.assert_called_once_with(
-            [], output_path=DEFAULT_OUTPUT_DIR / "results.csv", format_type="csv", molecules=[]
+            [],
+            output_path=DEFAULT_OUTPUT_DIR / "results.csv",
+            format_type="csv",
+            molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=None,
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv"
@@ -661,10 +680,12 @@ class TestCliMainFunction:
         mock_run_pipeline.assert_called_once()
         # Should be sliced to top 1 result
         mock_write_results.assert_called_once_with(
-            [results[0]],
+            results,
             output_path=None,
             format_type="csv",
             molecules=[],
+            max_hits_per_spectrum=10,
+            top_n=1,
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -703,10 +724,12 @@ class TestCliMainFunction:
         assert exit_code == 0
         mock_run_pipeline.assert_called_once()
         mock_write_results.assert_called_once_with(
-            [res1, res3],
+            [res1, res3, res2],
             output_path=None,
             format_type="csv",
             molecules=[],
+            max_hits_per_spectrum=1,
+            top_n=None,
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -749,6 +772,8 @@ class TestCliMainFunction:
             output_path=None,
             format_type="csv",
             molecules=[],
+            max_hits_per_spectrum=0,
+            top_n=None,
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()

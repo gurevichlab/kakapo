@@ -35,7 +35,14 @@ def _format_modifications_str(modifications: tuple) -> str:
 
 
 def _filter_duplicates(results: list[MatchResult]) -> list[MatchResult]:
-    """Filter out duplicate same-score results that are not representatives."""
+    """Filter out duplicate same-score results that are not representatives.
+
+    Args:
+        results: A list of MatchResult instances.
+
+    Returns:
+        Deduplicated list of MatchResult objects.
+    """
     return [
         r
         for r in results
@@ -43,20 +50,97 @@ def _filter_duplicates(results: list[MatchResult]) -> list[MatchResult]:
     ]
 
 
+def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> list[MatchResult]:
+    """Filter match results to keep at most max_hits top hits per spectrum by score.
+
+    Args:
+        results: List of MatchResult objects.
+        max_hits: Maximum number of top hits to output per spectrum.
+
+    Returns:
+        Filtered list of MatchResult objects.
+    """
+    if max_hits <= 0:
+        return results
+
+    by_spectrum: dict[str, list[MatchResult]] = {}
+    for res in results:
+        by_spectrum.setdefault(res.spectrum_id, []).append(res)
+
+    filtered: list[MatchResult] = []
+    for spec_results in by_spectrum.values():
+        sorted_hits = sorted(spec_results, key=lambda r: (-r.score, r.structure_id))
+        filtered.extend(sorted_hits[:max_hits])
+
+    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
+    return filtered
+
+
+def filter_top_n(results: list[MatchResult], top_n: int) -> list[MatchResult]:
+    """Filter match results to keep at most overall top_n results by score.
+
+    Args:
+        results: List of MatchResult objects.
+        top_n: Maximum total top match results to output.
+
+    Returns:
+        Filtered list of MatchResult objects.
+    """
+    if top_n <= 0:
+        return results
+    return results[:top_n]
+
+
+def _prepare_results_for_writing(
+    results: list[MatchResult],
+    max_hits_per_spectrum: Optional[int] = None,
+    top_n: Optional[int] = None,
+    filter_duplicates: bool = True,
+) -> list[MatchResult]:
+    """Prepare results for writing by applying duplicate filtering, max hits, and top N sequentially.
+
+    Args:
+        results: List of MatchResult objects.
+        max_hits_per_spectrum: Optional maximum top hits per spectrum.
+        top_n: Optional maximum total top match results.
+        filter_duplicates: Whether to filter out non-representative duplicate results first.
+
+    Returns:
+        Filtered list of MatchResult objects.
+    """
+    filtered = results
+    if filter_duplicates:
+        filtered = _filter_duplicates(filtered)
+    if max_hits_per_spectrum is not None and max_hits_per_spectrum > 0:
+        filtered = filter_top_hits_per_spectrum(filtered, max_hits_per_spectrum)
+    if top_n is not None and top_n > 0:
+        filtered = filter_top_n(filtered, top_n)
+    return filtered
+
+
 def format_as_csv(
     results: list[MatchResult],
     molecules: Optional[dict[str, Molecule]] = None,
+    max_hits_per_spectrum: Optional[int] = None,
+    top_n: Optional[int] = None,
 ) -> str:
     """Format a list of MatchResult objects into a standard CSV string.
 
     Args:
         results: A list of MatchResult instances to format.
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
+        max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
+        top_n: Optional maximum total top match results to output.
 
     Returns:
         A standard RFC 4180 compliant CSV string representation.
     """
-    results = _filter_duplicates(results)
+    results = _prepare_results_for_writing(
+        results,
+        max_hits_per_spectrum=max_hits_per_spectrum,
+        top_n=top_n,
+        filter_duplicates=True,
+    )
     logger.debug("Formatting %d match results as CSV", len(results))
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
@@ -112,17 +196,26 @@ def format_as_csv(
 def format_as_table(
     results: list[MatchResult],
     molecules: Optional[dict[str, Molecule]] = None,
+    max_hits_per_spectrum: Optional[int] = None,
+    top_n: Optional[int] = None,
 ) -> str:
     """Format a list of MatchResult objects into a pretty-printed ASCII table.
 
     Args:
         results: A list of MatchResult instances to format.
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
+        max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
+        top_n: Optional maximum total top match results to output.
 
     Returns:
         A string containing the pretty-printed table.
     """
-    results = _filter_duplicates(results)
+    results = _prepare_results_for_writing(
+        results,
+        max_hits_per_spectrum=max_hits_per_spectrum,
+        top_n=top_n,
+        filter_duplicates=True,
+    )
     logger.debug("Formatting %d match results as ASCII table", len(results))
 
     headers = [
@@ -196,16 +289,27 @@ def mask_to_reversed_binary_string(mask: int, length: int) -> str:
 def format_as_json(
     results: list[MatchResult],
     molecules: Optional[dict[str, Molecule]] = None,
+    max_hits_per_spectrum: Optional[int] = None,
+    top_n: Optional[int] = None,
 ) -> str:
     """Format a list of MatchResult objects into a standard JSON string.
 
     Args:
         results: A list of MatchResult instances to format.
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
+        max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
+        top_n: Optional maximum total top match results to output.
 
     Returns:
         A standard JSON string representation with 2-space indentation.
     """
+    filter_duplicates = max_hits_per_spectrum is not None or top_n is not None
+    results = _prepare_results_for_writing(
+        results,
+        max_hits_per_spectrum=max_hits_per_spectrum,
+        top_n=top_n,
+        filter_duplicates=filter_duplicates,
+    )
     logger.debug("Formatting %d match results as JSON", len(results))
     serialized = []
     for r in results:
@@ -275,6 +379,8 @@ def write_results(
     output_path: Optional[Union[str, Path]] = None,
     format_type: str = "table",
     molecules: Optional[list[Molecule]] = None,
+    max_hits_per_spectrum: Optional[int] = None,
+    top_n: Optional[int] = None,
 ) -> None:
     """Write formatted match results to a file or stdout.
 
@@ -286,6 +392,8 @@ def write_results(
         output_path: Path to write results. If None or "-", prints to standard output.
         format_type: Output format ("table", "txt", "csv", or "json"). Case-insensitive.
         molecules: Optional list of Molecule objects to look up metadata.
+        max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
+        top_n: Optional maximum total top match results to output.
 
     Raises:
         ValueError: If an unsupported format_type is provided.
@@ -302,11 +410,26 @@ def write_results(
 
     fmt = format_type.lower()
     if fmt in ("table", "txt"):
-        formatted_content = format_as_table(results, molecules=molecule_map)
+        formatted_content = format_as_table(
+            results,
+            molecules=molecule_map,
+            max_hits_per_spectrum=max_hits_per_spectrum,
+            top_n=top_n,
+        )
     elif fmt == "csv":
-        formatted_content = format_as_csv(results, molecules=molecule_map)
+        formatted_content = format_as_csv(
+            results,
+            molecules=molecule_map,
+            max_hits_per_spectrum=max_hits_per_spectrum,
+            top_n=top_n,
+        )
     elif fmt == "json":
-        formatted_content = format_as_json(results, molecules=molecule_map)
+        formatted_content = format_as_json(
+            results,
+            molecules=molecule_map,
+            max_hits_per_spectrum=max_hits_per_spectrum,
+            top_n=top_n,
+        )
     else:
         logger.error("Unsupported output format type: %s", format_type)
         raise ValueError(

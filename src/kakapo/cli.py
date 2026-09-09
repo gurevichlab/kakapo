@@ -23,9 +23,14 @@ from kakapo.config import (
     DEFAULT_SCORING_MODE,
     DEFAULT_USE_CACHE,
 )
-from kakapo.io.writer import write_results, write_spectra, write_structures
+from kakapo.io.writer import (
+    _prepare_results_for_writing,
+    write_results,
+    write_spectra,
+    write_structures,
+)
 from kakapo.main import run_pipeline
-from kakapo.models import MatchResult, ModificationMode, ScoringMode, Tolerance
+from kakapo.models import ModificationMode, ScoringMode, Tolerance
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -291,36 +296,6 @@ def determine_output_path(
     return base_out
 
 
-def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> list[MatchResult]:
-    """Filter match results to output only top hits per spectrum by score.
-
-    Groups results by spectrum ID, sorts hits for each spectrum descending by score,
-    retains up to max_hits results per spectrum, and returns the combined results sorted by
-    score (descending), spectrum_id (ascending), and structure_id (ascending).
-
-    Args:
-        results: List of MatchResult objects.
-        max_hits: Maximum number of top hits to output per spectrum.
-
-    Returns:
-        Filtered list of MatchResult objects.
-    """
-    if max_hits <= 0:
-        return results
-
-    by_spectrum: dict[str, list[MatchResult]] = {}
-    for res in results:
-        by_spectrum.setdefault(res.spectrum_id, []).append(res)
-
-    filtered: list[MatchResult] = []
-    for spec_results in by_spectrum.values():
-        sorted_hits = sorted(spec_results, key=lambda r: (-r.score, r.structure_id))
-        filtered.extend(sorted_hits[:max_hits])
-
-    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
-    return filtered
-
-
 def _write_all_formats(
     results: list,
     molecules: list,
@@ -335,19 +310,32 @@ def _write_all_formats(
         spectra: Loaded spectra to filter and write.
         parsed_args: Parsed command-line arguments (provides format list, output path, etc.).
     """
+    filtered_results = _prepare_results_for_writing(
+        results,
+        max_hits_per_spectrum=parsed_args.max_hits_per_spectrum,
+        top_n=parsed_args.top_n,
+        filter_duplicates=True,
+    )
     # Filter only used molecules by ids in results
-    matched_ids = {r.structure_id for r in results}
+    matched_ids = {r.structure_id for r in filtered_results}
     used_molecules = [mol for mol in molecules if mol.structure_id in matched_ids]
 
     # Filter only used spectra by ids in results
-    matched_spec_ids = {r.spectrum_id for r in results}
+    matched_spec_ids = {r.spectrum_id for r in filtered_results}
     used_spectra = [spec for spec in spectra if spec.spectrum_id in matched_spec_ids]
 
     structures_written = False
     spectra_written = False
     for fmt in parsed_args.format:
         output_path = determine_output_path(parsed_args, fmt)
-        write_results(results, output_path=output_path, format_type=fmt, molecules=used_molecules)
+        write_results(
+            results,
+            output_path=output_path,
+            format_type=fmt,
+            molecules=used_molecules,
+            max_hits_per_spectrum=parsed_args.max_hits_per_spectrum,
+            top_n=parsed_args.top_n,
+        )
         if not structures_written and output_path is not None and str(output_path) != "-":
             write_structures(used_molecules, output_path=output_path)
             structures_written = True
@@ -431,10 +419,6 @@ def main(args: Optional[list[str]] = None) -> int:  # noqa: C901
         )
 
         # 5. Write results (one file per requested format)
-        if parsed_args.max_hits_per_spectrum is not None:
-            results = filter_top_hits_per_spectrum(results, parsed_args.max_hits_per_spectrum)
-        if parsed_args.top_n is not None:
-            results = results[: parsed_args.top_n]
         _write_all_formats(results, molecules, spectra, parsed_args)
 
     except Exception as e:
