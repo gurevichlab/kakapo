@@ -39,11 +39,13 @@ def _cluster_and_update_score_group(
         with duplicate_representative fields populated.
     """
     # Sort by representative priority key:
-    # key: (len(modifications), structure_id)
+    # key: (len(modifications), nerpa_score is None, -nerpa_score, structure_id)
     sorted_indexed = sorted(
         score_results,
         key=lambda item: (
             len(item[1].modifications),
+            item[1].nerpa_score is None,
+            -(item[1].nerpa_score if item[1].nerpa_score is not None else 0.0),
             item[1].structure_id,
         ),
     )
@@ -83,7 +85,8 @@ def _deduplicate_results(results: list[MatchResult]) -> list[MatchResult]:
 
     Priority for representative selection:
     1. Fewer modifications.
-    2. Lower structure ID (lexicographically).
+    2. Higher nerpa_score.
+    3. Lower structure ID (lexicographically).
 
     Args:
         results: List of MatchResult objects to deduplicate.
@@ -101,10 +104,10 @@ def _deduplicate_results(results: list[MatchResult]) -> list[MatchResult]:
 
     updated_indexed_results = []
     for spec_results in by_spec.values():
-        # Group by score
+        # Group by kakapo_score
         by_score = defaultdict(list)
         for idx, r in spec_results:
-            by_score[r.score].append((idx, r))
+            by_score[r.kakapo_score].append((idx, r))
 
         for score_results in by_score.values():
             updated_indexed_results.extend(_cluster_and_update_score_group(score_results))

@@ -8,12 +8,14 @@ import csv
 import io
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Union
 
 from tabulate import tabulate
 
-from kakapo.models import MatchResult, Molecule, Spectrum
+from kakapo.config import DEFAULT_SORT_RESULTS_BY
+from kakapo.models import MatchResult, Molecule, SortResultsBy, Spectrum
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -50,12 +52,36 @@ def _filter_duplicates(results: list[MatchResult]) -> list[MatchResult]:
     ]
 
 
-def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> list[MatchResult]:
+def _get_sort_key(
+    res: MatchResult, sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY
+) -> tuple:
+    """Return sort key tuple based on the requested sort_results_by criterion."""
+    sort_enum = SortResultsBy(sort_results_by)
+    if sort_enum == SortResultsBy.KAKAPO:
+        return (-res.kakapo_score, res.spectrum_id, res.structure_id)
+    elif sort_enum == SortResultsBy.NERPA_MS:
+        nerpa = res.nerpa_score
+        return (
+            nerpa is None,
+            -(nerpa if nerpa is not None else 0.0),
+            res.spectrum_id,
+            res.structure_id,
+        )
+    else:  # combined
+        return (-res.combined_score, res.spectrum_id, res.structure_id)
+
+
+def filter_top_hits_per_spectrum(
+    results: list[MatchResult],
+    max_hits: int,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
+) -> list[MatchResult]:
     """Filter match results to keep at most max_hits top hits per spectrum by score.
 
     Args:
         results: List of MatchResult objects.
         max_hits: Maximum number of top hits to output per spectrum.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Returns:
         Filtered list of MatchResult objects.
@@ -69,10 +95,10 @@ def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> l
 
     filtered: list[MatchResult] = []
     for spec_results in by_spectrum.values():
-        sorted_hits = sorted(spec_results, key=lambda r: (-r.score, r.structure_id))
+        sorted_hits = sorted(spec_results, key=lambda r: _get_sort_key(r, sort_results_by))
         filtered.extend(sorted_hits[:max_hits])
 
-    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
+    filtered.sort(key=lambda r: _get_sort_key(r, sort_results_by))
     return filtered
 
 
@@ -93,26 +119,44 @@ def filter_top_n(results: list[MatchResult], top_n: int) -> list[MatchResult]:
 
 def _prepare_results_for_writing(
     results: list[MatchResult],
+    molecules: Optional[dict[str, Molecule]] = None,
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
     filter_duplicates: bool = True,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> list[MatchResult]:
-    """Prepare results for writing by applying duplicate filtering, max hits, and top N sequentially.
+    """Prepare results for writing by applying duplicate filtering, max hits, and top N.
 
     Args:
         results: List of MatchResult objects.
+        molecules: Optional dictionary mapping structure IDs to Molecule objects.
         max_hits_per_spectrum: Optional maximum top hits per spectrum.
         top_n: Optional maximum total top match results.
         filter_duplicates: Whether to filter out non-representative duplicate results first.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Returns:
         Filtered list of MatchResult objects.
     """
     filtered = results
+    if molecules:
+        updated = []
+        for r in filtered:
+            if r.nerpa_score is None:
+                mol = molecules.get(r.structure_id)
+                nerpa_score = mol.nerpa_ms_data.score if mol and mol.nerpa_ms_data else None
+                if nerpa_score is not None:
+                    r = replace(r, nerpa_score=nerpa_score)
+            updated.append(r)
+        filtered = updated
+
     if filter_duplicates:
         filtered = _filter_duplicates(filtered)
+    filtered = sorted(filtered, key=lambda r: _get_sort_key(r, sort_results_by))
     if max_hits_per_spectrum is not None and max_hits_per_spectrum > 0:
-        filtered = filter_top_hits_per_spectrum(filtered, max_hits_per_spectrum)
+        filtered = filter_top_hits_per_spectrum(
+            filtered, max_hits_per_spectrum, sort_results_by=sort_results_by
+        )
     if top_n is not None and top_n > 0:
         filtered = filter_top_n(filtered, top_n)
     return filtered
@@ -123,6 +167,7 @@ def format_as_csv(
     molecules: Optional[dict[str, Molecule]] = None,
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> str:
     """Format a list of MatchResult objects into a standard CSV string.
 
@@ -131,15 +176,18 @@ def format_as_csv(
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
         max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
         top_n: Optional maximum total top match results to output.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Returns:
         A standard RFC 4180 compliant CSV string representation.
     """
     results = _prepare_results_for_writing(
         results,
+        molecules=molecules,
         max_hits_per_spectrum=max_hits_per_spectrum,
         top_n=top_n,
         filter_duplicates=True,
+        sort_results_by=sort_results_by,
     )
     logger.debug("Formatting %d match results as CSV", len(results))
     output = io.StringIO()
@@ -151,7 +199,8 @@ def format_as_csv(
         "structure_mass",
         "spectrum_mass",
         "tolerance",
-        "score",
+        "kakapo_score",
+        "combined_score",
         "matched_peaks_count",
         "theoretical_peaks_count",
         "experimental_peaks_count",
@@ -166,9 +215,12 @@ def format_as_csv(
     for result in results:
         mol = molecules.get(result.structure_id) if molecules else None
         nerpa_data = mol.nerpa_ms_data if mol else None
-        nerpa_score_str = (
-            f"{nerpa_data.score:.3f}" if nerpa_data and nerpa_data.score is not None else ""
+        nerpa_score_val = (
+            result.nerpa_score
+            if result.nerpa_score is not None
+            else (nerpa_data.score if nerpa_data and nerpa_data.score is not None else None)
         )
+        nerpa_score_str = f"{nerpa_score_val:.3f}" if nerpa_score_val is not None else ""
         nerpa_rank_str = str(nerpa_data.rank) if nerpa_data and nerpa_data.rank is not None else ""
         nerpa_mods_str = str(len(nerpa_data.old_to_new_mon_map)) if nerpa_data else ""
         writer.writerow(
@@ -178,7 +230,8 @@ def format_as_csv(
                 f"{result.structure_mass:.5f}",
                 result.spectrum_mass,
                 str(result.tolerance),
-                f"{result.score:.3f}",
+                f"{result.kakapo_score:.3f}",
+                f"{result.combined_score:.3f}",
                 result.matched_peaks_count,
                 result.theoretical_peaks_count,
                 result.experimental_peaks_count,
@@ -198,6 +251,7 @@ def format_as_table(
     molecules: Optional[dict[str, Molecule]] = None,
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> str:
     """Format a list of MatchResult objects into a pretty-printed ASCII table.
 
@@ -206,15 +260,18 @@ def format_as_table(
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
         max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
         top_n: Optional maximum total top match results to output.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Returns:
         A string containing the pretty-printed table.
     """
     results = _prepare_results_for_writing(
         results,
+        molecules=molecules,
         max_hits_per_spectrum=max_hits_per_spectrum,
         top_n=top_n,
         filter_duplicates=True,
+        sort_results_by=sort_results_by,
     )
     logger.debug("Formatting %d match results as ASCII table", len(results))
 
@@ -224,7 +281,8 @@ def format_as_table(
         "Structure Mass",
         "Spectrum Mass",
         "Tolerance",
-        "Score",
+        "Kakapo Score",
+        "Combined Score",
         "Matched Peaks",
         "Theoretical Peaks",
         "Experimental Peaks",
@@ -239,9 +297,12 @@ def format_as_table(
     for result in results:
         mol = molecules.get(result.structure_id) if molecules else None
         nerpa_data = mol.nerpa_ms_data if mol else None
-        nerpa_score_str = (
-            f"{nerpa_data.score:.3f}" if nerpa_data and nerpa_data.score is not None else ""
+        nerpa_score_val = (
+            result.nerpa_score
+            if result.nerpa_score is not None
+            else (nerpa_data.score if nerpa_data and nerpa_data.score is not None else None)
         )
+        nerpa_score_str = f"{nerpa_score_val:.3f}" if nerpa_score_val is not None else ""
         nerpa_rank_str = str(nerpa_data.rank) if nerpa_data and nerpa_data.rank is not None else ""
         nerpa_mods_str = str(len(nerpa_data.old_to_new_mon_map)) if nerpa_data else ""
         data.append(
@@ -251,7 +312,8 @@ def format_as_table(
                 f"{result.structure_mass:.5f}",
                 result.spectrum_mass,
                 str(result.tolerance),
-                f"{result.score:.3f}",
+                f"{result.kakapo_score:.3f}",
+                f"{result.combined_score:.3f}",
                 result.matched_peaks_count,
                 result.theoretical_peaks_count,
                 result.experimental_peaks_count,
@@ -291,6 +353,7 @@ def format_as_json(
     molecules: Optional[dict[str, Molecule]] = None,
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> str:
     """Format a list of MatchResult objects into a standard JSON string.
 
@@ -299,6 +362,7 @@ def format_as_json(
         molecules: Optional dictionary mapping structure IDs to Molecule objects.
         max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
         top_n: Optional maximum total top match results to output.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Returns:
         A standard JSON string representation with 2-space indentation.
@@ -306,9 +370,11 @@ def format_as_json(
     filter_duplicates = max_hits_per_spectrum is not None or top_n is not None
     results = _prepare_results_for_writing(
         results,
+        molecules=molecules,
         max_hits_per_spectrum=max_hits_per_spectrum,
         top_n=top_n,
         filter_duplicates=filter_duplicates,
+        sort_results_by=sort_results_by,
     )
     logger.debug("Formatting %d match results as JSON", len(results))
     serialized = []
@@ -341,9 +407,12 @@ def format_as_json(
 
         mol = molecules.get(r.structure_id) if molecules else None
         nerpa_data = mol.nerpa_ms_data if mol else None
-        nerpa_score_val = (
-            round(nerpa_data.score, 3) if nerpa_data and nerpa_data.score is not None else None
+        nerpa_score_raw = (
+            r.nerpa_score
+            if r.nerpa_score is not None
+            else (nerpa_data.score if nerpa_data and nerpa_data.score is not None else None)
         )
+        nerpa_score_val = round(nerpa_score_raw, 3) if nerpa_score_raw is not None else None
         nerpa_rank_val = nerpa_data.rank if nerpa_data else None
         nerpa_mods_val = len(nerpa_data.old_to_new_mon_map) if nerpa_data else None
 
@@ -355,7 +424,8 @@ def format_as_json(
                 "structure_mass": round(r.structure_mass, 5),
                 "spectrum_mass": r.spectrum_mass,
                 "tolerance": str(r.tolerance),
-                "score": round(r.score, 3),
+                "kakapo_score": round(r.kakapo_score, 3),
+                "combined_score": round(r.combined_score, 3),
                 "matched_peaks_count": r.matched_peaks_count,
                 "theoretical_peaks_count": r.theoretical_peaks_count,
                 "experimental_peaks_count": r.experimental_peaks_count,
@@ -381,6 +451,7 @@ def write_results(
     molecules: Optional[list[Molecule]] = None,
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> None:
     """Write formatted match results to a file or stdout.
 
@@ -394,6 +465,7 @@ def write_results(
         molecules: Optional list of Molecule objects to look up metadata.
         max_hits_per_spectrum: Optional maximum number of top hits to output per spectrum.
         top_n: Optional maximum total top match results to output.
+        sort_results_by: Choice of score sorting ("kakapo", "nerpa-ms", "combined").
 
     Raises:
         ValueError: If an unsupported format_type is provided.
@@ -415,6 +487,7 @@ def write_results(
             molecules=molecule_map,
             max_hits_per_spectrum=max_hits_per_spectrum,
             top_n=top_n,
+            sort_results_by=sort_results_by,
         )
     elif fmt == "csv":
         formatted_content = format_as_csv(
@@ -422,6 +495,7 @@ def write_results(
             molecules=molecule_map,
             max_hits_per_spectrum=max_hits_per_spectrum,
             top_n=top_n,
+            sort_results_by=sort_results_by,
         )
     elif fmt == "json":
         formatted_content = format_as_json(
@@ -429,6 +503,7 @@ def write_results(
             molecules=molecule_map,
             max_hits_per_spectrum=max_hits_per_spectrum,
             top_n=top_n,
+            sort_results_by=sort_results_by,
         )
     else:
         logger.error("Unsupported output format type: %s", format_type)

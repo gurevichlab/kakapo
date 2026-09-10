@@ -19,7 +19,9 @@ DUMMY_SPEC = Spectrum(
 )
 
 
-def make_dummy_match(struct_id: str, spec_id: str, score: float) -> MatchResult:
+def make_dummy_match(
+    struct_id: str, spec_id: str, score: float, nerpa_score: float | None = None
+) -> MatchResult:
     """Helper to construct dummy MatchResult for testing."""
     return MatchResult(
         structure_id=struct_id,
@@ -32,7 +34,8 @@ def make_dummy_match(struct_id: str, spec_id: str, score: float) -> MatchResult:
         experimental_peaks_count=10,
         monomer_count=1,
         unmodified_monomer_mass_vector=(100.0,),
-        score=score,
+        kakapo_score=score,
+        nerpa_score=nerpa_score,
         matched_peaks=[],
     )
 
@@ -179,6 +182,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -311,6 +315,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "res.csv")
         mock_write_spectra.assert_called_with([], output_path=out_path / "res.csv")
@@ -337,6 +342,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_with([], output_path=out_path / "results.txt")
         mock_write_spectra.assert_called_with([], output_path=out_path / "results.txt")
@@ -375,6 +381,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_once_with([], output_path=expected_out)
         mock_write_spectra.assert_called_once_with([], output_path=expected_out)
@@ -412,6 +419,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -485,6 +493,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv"
@@ -530,6 +539,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_once_with([], output_path=out_dir / "results.csv")
         mock_write_spectra.assert_called_once_with([], output_path=out_dir / "results.csv")
@@ -572,6 +582,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_once_with([], output_path=out_file)
         mock_write_spectra.assert_called_once_with([], output_path=out_file)
@@ -612,6 +623,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_called_once_with(
             [], output_path=DEFAULT_OUTPUT_DIR / "results.csv"
@@ -686,6 +698,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=10,
             top_n=1,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -730,6 +743,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=1,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -774,6 +788,7 @@ class TestCliMainFunction:
             molecules=[],
             max_hits_per_spectrum=0,
             top_n=None,
+            sort_results_by="combined",
         )
         mock_write_structures.assert_not_called()
         mock_write_spectra.assert_not_called()
@@ -967,28 +982,49 @@ class TestCliMainFunction:
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
         assert args_default.mode == "free-mod"
 
-    def test_cli_parser_scoring(self) -> None:
-        """Verify that --scoring CLI flag is parsed correctly."""
+    def test_cli_parser_kakapo_scoring(self) -> None:
+        """Verify that --kakapo-scoring CLI flag is parsed correctly."""
         parser = create_parser()
 
         # Test exp-peaks mode
         args_exp = parser.parse_args(
-            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "exp-peaks"]
+            ["-s", "dummy.mgf", "-str", "dummy.json", "--kakapo-scoring", "exp-peaks"]
         )
-        assert args_exp.scoring == "exp-peaks"
+        assert args_exp.kakapo_scoring == "exp-peaks"
 
         # Test intensity mode
         args_intensity = parser.parse_args(
-            ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "intensity"]
+            ["-s", "dummy.mgf", "-str", "dummy.json", "--kakapo-scoring", "intensity"]
         )
-        assert args_intensity.scoring == "intensity"
+        assert args_intensity.kakapo_scoring == "intensity"
 
         # Test default scoring mode (should be exp-peaks)
         args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
-        assert args_default.scoring == "exp-peaks"
+        assert args_default.kakapo_scoring == "exp-peaks"
 
         # Test invalid scoring mode raises SystemExit
         with pytest.raises(SystemExit):
             parser.parse_args(
-                ["-s", "dummy.mgf", "-str", "dummy.json", "--scoring", "invalid-mode"]
+                ["-s", "dummy.mgf", "-str", "dummy.json", "--kakapo-scoring", "invalid-mode"]
+            )
+
+    def test_cli_parser_sort_results_by(self) -> None:
+        """Verify that --sort-results-by CLI flag is parsed correctly."""
+        parser = create_parser()
+
+        # Test valid options
+        for choice in ["kakapo", "nerpa-ms", "combined"]:
+            args = parser.parse_args(
+                ["-s", "dummy.mgf", "-str", "dummy.json", "--sort-results-by", choice]
+            )
+            assert args.sort_results_by == choice
+
+        # Test default choice (should be combined)
+        args_default = parser.parse_args(["-s", "dummy.mgf", "-str", "dummy.json"])
+        assert args_default.sort_results_by == "combined"
+
+        # Test invalid sort option raises SystemExit
+        with pytest.raises(SystemExit):
+            parser.parse_args(
+                ["-s", "dummy.mgf", "-str", "dummy.json", "--sort-results-by", "invalid-choice"]
             )

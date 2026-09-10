@@ -368,7 +368,7 @@ class TestSpectrumMatcherOrchestrator:
         assert res_direct is not None
         assert res_indexed is not None
         assert res_direct.matched_peaks_count == res_indexed.matched_peaks_count
-        assert res_direct.score == pytest.approx(res_indexed.score)
+        assert res_direct.kakapo_score == pytest.approx(res_indexed.kakapo_score)
         assert len(res_direct.matched_peaks) == len(res_indexed.matched_peaks)
 
     def test_parallel_vs_sequential_matching_equivalence(self, monkeypatch) -> None:
@@ -426,5 +426,5 @@ class TestSpectrumMatcherOrchestrator:
             assert r_s.spectrum_id == r_p.spectrum_id
             assert r_s.structure_id == r_p.structure_id
             assert r_s.matched_peaks_count == r_p.matched_peaks_count
-            assert r_s.score == pytest.approx(r_p.score)
+            assert r_s.kakapo_score == pytest.approx(r_p.kakapo_score)
             assert len(r_s.matched_peaks) == len(r_p.matched_peaks)

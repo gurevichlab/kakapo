@@ -2,16 +2,29 @@
 
 import time
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Union
 
-from kakapo.config import DEFAULT_MODIFICATION_MODE, DEFAULT_SCORING_MODE
+from kakapo.config import (
+    DEFAULT_KAKAPO_SCORING_MODE,
+    DEFAULT_MODIFICATION_MODE,
+    DEFAULT_SORT_RESULTS_BY,
+)
 from kakapo.constants import DEFAULT_RULES, FragmentationRule
 from kakapo.core.fragmenter import generate_theoretical_spectrum
 from kakapo.core.matcher import match_spectra
 from kakapo.io.json_parser import parse_nerpa_json_batch
 from kakapo.io.mgf_parser import load_mgf_batch
-from kakapo.models import MatchResult, ModificationMode, Molecule, ScoringMode, Spectrum, Tolerance
+from kakapo.models import (
+    MatchResult,
+    ModificationMode,
+    Molecule,
+    ScoringMode,
+    SortResultsBy,
+    Spectrum,
+    Tolerance,
+)
 from kakapo.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,9 +39,10 @@ def run_pipeline(  # noqa: C901
     rules: Optional[tuple[FragmentationRule, ...]],
     use_cache: bool,
     cache_dir: Path,
-    mode: ModificationMode = ModificationMode(DEFAULT_MODIFICATION_MODE),  # noqa: B008
-    scoring: ScoringMode = ScoringMode(DEFAULT_SCORING_MODE),  # noqa: B008
+    mode: ModificationMode = DEFAULT_MODIFICATION_MODE,
+    scoring: ScoringMode = DEFAULT_KAKAPO_SCORING_MODE,
     num_workers: int | None = None,
+    sort_results_by: SortResultsBy = DEFAULT_SORT_RESULTS_BY,
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -186,13 +200,45 @@ def run_pipeline(  # noqa: C901
         duration_match,
     )
 
-    # 5. Sort results
-    # Primary key: score (descending)
-    # Secondary key: spectrum_id (ascending)
-    # Tertiary key: structure_id (ascending)
-    logger.info("Sorting %d match results by score", len(results))
+    # Populate nerpa_score on MatchResult objects from loaded molecules
+    results = [
+        replace(
+            r,
+            nerpa_score=(
+                molecules[r.structure_id].nerpa_ms_data.score  # pyright: ignore
+                if r.structure_id in molecules and molecules[r.structure_id].nerpa_ms_data
+                else r.nerpa_score
+            ),
+        )
+        for r in results
+    ]
+
+    # 5. Sort results by specified option (kakapo, nerpa-ms, or combined)
+    logger.info("Sorting %d match results by '%s'", len(results), sort_results_by)
     start_sort = time.perf_counter()
-    results.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
+    try:
+        sort_enum = SortResultsBy(sort_results_by)
+    except ValueError as e:
+        logger.error("Invalid sort_results_by option: %s", sort_results_by)
+        raise ValueError(
+            f"Invalid sort_results_by choice: '{sort_results_by}'. "
+            "Must be one of 'kakapo', 'nerpa-ms', or 'combined'."
+        ) from e
+
+    if sort_enum == SortResultsBy.KAKAPO:
+        results.sort(key=lambda r: (-r.kakapo_score, r.spectrum_id, r.structure_id))
+    elif sort_enum == SortResultsBy.NERPA_MS:
+        results.sort(
+            key=lambda r: (
+                r.nerpa_score is None,
+                -(r.nerpa_score if r.nerpa_score is not None else 0.0),
+                r.spectrum_id,
+                r.structure_id,
+            )
+        )
+    elif sort_enum == SortResultsBy.COMBINED:
+        results.sort(key=lambda r: (-r.combined_score, r.spectrum_id, r.structure_id))
+
     duration_sort = time.perf_counter() - start_sort
     logger.info(
         "Sorted match results in %.4f seconds",
