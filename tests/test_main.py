@@ -255,11 +255,11 @@ class TestPipelineOrchestration:
         for r_seq, r_par in zip(res_seq, res_par):
             assert r_seq.structure_id == r_par.structure_id
             assert r_seq.spectrum_id == r_par.spectrum_id
-            assert r_seq.kakapo_score == r_par.kakapo_score
+            assert r_seq.score == r_par.score
             assert r_seq.matched_peaks_count == r_par.matched_peaks_count
 
     def test_run_pipeline_sorting_order(self, temp_files):
-        """Test sorting of results by kakapo_score, nerpa_score, or combined_score."""
+        """Test sorting of results: descending matched peaks, then ascending IDs."""
         results, _, _ = run_pipeline(
             spectra_files=temp_files["mgf"],
             structure_files=[temp_files["ala_json"], temp_files["dimer_json"]],
@@ -269,17 +269,19 @@ class TestPipelineOrchestration:
             rules=None,
             use_cache=False,
             cache_dir=temp_files["tmp_path"] / ".kakapo_cache",
-            sort_results_by="combined",
         )
 
+        # Ensure they are sorted primarily by matched_peaks_count in descending order.
+        # Secondarily by spectrum_id ascending, and thirdly by structure_id ascending.
+        counts = [r.matched_peaks_count for r in results]
+        assert counts == sorted(counts, reverse=True)
+
         for i in range(len(results) - 1):
-            if results[i].combined_score == results[i + 1].combined_score:
+            if results[i].matched_peaks_count == results[i + 1].matched_peaks_count:
                 if results[i].spectrum_id == results[i + 1].spectrum_id:
                     assert results[i].structure_id <= results[i + 1].structure_id
                 else:
                     assert results[i].spectrum_id <= results[i + 1].spectrum_id
-            else:
-                assert results[i].combined_score >= results[i + 1].combined_score
 
     def test_run_pipeline_custom_rules(self, temp_files):
         """Test passing custom fragmentation rules."""

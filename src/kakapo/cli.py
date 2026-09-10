@@ -14,14 +14,13 @@ from kakapo.config import (
     DEFAULT_APPLY_FILTERS,
     DEFAULT_CACHE_DIR,
     DEFAULT_FRAGMENTATION_RULES,
-    DEFAULT_KAKAPO_SCORING_MODE,
     DEFAULT_MASS_TOLERANCE,
     DEFAULT_MAX_HITS_PER_SPECTRUM,
     DEFAULT_MIN_PEAKS,
     DEFAULT_MIN_TOLERANCE,
     DEFAULT_MODIFICATION_MODE,
     DEFAULT_OUTPUT_DIR,
-    DEFAULT_SORT_RESULTS_BY,
+    DEFAULT_SCORING_MODE,
     DEFAULT_USE_CACHE,
 )
 from kakapo.io.writer import (
@@ -31,7 +30,7 @@ from kakapo.io.writer import (
     write_structures,
 )
 from kakapo.main import run_pipeline
-from kakapo.models import ModificationMode, ScoringMode, SortResultsBy, Tolerance
+from kakapo.models import ModificationMode, ScoringMode, Tolerance
 from kakapo.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -154,7 +153,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--mode",
         "-m",
         choices=[m.value for m in ModificationMode],
-        default=DEFAULT_MODIFICATION_MODE.value,
+        default=DEFAULT_MODIFICATION_MODE,
         help=(
             "Modification matching mode (default: free-mod). "
             "Choices: no-mod (unmodified only), "
@@ -164,9 +163,9 @@ def create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--kakapo-scoring",
+        "--scoring",
         choices=[m.value for m in ScoringMode],
-        default=DEFAULT_KAKAPO_SCORING_MODE.value,
+        default=DEFAULT_SCORING_MODE,
         help="Scoring mode to use for matching (default: exp-peaks). "
         "Choices: exp-peaks, intensity.",
     )
@@ -217,15 +216,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--top-n",
         type=int,
         help="Output only top N match results by number of matched peaks.",
-    )
-    parser.add_argument(
-        "--sort-results-by",
-        choices=[s.value for s in SortResultsBy],
-        default=DEFAULT_SORT_RESULTS_BY.value,
-        help=(
-            "Determines how to sort output results: by kakapo_score, nerpa_score, "
-            "or combined_score (default: combined)."
-        ),
     )
 
     # Logging options
@@ -320,14 +310,11 @@ def _write_all_formats(
         spectra: Loaded spectra to filter and write.
         parsed_args: Parsed command-line arguments (provides format list, output path, etc.).
     """
-    molecule_map = {mol.structure_id: mol for mol in molecules} if molecules else {}
     filtered_results = _prepare_results_for_writing(
         results,
-        molecules=molecule_map,
         max_hits_per_spectrum=parsed_args.max_hits_per_spectrum,
         top_n=parsed_args.top_n,
         filter_duplicates=True,
-        sort_results_by=parsed_args.sort_results_by,
     )
     # Filter only used molecules by ids in results
     matched_ids = {r.structure_id for r in filtered_results}
@@ -348,7 +335,6 @@ def _write_all_formats(
             molecules=used_molecules,
             max_hits_per_spectrum=parsed_args.max_hits_per_spectrum,
             top_n=parsed_args.top_n,
-            sort_results_by=parsed_args.sort_results_by,
         )
         if not structures_written and output_path is not None and str(output_path) != "-":
             write_structures(used_molecules, output_path=output_path)
@@ -428,9 +414,8 @@ def main(args: Optional[list[str]] = None) -> int:  # noqa: C901
             use_cache=parsed_args.use_cache,
             cache_dir=Path(parsed_args.cache_dir),
             mode=ModificationMode(parsed_args.mode),
-            scoring=ScoringMode(parsed_args.kakapo_scoring),
+            scoring=ScoringMode(parsed_args.scoring),
             num_workers=parsed_args.num_workers,
-            sort_results_by=parsed_args.sort_results_by,
         )
 
         # 5. Write results (one file per requested format)

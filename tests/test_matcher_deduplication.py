@@ -19,7 +19,7 @@ class TestSpectrumMatcherDeduplication:
             experimental_peaks_count=15,
             monomer_count=3,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-            kakapo_score=0.8,
+            score=0.8,
             post_modification_ion_masses=[100.0, 200.0],
             modifications=(),
         )
@@ -36,7 +36,7 @@ class TestSpectrumMatcherDeduplication:
             experimental_peaks_count=15,
             monomer_count=3,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-            kakapo_score=0.8,
+            score=0.8,
             post_modification_ion_masses=[100.01, 200.01],
             modifications=(),
         )
@@ -53,7 +53,7 @@ class TestSpectrumMatcherDeduplication:
             experimental_peaks_count=15,
             monomer_count=3,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-            kakapo_score=0.9,
+            score=0.9,
             post_modification_ion_masses=[100.0, 200.0],
             modifications=(),
         )
@@ -70,7 +70,7 @@ class TestSpectrumMatcherDeduplication:
             experimental_peaks_count=15,
             monomer_count=3,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0),
-            kakapo_score=0.8,
+            score=0.8,
             post_modification_ion_masses=[100.0, 200.0],
             modifications=(),
         )
@@ -111,7 +111,7 @@ class TestSpectrumMatcherDeduplication:
             "matched_peaks_count": 5,
             "monomer_count": 3,
             "unmodified_monomer_mass_vector": (100.0, 100.0, 100.0),
-            "kakapo_score": 0.8,
+            "score": 0.8,
             "post_modification_ion_masses": [100.0, 200.0],
             "experimental_peaks_count": 15,
         }
@@ -145,38 +145,3 @@ class TestSpectrumMatcherDeduplication:
         assert deduped_map["struct_1"].duplicate_representative == rep_id
         assert deduped_map["struct_C"].duplicate_representative == rep_id
         assert deduped_map["struct_B"].duplicate_representative == rep_id
-
-    def test_deduplicate_results_nerpa_score_priority(self) -> None:
-        """Verify representative selection priority considers higher nerpa_score before structure_id."""
-        common_args = {
-            "spectrum_id": "spec_1",
-            "structure_mass": 100.0,
-            "spectrum_mass": 100.5,
-            "tolerance": Tolerance(0.05),
-            "matched_peaks_count": 5,
-            "monomer_count": 3,
-            "unmodified_monomer_mass_vector": (100.0, 100.0, 100.0),
-            "kakapo_score": 0.8,
-            "post_modification_ion_masses": [100.0, 200.0],
-            "experimental_peaks_count": 15,
-            "theoretical_peaks_count": 10,
-            "modifications": (),
-        }
-
-        # r1 has lower structure_id "struct_A", but nerpa_score=5.0
-        r1 = MatchResult(structure_id="struct_A", nerpa_score=5.0, **common_args)
-        # r2 has higher structure_id "struct_Z", but higher nerpa_score=20.0
-        r2 = MatchResult(structure_id="struct_Z", nerpa_score=20.0, **common_args)
-        # r3 has nerpa_score=None
-        r3 = MatchResult(structure_id="struct_0", nerpa_score=None, **common_args)
-
-        results = [r1, r2, r3]
-        deduped = _deduplicate_results(results)
-
-        deduped_map = {r.structure_id: r for r in deduped}
-
-        # r2 ("struct_Z") has highest nerpa_score (20.0), so it must be the representative!
-        assert deduped_map["struct_Z"].duplicate_representative is None
-        rep_id = deduped_map["struct_Z"].result_id
-        assert deduped_map["struct_A"].duplicate_representative == rep_id
-        assert deduped_map["struct_0"].duplicate_representative == rep_id

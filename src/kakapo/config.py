@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from kakapo.constants import DEFAULT_RULES
-from kakapo.models import ModificationMode, ScoringMode, SortResultsBy
 from kakapo.utils.filters import (
     keep_highest_intensity_in_radius,
     reduce_to_number_of_peaks,
@@ -23,9 +22,8 @@ DEFAULT_CACHE_DIR = Path(".kakapo_cache")
 DEFAULT_MAX_HITS_PER_SPECTRUM = 10
 
 MAX_TOTAL_MASS_DIFFERENCE = 250
-DEFAULT_MODIFICATION_MODE = ModificationMode.FREE_MOD
-DEFAULT_KAKAPO_SCORING_MODE = ScoringMode.EXP_PEAKS
-DEFAULT_SORT_RESULTS_BY = SortResultsBy.COMBINED
+DEFAULT_MODIFICATION_MODE = "free-mod"
+DEFAULT_SCORING_MODE = "exp-peaks"
 MIN_SPECTRA_FOR_PARALLEL = 5
 
 DEFAULT_FILTERS = [

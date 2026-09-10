@@ -27,7 +27,6 @@ from kakapo.models import (
     MonomerModification,
     MonomerOrigin,
     NerpaMSData,
-    SortResultsBy,
     Spectrum,
     Tolerance,
 )
@@ -51,7 +50,7 @@ def sample_results() -> list[MatchResult]:
             structure_mass=800.45,
             spectrum_mass=800.46,
             tolerance=Tolerance(0.02),
-            kakapo_score=12.3456,
+            score=12.3456,
             matched_peaks_count=5,
             theoretical_peaks_count=10,
             experimental_peaks_count=15,
@@ -75,7 +74,7 @@ def sample_results() -> list[MatchResult]:
             structure_mass=950.50,
             spectrum_mass=950.48,
             tolerance=Tolerance(0.05),
-            kakapo_score=0.0,
+            score=0.0,
             matched_peaks_count=3,
             theoretical_peaks_count=12,
             experimental_peaks_count=20,
@@ -118,16 +117,14 @@ class TestWriterCsvFormatting:
         assert rows[0]["structure_mass"] == "800.45000"
         assert rows[1]["structure_mass"] == "950.50000"
         assert rows[0]["tolerance"] == "0.02da"
-        assert rows[0]["kakapo_score"] == "12.346"
-        assert rows[0]["combined_score"] == "12.346"
+        assert rows[0]["score"] == "12.346"
         assert int(rows[0]["matched_peaks_count"]) == 5
         assert int(rows[0]["experimental_peaks_count"]) == 15
         assert "Ala[0]" in rows[0]["modifications"]
 
         assert rows[1]["structure_id"] == "NRP_002"
         assert rows[1]["spectrum_id"] == "spec_102"
-        assert rows[1]["kakapo_score"] == "0.000"
-        assert rows[1]["combined_score"] == "0.000"
+        assert rows[1]["score"] == "0.000"
         assert float(rows[1]["spectrum_mass"]) == 950.48
         assert int(rows[1]["experimental_peaks_count"]) == 20
         assert int(rows[1]["monomer_count"]) == 8
@@ -157,7 +154,7 @@ class TestWriterCsvFormatting:
             structure_mass=500.0,
             spectrum_mass=557.010565,
             tolerance=Tolerance(0.02),
-            kakapo_score=10.0,
+            score=10.0,
             matched_peaks_count=4,
             theoretical_peaks_count=8,
             experimental_peaks_count=12,
@@ -205,7 +202,6 @@ class TestWriterTableFormatting:
         assert "950.50000" in table_str
         # Check table headers are present
         assert "Structure ID" in table_str
-        assert "Combined Score" in table_str
         assert "Experimental Peaks" in table_str
         assert "Monomer Count" in table_str
         assert "Modifications" in table_str
@@ -229,7 +225,7 @@ class TestWriterJsonFormatting:
             structure_mass=sample_results[0].structure_mass,
             spectrum_mass=sample_results[0].spectrum_mass,
             tolerance=sample_results[0].tolerance,
-            kakapo_score=sample_results[0].kakapo_score,
+            score=sample_results[0].score,
             matched_peaks_count=sample_results[0].matched_peaks_count,
             theoretical_peaks_count=sample_results[0].theoretical_peaks_count,
             experimental_peaks_count=sample_results[0].experimental_peaks_count,
@@ -257,7 +253,7 @@ class TestWriterJsonFormatting:
         assert data[0]["structure_mass"] == 800.45
         assert data[1]["structure_mass"] == 950.5
         assert data[0]["tolerance"] == "0.02da"
-        assert data[0]["kakapo_score"] == 12.346
+        assert data[0]["score"] == 12.346
 
         # Test reversed binary mask format (mask = 5 -> "101", padded to monomer_count = 7)
         assert data[0]["matched_peaks"][0]["theoretical_fragment_mask"] == "1010000"
@@ -266,7 +262,7 @@ class TestWriterJsonFormatting:
         assert data[0]["modifications"][0]["initial_monomer_name"] == "Ala"
 
         assert data[1]["structure_id"] == "NRP_002"
-        assert data[1]["kakapo_score"] == 0.0
+        assert data[1]["score"] == 0.0
         assert data[1]["monomer_count"] == 8
         assert data[1]["modifications"][0]["monomer_idx"] == 3
 
@@ -478,7 +474,7 @@ class TestWriterNerpaMSDataFormatting:
             structure_mass=500.0,
             spectrum_mass=500.0,
             tolerance=Tolerance(0.02),
-            kakapo_score=10.0,
+            score=10.0,
             matched_peaks_count=4,
             theoretical_peaks_count=8,
             experimental_peaks_count=12,
@@ -564,7 +560,7 @@ class TestWriterDuplicateFiltering:
             experimental_peaks_count=15,
             monomer_count=6,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
-            kakapo_score=12.3456,
+            score=12.3456,
             duplicate_representative=None,
         )
 
@@ -580,7 +576,7 @@ class TestWriterDuplicateFiltering:
             experimental_peaks_count=15,
             monomer_count=6,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
-            kakapo_score=12.3456,
+            score=12.3456,
             duplicate_representative="res_1",
         )
 
@@ -596,7 +592,7 @@ class TestWriterDuplicateFiltering:
             experimental_peaks_count=15,
             monomer_count=6,
             unmodified_monomer_mass_vector=(100.0, 100.0, 100.0, 100.0, 100.0, 100.0),
-            kakapo_score=9.99,
+            score=9.99,
             duplicate_representative=None,
         )
         return [r1, r2, r3]
@@ -635,11 +631,7 @@ class TestWriterDuplicateFiltering:
 
 
 def make_dummy_match(
-    structure_id: str,
-    spectrum_id: str,
-    matched_peaks_count: int,
-    score: float = 0.0,
-    nerpa_score: float | None = None,
+    structure_id: str, spectrum_id: str, matched_peaks_count: int, score: float = 0.0
 ) -> MatchResult:
     """Helper to create dummy MatchResult for testing."""
     return MatchResult(
@@ -653,8 +645,7 @@ def make_dummy_match(
         experimental_peaks_count=10,
         monomer_count=1,
         unmodified_monomer_mass_vector=(100.0,),
-        kakapo_score=score,
-        nerpa_score=nerpa_score,
+        score=score,
         matched_peaks=[],
     )
 
@@ -702,29 +693,3 @@ class TestWriterMaxHitsAndTopN:
         )
         assert len(filtered) == 2
         assert [r.structure_id for r in filtered] == ["struct1", "structA"]
-
-    def test_prepare_results_for_writing_sort_by_options(self) -> None:
-        """Test sorting match results by kakapo, nerpa-ms, and combined options."""
-        # res1: kakapo=10.0, nerpa=1.0 -> combined=11.0
-        # res2: kakapo=2.0, nerpa=15.0 -> combined=17.0
-        # res3: kakapo=8.0, nerpa=None -> combined=8.0
-        res1 = make_dummy_match("s1", "spec1", 5, score=10.0, nerpa_score=1.0)
-        res2 = make_dummy_match("s2", "spec1", 5, score=2.0, nerpa_score=15.0)
-        res3 = make_dummy_match("s3", "spec1", 5, score=8.0, nerpa_score=None)
-
-        results = [res1, res2, res3]
-
-        by_kakapo = _prepare_results_for_writing(
-            results, filter_duplicates=False, sort_results_by=SortResultsBy("kakapo")
-        )
-        assert [r.structure_id for r in by_kakapo] == ["s1", "s3", "s2"]
-
-        by_nerpa = _prepare_results_for_writing(
-            results, filter_duplicates=False, sort_results_by=SortResultsBy("nerpa-ms")
-        )
-        assert [r.structure_id for r in by_nerpa] == ["s2", "s1", "s3"]
-
-        by_combined = _prepare_results_for_writing(
-            results, filter_duplicates=False, sort_results_by=SortResultsBy("combined")
-        )
-        assert [r.structure_id for r in by_combined] == ["s2", "s1", "s3"]

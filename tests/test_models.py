@@ -12,7 +12,6 @@ from kakapo.models import (
     MonomerModification,
     MonomerOrigin,
     NerpaMSData,
-    SortResultsBy,
     Spectrum,
     TheoreticalIonWithMass,
     Tolerance,
@@ -83,13 +82,6 @@ class TestModelsValidation:
                 precursor_mass=500.0,
                 charge="2",  # type: ignore
             )
-
-    def test_sort_results_by_enum(self):
-        """Test SortResultsBy enum values."""
-        assert SortResultsBy.KAKAPO.value == "kakapo"
-        assert SortResultsBy.NERPA_MS.value == "nerpa-ms"
-        assert SortResultsBy.COMBINED.value == "combined"
-        assert SortResultsBy("combined") == SortResultsBy.COMBINED
 
     def test_spectrum_source_file_path_validation(self):
         """Spectrum validates that source_file_path is a string."""
@@ -318,29 +310,6 @@ class TestModelsValidation:
         assert len(mr.result_id) > 0
         assert mr.duplicate_representative is None
         assert mr.post_modification_ion_masses == []
-        assert mr.kakapo_score == 0.0
-        assert mr.nerpa_score is None
-        assert mr.combined_score == 0.0
-
-    def test_match_result_kakapo_and_nerpa_combined_score(self):
-        """MatchResult correctly calculates combined_score as sum of kakapo_score and nerpa_score."""
-        mr = MatchResult(
-            structure_id="mol_1",
-            spectrum_id="spec_1",
-            structure_mass=100.0,
-            spectrum_mass=100.5,
-            tolerance=Tolerance(0.01),
-            matched_peaks_count=5,
-            theoretical_peaks_count=10,
-            experimental_peaks_count=15,
-            monomer_count=1,
-            unmodified_monomer_mass_vector=(100.0,),
-            kakapo_score=10.5,
-            nerpa_score=4.5,
-        )
-        assert mr.kakapo_score == 10.5
-        assert mr.nerpa_score == 4.5
-        assert mr.combined_score == 15.0
 
     def test_match_result_result_id_validation(self):
         """MatchResult validates that result_id is a string."""

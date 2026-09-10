@@ -307,7 +307,7 @@ class TestSpectrumMatcherScoring:
         assert res_exp is not None
         assert res_exp.matched_peaks_count == 1
         assert len(res_exp.matched_peaks) == 1
-        assert res_exp.kakapo_score == 1
+        assert res_exp.score == 1
 
     def test_greedy_matching_different_charges(self):
         """Verify that theoretical ions of different charges match different experimental peaks when available."""
@@ -420,7 +420,7 @@ class TestSpectrumMatcherScoring:
         )
         assert result is not None
         assert result.matched_peaks_count == 1
-        assert result.kakapo_score == pytest.approx(3.846)
+        assert result.score == pytest.approx(3.846)
 
     def test_intensity_scoring_multiple_ranked_peaks(self):
         """Test intensity scoring with multiple matched peaks of different ranks."""
@@ -435,7 +435,7 @@ class TestSpectrumMatcherScoring:
         )
         assert result2 is not None
         assert result2.matched_peaks_count == 2
-        assert result2.kakapo_score == pytest.approx(3.846 + 4.059)
+        assert result2.score == pytest.approx(3.846 + 4.059)
 
     def test_intensity_scoring_priority(self):
         """Test charge priority selection (charge 1 over charge 2) in representative matching."""
@@ -451,7 +451,7 @@ class TestSpectrumMatcherScoring:
         )
         assert result is not None
         assert result.matched_peaks_count == 1
-        assert result.kakapo_score == pytest.approx(3.203)
+        assert result.score == pytest.approx(3.203)
         assert result.matched_peaks[0].charge == 1
 
     def test_intensity_scoring_missing_group_clustered(self):
@@ -470,7 +470,7 @@ class TestSpectrumMatcherScoring:
         res1 = match_spectrum(spec, theo_clustered, tolerance=tol, scoring=ScoringMode.INTENSITY)
         assert res1 is not None
         assert res1.matched_peaks_count == 0
-        assert res1.kakapo_score == pytest.approx(-0.337)
+        assert res1.score == pytest.approx(-0.337)
 
     def test_intensity_scoring_missing_groups_separated(self):
         """Test that missing peaks outside 2 * tolerance are penalized as separate groups."""
@@ -486,4 +486,4 @@ class TestSpectrumMatcherScoring:
         res2 = match_spectrum(spec, theo_separated, tolerance=tol, scoring=ScoringMode.INTENSITY)
         assert res2 is not None
         assert res2.matched_peaks_count == 0
-        assert res2.kakapo_score == pytest.approx(-0.337 * 2)
+        assert res2.score == pytest.approx(-0.337 * 2)

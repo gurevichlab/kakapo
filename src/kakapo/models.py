@@ -48,15 +48,6 @@ class ModificationMode(str, Enum):
     TWO_MOD = "two-mod"
 
 
-class SortResultsBy(str, Enum):
-    """Options for sorting match results."""
-
-    KAKAPO = "kakapo"
-    NERPA_MS = "nerpa-ms"
-    COMBINED = "combined"
-
-
-
 @dataclass(frozen=True)
 class Tolerance:
     """Represents a mass tolerance window, which can be absolute (Da) or relative (ppm).
@@ -802,8 +793,7 @@ class MatchResult:
         experimental_peaks_count: Number of experimental peaks in the spectrum.
         monomer_count: Number of monomers in the matched molecule.
         unmodified_monomer_mass_vector: Precalculated unmodified vector of monomer masses.
-        kakapo_score: The match score calculated based on the selected scoring mode.
-        nerpa_score: Optional alignment log-odds score from NERPA-MS.
+        score: The match score calculated based on the selected scoring mode.
         matched_peaks: List of matched peaks.
         modifications: Tuple of MonomerModification instances applied to monomers.
         post_modification_ion_masses: List of theoretical ion masses after modification.
@@ -821,18 +811,11 @@ class MatchResult:
     experimental_peaks_count: int
     monomer_count: int
     unmodified_monomer_mass_vector: tuple[float, ...]
-    kakapo_score: float = 0.0
-    nerpa_score: float | None = None
+    score: float = 0.0
     matched_peaks: list[MatchedPeak] = field(default_factory=list)
     modifications: tuple[MonomerModification, ...] = ()
     post_modification_ion_masses: list[float] = field(default_factory=list)
     duplicate_representative: str | None = None
-
-    @property
-    def combined_score(self) -> float:
-        """Sum of kakapo_score and nerpa_score (or 0.0 if nerpa_score is None)."""
-        nerpa = self.nerpa_score if self.nerpa_score is not None else 0.0
-        return self.kakapo_score + nerpa
 
     def __post_init__(self):  # noqa: C901
         if self.structure_mass < 0:
@@ -857,10 +840,6 @@ class MatchResult:
             raise ValueError("All monomer masses in vector must be non-negative numbers")
         if len(self.unmodified_monomer_mass_vector) != self.monomer_count:
             raise ValueError("Unmodified monomer mass vector length must match monomer count")
-        if not isinstance(self.kakapo_score, (int, float)):
-            raise TypeError("kakapo_score must be a float or int")
-        if self.nerpa_score is not None and not isinstance(self.nerpa_score, (int, float)):
-            raise TypeError("nerpa_score must be a float, int, or None")
         if not isinstance(self.modifications, tuple):
             raise TypeError("modifications must be a tuple")
         if any(not isinstance(m, MonomerModification) for m in self.modifications):

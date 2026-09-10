@@ -236,7 +236,7 @@ def _evaluate_hypotheses(
         experimental_peaks_count=len(spec_index.mzs),
         monomer_count=theoretical_spectrum.monomer_count,
         unmodified_monomer_mass_vector=theoretical_spectrum.monomer_mass_vector,
-        kakapo_score=final_score,
+        score=final_score,
         matched_peaks=best_matched_peaks,
         modifications=best_modifications,
         post_modification_ion_masses=post_modification_ion_masses,

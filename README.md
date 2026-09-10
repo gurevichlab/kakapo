@@ -57,9 +57,10 @@ kakapo -s path/to/spectra.mgf -str path/to/structures.yaml
   - `x-mod`: Single modification allowed only on X monomers
   - `two-mod`: Known modification on base monomer + residual on X monomer
 
-- `--kakapo-scoring <SCORING>`  
-  Scoring mode used for matching spectra to structures. *(Default: `exp-peaks`)*  
+- `--scoring <SCORING>`  
+  Scoring mode used for matching spectra to structures. *(Default: `all-peaks`)*  
   Choices:
+  - `all-peaks`: Total matched peaks across theoretical and experimental spectra
   - `exp-peaks`: Experimental matched peaks count
   - `intensity`: Sum of intensities of matched peaks
 
@@ -90,10 +91,6 @@ kakapo -s path/to/spectra.mgf -str path/to/structures.yaml
 - `--top-n <INT>`  
   Limit output to only top N match results by score.
 
-- `--sort-results-by <SORT_BY>`  
-  Determines how to sort output results. *(Default: `combined`)*  
-  Choices: `kakapo`, `nerpa-ms`, `combined`.
-
 #### Logging Options
 
 - `-l, --log-file <PATH>`  
@@ -116,8 +113,7 @@ kakapo -s data/spectra.mgf \
        -str structures/rban_records.yaml \
        -t 0.01da \
        --mode no-mod \
-       --kakapo-scoring intensity \
-       --sort-results-by combined \
+       --scoring intensity \
        -f csv json \
        -o output_dir \
        -v
