@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from kakapo.io.writer import (
+    _group_and_sort_by_spectrum,
     _prepare_results_for_writing,
     filter_top_hits_per_spectrum,
     filter_top_n,
@@ -693,3 +694,62 @@ class TestWriterMaxHitsAndTopN:
         )
         assert len(filtered) == 2
         assert [r.structure_id for r in filtered] == ["struct1", "structA"]
+
+
+class TestWriterSpectrumGrouping:
+    """Test suite for grouping match results by spectrum and sorting groups by highest score."""
+
+    def test_group_and_sort_by_spectrum_ordering(self) -> None:
+        """Test grouping results by spectrum and sorting groups by highest score in group."""
+        # spec1 has max score 10.0 (struct1: 10.0, struct2: 2.0)
+        # spec2 has max score 15.0 (struct3: 15.0, struct4: 1.0)
+        # spec3 has max score 10.0 (struct5: 10.0, struct6: 8.0)
+        res1 = make_dummy_match("struct1", "spec1", 5, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 3, score=2.0)
+        res3 = make_dummy_match("struct3", "spec2", 8, score=15.0)
+        res4 = make_dummy_match("struct4", "spec2", 2, score=1.0)
+        res5 = make_dummy_match("struct5", "spec3", 7, score=10.0)
+        res6 = make_dummy_match("struct6", "spec3", 6, score=8.0)
+
+        # Pass in mixed order
+        results = [res2, res6, res4, res1, res3, res5]
+        grouped = _group_and_sort_by_spectrum(results)
+
+        # Expected order:
+        # spec2 (highest score 15.0): struct3 (15.0), struct4 (1.0)
+        # spec1 (highest score 10.0): struct1 (10.0), struct2 (2.0)
+        # spec3 (highest score 10.0): struct5 (10.0), struct6 (8.0)
+        expected = ["struct3", "struct4", "struct1", "struct2", "struct5", "struct6"]
+        assert [r.structure_id for r in grouped] == expected
+
+    def test_format_as_csv_grouped_by_spectrum(self) -> None:
+        """Test format_as_csv outputs rows grouped by spectrum and sorted by max group score."""
+        res1 = make_dummy_match("struct1", "spec1", 5, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 3, score=2.0)
+        res3 = make_dummy_match("struct3", "spec2", 8, score=15.0)
+        res4 = make_dummy_match("struct4", "spec2", 2, score=1.0)
+
+        csv_str = format_as_csv([res1, res2, res3, res4])
+        reader = csv.DictReader(csv_str.splitlines())
+        rows = list(reader)
+
+        # Group spec2 (max score 15.0) should come before spec1 (max score 10.0)
+        assert [r["structure_id"] for r in rows] == ["struct3", "struct4", "struct1", "struct2"]
+        assert [r["spectrum_id"] for r in rows] == ["spec2", "spec2", "spec1", "spec1"]
+
+    def test_format_as_table_grouped_by_spectrum(self) -> None:
+        """Test format_as_table outputs rows grouped by spectrum and sorted by max group score."""
+        res1 = make_dummy_match("struct1", "spec1", 5, score=10.0)
+        res2 = make_dummy_match("struct2", "spec1", 3, score=2.0)
+        res3 = make_dummy_match("struct3", "spec2", 8, score=15.0)
+        res4 = make_dummy_match("struct4", "spec2", 2, score=1.0)
+
+        table_str = format_as_table([res1, res2, res3, res4])
+        lines = [line for line in table_str.splitlines() if "struct" in line]
+
+        # First line should be struct3 (spec2), second struct4 (spec2), then struct1, struct2
+        assert "struct3" in lines[0]
+        assert "struct4" in lines[1]
+        assert "struct1" in lines[2]
+        assert "struct2" in lines[3]
+

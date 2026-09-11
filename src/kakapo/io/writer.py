@@ -69,10 +69,12 @@ def filter_top_hits_per_spectrum(results: list[MatchResult], max_hits: int) -> l
 
     filtered: list[MatchResult] = []
     for spec_results in by_spectrum.values():
-        sorted_hits = sorted(spec_results, key=lambda r: (-r.score, r.structure_id))
+        sorted_hits = sorted(
+            spec_results, key=lambda r: (-r.score, r.structure_id, r.result_id)
+        )
         filtered.extend(sorted_hits[:max_hits])
 
-    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id))
+    filtered.sort(key=lambda r: (-r.score, r.spectrum_id, r.structure_id, r.result_id))
     return filtered
 
 
@@ -91,19 +93,57 @@ def filter_top_n(results: list[MatchResult], top_n: int) -> list[MatchResult]:
     return results[:top_n]
 
 
+def _group_and_sort_by_spectrum(results: list[MatchResult]) -> list[MatchResult]:
+    """Group match results by spectrum_id and sort groups by their highest score descending.
+
+    Within each spectrum group, results are sorted by score descending, structure_id, and result_id.
+    Groups are sorted by the highest score in the group descending, then spectrum_id.
+
+    Args:
+        results: A list of MatchResult instances.
+
+    Returns:
+        A list of MatchResult instances grouped by spectrum and sorted.
+    """
+    if not results:
+        return []
+
+    by_spectrum: dict[str, list[MatchResult]] = {}
+    for res in results:
+        by_spectrum.setdefault(res.spectrum_id, []).append(res)
+
+    sorted_groups: list[tuple[float, str, list[MatchResult]]] = []
+    for spec_id, spec_results in by_spectrum.items():
+        sorted_hits = sorted(
+            spec_results, key=lambda r: (-r.score, r.structure_id, r.result_id)
+        )
+        highest_score = sorted_hits[0].score if sorted_hits else 0.0
+        sorted_groups.append((highest_score, spec_id, sorted_hits))
+
+    sorted_groups.sort(key=lambda item: (-item[0], item[1]))
+
+    grouped_results: list[MatchResult] = []
+    for _, _, group in sorted_groups:
+        grouped_results.extend(group)
+
+    return grouped_results
+
+
 def _prepare_results_for_writing(
     results: list[MatchResult],
     max_hits_per_spectrum: Optional[int] = None,
     top_n: Optional[int] = None,
     filter_duplicates: bool = True,
+    group_by_spectrum: bool = False,
 ) -> list[MatchResult]:
-    """Prepare results for writing by applying duplicate filtering, max hits, and top N sequentially.
+    """Prepare results for writing by applying duplicate filtering, max hits, and top N.
 
     Args:
         results: List of MatchResult objects.
         max_hits_per_spectrum: Optional maximum top hits per spectrum.
         top_n: Optional maximum total top match results.
         filter_duplicates: Whether to filter out non-representative duplicate results first.
+        group_by_spectrum: Whether to group results by spectrum and sort groups by max score.
 
     Returns:
         Filtered list of MatchResult objects.
@@ -115,6 +155,8 @@ def _prepare_results_for_writing(
         filtered = filter_top_hits_per_spectrum(filtered, max_hits_per_spectrum)
     if top_n is not None and top_n > 0:
         filtered = filter_top_n(filtered, top_n)
+    if group_by_spectrum:
+        filtered = _group_and_sort_by_spectrum(filtered)
     return filtered
 
 
@@ -140,6 +182,7 @@ def format_as_csv(
         max_hits_per_spectrum=max_hits_per_spectrum,
         top_n=top_n,
         filter_duplicates=True,
+        group_by_spectrum=True,
     )
     logger.debug("Formatting %d match results as CSV", len(results))
     output = io.StringIO()
@@ -215,6 +258,7 @@ def format_as_table(
         max_hits_per_spectrum=max_hits_per_spectrum,
         top_n=top_n,
         filter_duplicates=True,
+        group_by_spectrum=True,
     )
     logger.debug("Formatting %d match results as ASCII table", len(results))
 
