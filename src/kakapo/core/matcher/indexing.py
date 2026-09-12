@@ -21,7 +21,7 @@ from kakapo.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class ExperimentalSpectrumIndex:
     """Search index for an experimental spectrum to enable fast peak matching.
 
@@ -150,7 +150,7 @@ def get_matching_range(
     return left_idx, right_idx
 
 
-@dataclass
+@dataclass(slots=True)
 class _StructureIndex:
     """Index structure for fast theoretical spectrum peak lookup.
 

@@ -1,6 +1,9 @@
 """Scoring algorithms for matching theoretical and experimental mass spectra peaks."""
 
+import bisect
+
 from kakapo.constants import SCORING_WEIGHTS
+from kakapo.core.matcher.indexing import ExperimentalSpectrumIndex
 from kakapo.core.matcher.indexing import ExperimentalSpectrumIndex, get_left_index
 from kakapo.models import (
     MatchedPeak,
@@ -48,6 +51,7 @@ def _match_peaks(
         min_mass = mz - tol
         max_mass = mz + tol
 
+        left_idx = bisect.bisect_left(exp_mzs, min_mass, lo=exp_idx)
         left_idx = get_left_index(spec_index, min_mass)
         cand_idx = max(exp_idx, left_idx)
 
@@ -168,6 +172,7 @@ def _match_peaks_intensity(
         mz = ion.mz
         tol = tolerance.get_limit(mz)
 
+        left_idx = bisect.bisect_left(exp_mzs, mz - tol, lo=exp_idx)
         left_idx = get_left_index(spec_index, mz - tol)
         if exp_idx < left_idx:
             exp_idx = left_idx

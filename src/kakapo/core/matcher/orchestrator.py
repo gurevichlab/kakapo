@@ -43,6 +43,7 @@ _worker_tolerance: Tolerance | None = None
 _worker_scoring: ScoringMode | None = None
 _worker_min_shared_peaks: int = DEFAULT_MIN_PEAKS
 _worker_mode: ModificationMode | None = None
+_worker_max_hits_per_spectrum: int | None = None
 
 
 def _init_worker(
@@ -52,6 +53,7 @@ def _init_worker(
     scoring: ScoringMode,
     min_shared_peaks: int,
     mode: ModificationMode,
+    max_hits_per_spectrum: int | None = None,
 ) -> None:
     """Initialize read-only shared state in process pool workers.
 
@@ -62,6 +64,7 @@ def _init_worker(
         scoring: The scoring mode parameter.
         min_shared_peaks: The minimum number of shared peaks for filtering candidates.
         mode: The modification mode configuration.
+        max_hits_per_spectrum: Optional maximum top hits per spectrum for result pruning.
     """
     global _worker_index
     global _worker_theo_map
@@ -69,12 +72,32 @@ def _init_worker(
     global _worker_scoring
     global _worker_min_shared_peaks
     global _worker_mode
+    global _worker_max_hits_per_spectrum
     _worker_index = index
     _worker_theo_map = theo_map
     _worker_tolerance = tolerance
     _worker_scoring = scoring
     _worker_min_shared_peaks = min_shared_peaks
     _worker_mode = mode
+    _worker_max_hits_per_spectrum = max_hits_per_spectrum
+
+
+def _prune_spectrum_results(
+    spec_results: list[MatchResult], max_hits_per_spectrum: int | None
+) -> list[MatchResult]:
+    """Prune candidate match results for a single spectrum to top 3 * max_hits_per_spectrum.
+
+    If max_hits_per_spectrum is None, 0, or negative, all results are retained.
+    """
+    if not max_hits_per_spectrum or max_hits_per_spectrum <= 0:
+        return spec_results
+
+    limit = 3 * max_hits_per_spectrum
+    if len(spec_results) <= limit:
+        return spec_results
+
+    spec_results.sort(key=lambda r: (-r.score, -r.matched_peaks_count, r.structure_id))
+    return spec_results[:limit]
 
 
 def _match_spectra_chunk(spectra_chunk: list[Spectrum]) -> list[MatchResult]:  # noqa: C901
@@ -97,6 +120,7 @@ def _match_spectra_chunk(spectra_chunk: list[Spectrum]) -> list[MatchResult]:  #
 
     results: list[MatchResult] = []
     for spec in spectra_chunk:
+        spec_results: list[MatchResult] = []
         spec_index = build_experimental_spectrum_index(spec)
         feasible_ids = _filter_candidates_with_index(
             spec,
@@ -129,7 +153,10 @@ def _match_spectra_chunk(spectra_chunk: list[Spectrum]) -> list[MatchResult]:  #
                         result is not None
                         and result.matched_peaks_count >= _worker_min_shared_peaks
                     ):
-                        results.append(result)
+                        spec_results.append(result)
+
+        pruned = _prune_spectrum_results(spec_results, _worker_max_hits_per_spectrum)
+        results.extend(pruned)
 
     return results
 
@@ -219,6 +246,7 @@ def match_spectra(  # noqa: C901
     min_shared_peaks: int = DEFAULT_MIN_PEAKS,
     mode: ModificationMode = ModificationMode.FREE_MOD,
     num_workers: int | None = None,
+    max_hits_per_spectrum: int | None = None,
 ) -> list[MatchResult]:
     """Match each experimental spectrum to each theoretical spectrum pairwise.
 
@@ -231,6 +259,7 @@ def match_spectra(  # noqa: C901
             (defaults to DEFAULT_MIN_PEAKS).
         mode: ModificationMode configuration.
         num_workers: Number of worker processes to use for parallel processing.
+        max_hits_per_spectrum: Optional maximum top hits per spectrum to retain.
 
     Returns:
         A list of MatchResult instances for all pairwise matches.
@@ -255,6 +284,7 @@ def match_spectra(  # noqa: C901
         logger.debug("Running matching sequentially.")
         results: list[MatchResult] = []
         for spec in tqdm(spectra_list, desc="Matching spectra", unit="spec"):
+            spec_results: list[MatchResult] = []
             spec_index = build_experimental_spectrum_index(spec)
             feasible_ids = _filter_candidates_with_index(
                 spec, index, tolerance, min_shared_peaks=min_shared_peaks
@@ -287,7 +317,10 @@ def match_spectra(  # noqa: C901
                             spec_index=spec_index,
                         )
                         if result is not None and result.matched_peaks_count >= min_shared_peaks:
-                            results.append(result)
+                            spec_results.append(result)
+
+            pruned = _prune_spectrum_results(spec_results, max_hits_per_spectrum)
+            results.extend(pruned)
     else:
         logger.debug("Running matching in parallel using %d workers", num_workers)
         # Determine chunk size to balance task distribution and scheduling overhead
@@ -298,7 +331,15 @@ def match_spectra(  # noqa: C901
         with ProcessPoolExecutor(
             max_workers=num_workers,
             initializer=_init_worker,
-            initargs=(index, theo_map, tolerance, scoring, min_shared_peaks, mode),
+            initargs=(
+                index,
+                theo_map,
+                tolerance,
+                scoring,
+                min_shared_peaks,
+                mode,
+                max_hits_per_spectrum,
+            ),
         ) as executor:
             # Using executor.map distributes chunk tasks to worker processes
             for chunk_res in executor.map(_match_spectra_chunk, chunks):

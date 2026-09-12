@@ -48,7 +48,7 @@ class ModificationMode(str, Enum):
     TWO_MOD = "two-mod"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Tolerance:
     """Represents a mass tolerance window, which can be absolute (Da) or relative (ppm).
 
@@ -131,7 +131,7 @@ class Tolerance:
                 raise ValueError(f"Invalid tolerance value: '{val_str}'") from e
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Spectrum:
     """An experimental mass spectrometry spectrum.
 
@@ -191,7 +191,7 @@ class Spectrum:
         return self.precursor_mass * charge - PROTON_MASS * charge
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RuleShift:
     """A mass shift applied by a specific fragmentation rule.
 
@@ -204,7 +204,7 @@ class RuleShift:
     shift: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TheoreticalIon:
     """A theoretical ion generated from a fragment.
 
@@ -279,7 +279,7 @@ class TheoreticalIonWithMass:
         self.mz = mz
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TheoreticalSpectrum:
     """A generated theoretical mass spectrum for a molecule.
 
@@ -359,7 +359,7 @@ class TheoreticalSpectrum:
         object.__setattr__(self, "unmodified_ions_with_mass_by_charge", unmodified_ions_by_charge)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Atom:
     """A chemical atom represented at the atomic detail level.
 
@@ -372,7 +372,7 @@ class Atom:
     hydrogens: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AtomicEdge:
     """An undirected bond edge between two atoms.
 
@@ -397,7 +397,7 @@ class AtomicEdge:
             object.__setattr__(self, "atom2", a2)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AtomicBond:
     """An atomic bond containing chemical details of a connection.
 
@@ -410,7 +410,7 @@ class AtomicBond:
     bond_type: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BondSubtype:
     """A classified chemical subtype assigned to an inter-monomer bond.
 
@@ -429,7 +429,7 @@ class BondSubtype:
     reversed: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Monomer:
     """A single monomer (building block) in an rBAN structure.
 
@@ -456,7 +456,7 @@ class Monomer:
             raise ValueError("Monomer residue cannot be empty")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Bond:
     """A chemical bond between two monomers in an rBAN structure.
 
@@ -482,7 +482,7 @@ class Bond:
             raise ValueError("Bond cannot connect a monomer to itself")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Metadata:
     """Metadata for a molecule record.
 
@@ -513,7 +513,7 @@ class Metadata:
         return cls(**class_data)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MonomerOrigin:
     """Origin information for a monomer imported or substituted in a variant.
 
@@ -539,7 +539,7 @@ class MonomerOrigin:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NerpaMSData:
     """NERPA-MS variant alignment and score data.
 
@@ -606,7 +606,7 @@ class NerpaMSData:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Molecule:
     """An rBAN molecular structure.
 
@@ -696,7 +696,7 @@ class Molecule:
         return G
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MatchedPeak:
     """A theoretical peak matched to an experimental peak.
 
@@ -735,7 +735,7 @@ class MatchedPeak:
             raise ValueError("Experimental peak index must be non-negative")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MonomerModification:
     """Represents a chemical modification applied to a monomer in a match.
 
@@ -764,7 +764,7 @@ class MonomerModification:
             raise ValueError("initial_monomer_mass must be non-negative")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ModificationHypothesis:
     """Represents a candidate monomer mass vector and its associated modifications.
 
@@ -777,7 +777,7 @@ class ModificationHypothesis:
     modifications: tuple[MonomerModification, ...] = ()
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class MatchResult:
     """Result of matching a spectrum to a molecule.
 

@@ -5,7 +5,11 @@ import pytest
 
 from kakapo.constants import PROTON_MASS
 from kakapo.core.matcher.indexing import build_experimental_spectrum_index
-from kakapo.core.matcher.orchestrator import match_spectra, match_spectrum
+from kakapo.core.matcher.orchestrator import (
+    _prune_spectrum_results,
+    match_spectra,
+    match_spectrum,
+)
 from kakapo.models import (
     Chirality,
     ModificationMode,
@@ -428,3 +432,57 @@ class TestSpectrumMatcherOrchestrator:
             assert r_s.matched_peaks_count == r_p.matched_peaks_count
             assert r_s.score == pytest.approx(r_p.score)
             assert len(r_s.matched_peaks) == len(r_p.matched_peaks)
+
+    def test_prune_spectrum_results(self):
+        """Test that _prune_spectrum_results correctly truncates to top 3 * max_hits_per_spectrum."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        theo_spectra = [
+            make_theoretical_spectrum(
+                [100.0 - PROTON_MASS],
+                structure_mass=500.0,
+                monomer_count=2,
+                structure_id=f"struct_{i}",
+            )
+            for i in range(10)
+        ]
+        results = match_spectra(
+            [spec],
+            theo_spectra,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.EXP_PEAKS,
+            min_shared_peaks=1,
+            max_hits_per_spectrum=None,
+        )
+        assert len(results) == 10
+
+        # Prune with max_hits_per_spectrum = 2 -> limit = 6
+        pruned = _prune_spectrum_results(results, max_hits_per_spectrum=2)
+        assert len(pruned) == 6
+
+        # Prune with max_hits_per_spectrum = 0 -> no pruning
+        unpruned = _prune_spectrum_results(results, max_hits_per_spectrum=0)
+        assert len(unpruned) == 10
+
+    def test_match_spectra_max_hits_per_spectrum(self):
+        """Test that match_spectra correctly applies max_hits_per_spectrum limit."""
+        spec = make_spectrum([(100.0, 1.0)], precursor_mass=500.0, spectrum_id="spec_1")
+        theo_spectra = [
+            make_theoretical_spectrum(
+                [100.0 - PROTON_MASS],
+                structure_mass=500.0,
+                monomer_count=2,
+                structure_id=f"struct_{i}",
+            )
+            for i in range(10)
+        ]
+
+        # max_hits_per_spectrum = 2 -> bounds to 3 * 2 = 6 candidates for spec
+        results = match_spectra(
+            [spec],
+            theo_spectra,
+            tolerance=Tolerance(0.01),
+            scoring=ScoringMode.EXP_PEAKS,
+            min_shared_peaks=1,
+            max_hits_per_spectrum=2,
+        )
+        assert len(results) == 6

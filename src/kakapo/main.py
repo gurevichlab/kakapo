@@ -29,6 +29,7 @@ def run_pipeline(  # noqa: C901
     mode: ModificationMode = ModificationMode(DEFAULT_MODIFICATION_MODE),  # noqa: B008
     scoring: ScoringMode = ScoringMode(DEFAULT_SCORING_MODE),  # noqa: B008
     num_workers: int | None = None,
+    max_hits_per_spectrum: int | None = None,
 ) -> tuple[list[MatchResult], list[Molecule], list[Spectrum]]:
     """Run the main kakapo analysis pipeline.
 
@@ -178,6 +179,7 @@ def run_pipeline(  # noqa: C901
         mode=mode,
         scoring=scoring,
         num_workers=num_workers,
+        max_hits_per_spectrum=max_hits_per_spectrum,
     )
 
     duration_match = time.perf_counter() - start_match

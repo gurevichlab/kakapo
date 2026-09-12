@@ -416,6 +416,7 @@ def main(args: Optional[list[str]] = None) -> int:  # noqa: C901
             mode=ModificationMode(parsed_args.mode),
             scoring=ScoringMode(parsed_args.scoring),
             num_workers=parsed_args.num_workers,
+            max_hits_per_spectrum=parsed_args.max_hits_per_spectrum,
         )
 
         # 5. Write results (one file per requested format)
